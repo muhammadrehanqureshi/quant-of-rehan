@@ -1641,6 +1641,19 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.4.7, versionCode 140.**
+
+  Owner order 2026-11-23, after the SEARCH and ORDER FLOW tiles printed their
+  whole list on an empty box. Both boxes list nothing until he types, exactly
+  as they did before build 155: the first key opens the matches and clearing
+  the box closes the list again. A SEARCH option is the scrip as CUSTOM SCRIPS
+  OF VOLUME prints it, drawn by that tile's own builder instead of a second
+  one of its own: the ticker, its B, S, U and T line with NET DELTA, then its
+  price with the move's arrow, with the day's high and low closing the price
+  line. A typed ticker narrows to the scrips whose own ticker starts with it,
+  eight at most, and ORDER FLOW does the same before the whole ticker opens
+  that scrip's book. The version bump is versionCode 140 / versionName 4.4.7.
+
 **Version 4.4.6, versionCode 139.**
 
   Owner order 2026-11-22, on the phone's screenshots. Every tile that names a

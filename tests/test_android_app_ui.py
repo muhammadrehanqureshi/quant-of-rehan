@@ -2392,10 +2392,10 @@ class VersionTest(unittest.TestCase):
         # box, numbered sub menus, H & L, the always-listed SECTORS tile,
         # the 100k board and its five complete orders ship as 4.4.3,
         # versionCode 136.
-        # Owner order 2026-11-22: the spelled-out VOLUME headings, the search
-        # and flow scrip lists and the SECTORS line ship as 4.4.6.
-        self.assertIn('android:versionName="4.4.6"', manifest)
-        self.assertIn('android:versionCode="139"', manifest)
+        # Owner order 2026-11-23: an empty SEARCH or ORDER FLOW box lists
+        # nothing, and a search option is the volume tile's own scrip.
+        self.assertIn('android:versionName="4.4.7"', manifest)
+        self.assertIn('android:versionCode="140"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2625,8 +2625,8 @@ class VersionTest(unittest.TestCase):
         # 2026-11-17: the centred closed faces and the SECTORS fix ship as
         # 4.4.2, versionCode 135. The owner's 2026-11-19 order ships as
         # 4.4.3, versionCode 136.
-        self.assertIn('android:versionCode="139"', manifest)
-        self.assertIn('android:versionName="4.4.6"', manifest)
+        self.assertIn('android:versionCode="140"', manifest)
+        self.assertIn('android:versionName="4.4.7"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
@@ -2730,18 +2730,25 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn("boolean rebuild = !q.equals(renderedQuery)", main)
         self.assertIn("styleSearchRow(entry.getValue(), entry.getKey(), q);", main)
 
-    def test_the_empty_box_opens_the_scrip_list_without_a_caret(self):
-        """Owner order 2026-11-22 ("There is not a proper search function for
-        stocks. There should be function just like there is drop down feature
-        on CUSTOM SCRIPS OF VOLUME but without an actual drop down/up icon"):
-        the empty box lists every scrip in its own six-row window, typing
-        narrows that list, and the tile carries no caret."""
+    def test_an_empty_box_lists_nothing_until_he_types(self):
+        """Owner order 2026-11-23: the SEARCH page opens on an empty box that
+        lists no scrip at all, and the ORDER FLOW tile does the same. Build
+        155 printed the whole list on an empty box, which is the regression
+        this guards: the first letter opens the matches and clearing the box
+        closes the list again."""
         main = MAIN.read_text(encoding="utf-8")
         start = main.index("private void renderSearchResults(")
         block = main[start:main.index("private void styleSearchRow(", start)]
-        self.assertNotIn("if (q.isEmpty()) {", block)
-        self.assertIn("if (q.isEmpty() || symbol.startsWith(q)) {", block)
-        self.assertIn("fitSearchWindow();", block)
+        self.assertIn("if (q.isEmpty()) {", block)
+        self.assertIn("searchResults.setVisibility(View.GONE);", block)
+        self.assertIn("if (symbol.startsWith(q)) {", block)
+        self.assertNotIn("if (q.isEmpty() || symbol.startsWith(q)) {", block)
+        flow = main[main.index("private void renderFlowResults("):
+                    main.index("/** The header for the four-column ORDER FLOW")]
+        self.assertIn("if (query.isEmpty()) {", flow)
+        self.assertNotIn("if (query.isEmpty() || row.symbol.startsWith(query)) {",
+                         flow)
+        self.assertIn("row.symbol.startsWith(query)", flow)
         self.assertIn("private void fitSearchWindow() {", main)
         self.assertIn("fitMenuWindow(searchScroll, searchResults, "
                       "searchScroller, SEARCH_ROWS)", main)
@@ -2749,6 +2756,26 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn("@+id/search_scroll", layout)
         self.assertIn("@+id/search_scroller", layout)
         self.assertNotIn("@+id/search_arrow", layout)
+
+    def test_a_search_option_is_the_volume_tile_s_own_scrip(self):
+        """Owner order 2026-11-23: the options read the way a scrip reads in
+        CUSTOM SCRIPS OF VOLUME, drawn by that tile's own builder, so the
+        SEARCH list never wears a second style of its own."""
+        main = MAIN.read_text(encoding="utf-8")
+        self.assertIn("private void appendScripQuote(SpannableStringBuilder sb,",
+                      main)
+        self.assertIn("appendScripQuote(sb, quote);", main)
+        reveal = main[main.index("private SpannableStringBuilder volumeRevealText("):
+                      main.index("private void appendScripQuote(")]
+        self.assertIn("appendScripQuote(sb, quote);", reveal)
+        row = main[main.index("private void styleSearchRow("):
+                   main.index("private GradientDrawable highlightPlate(")]
+        self.assertIn("appendScripQuote(built, quote);", row)
+        self.assertIn('built.append(" H=");', row)
+        self.assertIn('built.append(" & L=");', row)
+        self.assertIn("row.setMinHeight(0);", row)
+        self.assertNotIn("PKR %,.2f\", quote.price", row,
+                         "the option must not rebuild the price line itself")
 
     def test_the_search_menu_is_the_apps_own_dropdown(self):
         """Owner order 2026-11-21: the results are the same dropdown every
@@ -2845,10 +2872,14 @@ class SearchPanelStabilityTest(unittest.TestCase):
         marker = 'PKR %,.2f'
         window = main[main.index("private void styleSearchRow("):
                       main.index("private void paintSignalInk(")]
-        # Owner order 2026-11-01 adds the third site: the live selected
-        # line (row, restamped base, live rebuild), each printing the
-        # price once.
-        self.assertEqual(window.count(marker), 3, window.count(marker))
+        # Owner order 2026-11-23: the row's price is the volume tile's own
+        # builder, so this window keeps the two restamps (the row's pinned
+        # base and its live rebuild) and the builder holds the third site.
+        self.assertIn("appendScripQuote(built, quote);", window)
+        self.assertEqual(window.count(marker), 2, window.count(marker))
+        scrip = main[main.index("private void appendScripQuote("):
+                    main.index("private void colorQuantity")]
+        self.assertEqual(scrip.count(marker), 1, scrip.count(marker))
 
     def test_the_search_answer_prints_buy_green_and_sell_red(self):
         watcher = WATCHER.read_text(encoding="utf-8")
@@ -3468,7 +3499,13 @@ class MenuOrdersTest(unittest.TestCase):
         pinned answer. A price with no percentage stays body ink."""
         search = self.main[self.main.index("private void styleSearchRow("):]
         search = search[:search.index("private GradientDrawable highlightPlate")]
-        self.assertIn("priceFrom, from, 0", search)
+        # Owner order 2026-11-23: a search option is the volume tile's own
+        # scrip, so its price and move are drawn by that builder; the row only
+        # proves it calls the builder and never builds a price of its own.
+        self.assertIn("appendScripQuote(built, quote);", search)
+        scrip = self.main[self.main.index("private void appendScripQuote("):]
+        scrip = scrip[:scrip.index("private void colorQuantity")]
+        self.assertIn("priceFrom, sb.length(), 0", scrip)
         pinned = self.main[self.main.index("private void paintSelectedLine() {"):]
         pinned = pinned[:pinned.index("private CharSequence liveSelectedLine")]
         self.assertIn("from, moveFrom, 0", pinned)
@@ -3487,7 +3524,7 @@ class MenuOrdersTest(unittest.TestCase):
         market = self.main[self.main.index("private void renderMarket("):]
         market = market[:market.index("private SpannableString leadersText")]
         self.assertIn('"KSE100  ".length(), line.length(), 0', market)
-        for source in (search, pinned, live, volume, leaders, market):
+        for source in (scrip, pinned, live, volume, leaders, market):
             self.assertIn("R.color.green", source)
             self.assertIn("R.color.red", source)
 

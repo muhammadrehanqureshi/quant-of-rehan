@@ -118,9 +118,13 @@ class PinnedLineSpaceTest(unittest.TestCase):
     def setUp(self):
         self.main = MAIN.read_text(encoding="utf-8")
 
-    def test_the_search_row_tail_keeps_one_space_before_the_price(self):
-        self.assertIn('String.format(Locale.US, " PKR %,.2f", quote.price)',
-                      self.main)
+    def test_the_search_row_price_starts_its_own_line(self):
+        """Owner order 2026-11-23: a search option is the volume tile's own
+        scrip, so its price begins a line of its own instead of trailing the
+        ticker behind one space."""
+        self.assertIn(
+            'sb.append(String.format(Locale.US, "PKR %,.2f", quote.price));',
+            self.main)
         self.assertNotIn('"   PKR %,.2f"', self.main)
 
     def test_both_tail_formatters_agree_on_the_single_space(self):
