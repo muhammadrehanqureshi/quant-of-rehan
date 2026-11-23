@@ -102,7 +102,10 @@ func (a *App) drawLogin(c *Canvas) {
 	if w < 12 || h < 8 {
 		return
 	}
-	pw := min(58, w)
+	// Owner order 2026-11-23 (latest): the taunt ends HAHAHA!, which is 55
+	// cells, so the tile is two cells wider than it was and the whole sentence
+	// lands on the gate instead of losing its last letter.
+	pw := min(60, w)
 	ph := min(9, h)
 	px, py := (w-pw)/2, (h-ph)/2
 	ix, iy, iw, _ := a.panel(c, px, py, pw, ph, "QUANT OF REHAN", "")
