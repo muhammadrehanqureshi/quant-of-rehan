@@ -80,7 +80,9 @@ func (a *App) drawLogin(c *Canvas) {
 	if w < 12 || h < 8 {
 		return
 	}
-	bw := min(58, w-2)
+	// The panel is as wide as the window when the window is narrow, so the
+	// hint's 37 characters are never cut: thirteen is the number it must show.
+	bw := min(58, w)
 	bh := min(11, h)
 	bx := (w - bw) / 2
 	by := (h - bh) / 2

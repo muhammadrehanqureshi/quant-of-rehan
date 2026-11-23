@@ -161,9 +161,11 @@ func TestTheGateDrawsAtEverySize(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-23: every dot of the green orb is one shade of green, at
-// the near edge as in the middle, while the market is live, pre or post.
-func TestEveryGreenGlobeDotIsTheSameGreen(t *testing.T) {
+// Owner order 2026-11-23: every dot of the green orb is one shade of green at
+// the near edge as in the middle. The globe's own tests (build10_test.go and
+// sphere_test.go) pin that too; this one pins the shade the HUD draws with, so
+// a theme's green cannot slip back to a mixed one.
+func TestTheGreenGlobeIsTheThemeSOneGreen(t *testing.T) {
 	a := demoApp(t, 122, 36)
 	c := NewCanvas(38, 14, a.th.Panel)
 	drawSphere(c, 0, 0, 38, 14, 3.0, true, a.th)

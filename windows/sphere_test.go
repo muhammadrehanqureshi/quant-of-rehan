@@ -42,7 +42,7 @@ func TestSphereTurnsClockwise(t *testing.T) {
 	}
 }
 
-func TestSphereDrawsShadedDots(t *testing.T) {
+func TestSphereDrawsDotsInTheOneGreen(t *testing.T) {
 	a := demoApp(t, 100, 40)
 	c := NewCanvas(40, 14, RGB{})
 	drawSphere(c, 1, 1, 38, 12, 3.0, true, a.th)
@@ -62,8 +62,9 @@ func TestSphereDrawsShadedDots(t *testing.T) {
 	if dots < 30 {
 		t.Fatalf("the globe drew only %d dot cells", dots)
 	}
-	if len(inks) < 2 {
-		t.Fatalf("the globe drew %d ink(s), so it has no depth shading", len(inks))
+	// Owner order 2026-11-23: every lit dot is the theme's one green.
+	if len(inks) != 1 || !inks[a.th.Good] {
+		t.Fatalf("the green globe drew %d ink(s) %v, want the one green %v", len(inks), inks, a.th.Good)
 	}
 }
 
