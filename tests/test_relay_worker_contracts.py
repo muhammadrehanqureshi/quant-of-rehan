@@ -443,7 +443,10 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("function newestFrameAgeMs(snapshot, now)", self.source)
 
         start = self.source.index("async function ensureFeedAlive(env, now)")
-        body = self.source[start:start + 3600]
+        # The slice must reach the end of the watchdog, including the forced
+        # dispatch it ends with; the scan window guard of 2026-11-23 sits
+        # inside it too.
+        body = self.source[start:start + 5200]
         # Owner audit 2026-11-23: measured live, the watchdog forced a second
         # band dispatch at 09:15 PKT while the 08:55 loop was still running.
         # The pre-open recorder had printed nothing yet, so the newest frame
