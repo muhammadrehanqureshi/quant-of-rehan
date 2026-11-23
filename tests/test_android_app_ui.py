@@ -2872,10 +2872,14 @@ class SearchPanelStabilityTest(unittest.TestCase):
         marker = 'PKR %,.2f'
         window = main[main.index("private void styleSearchRow("):
                       main.index("private void paintSignalInk(")]
-        # Owner order 2026-11-01 adds the third site: the live selected
-        # line (row, restamped base, live rebuild), each printing the
-        # price once.
-        self.assertEqual(window.count(marker), 3, window.count(marker))
+        # Owner order 2026-11-23: the row's price is the volume tile's own
+        # builder, so this window keeps the two restamps (the row's pinned
+        # base and its live rebuild) and the builder holds the third site.
+        self.assertIn("appendScripQuote(built, quote);", window)
+        self.assertEqual(window.count(marker), 2, window.count(marker))
+        scrip = main[main.index("private void appendScripQuote("):
+                    main.index("private void colorQuantity")]
+        self.assertEqual(scrip.count(marker), 1, scrip.count(marker))
 
     def test_the_search_answer_prints_buy_green_and_sell_red(self):
         watcher = WATCHER.read_text(encoding="utf-8")
