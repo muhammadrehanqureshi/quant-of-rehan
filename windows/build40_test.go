@@ -46,7 +46,8 @@ func TestPackedLeadersEndBAndSWithASoftComma(t *testing.T) {
 	a := newTestApp(t)
 	c := NewCanvas(80, 1, a.th.Panel)
 	b, s, total := int64(600), int64(300), int64(1000)
-	a.putBSTPacked(c, 0, 0, &b, &s, &total)
+	cols := bstLeaderCols([]Leader{{Buy: &b, Sell: &s, Volume: &total}})
+	a.putBSTPacked(c, 0, 0, &b, &s, &total, cols)
 	row := c.PlainRows()[0]
 	if !strings.Contains(row, "B=600,  S=300,") {
 		t.Fatalf("the packed line does not carry both commas: %q", row)

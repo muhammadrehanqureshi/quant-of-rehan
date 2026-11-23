@@ -152,7 +152,9 @@ func TestTheGateDrawsAtEverySize(t *testing.T) {
 			if c.W != sz[0] || c.H != sz[1] {
 				t.Fatalf("the gate drew %dx%d, want %dx%d", c.W, c.H, sz[0], sz[1])
 			}
-			if c.W >= 40 && c.H >= 12 {
+			// Thirty seven characters of hint need a panel wide enough to hold
+			// them; below that the window is too small for the gate's full line.
+			if c.W >= 44 && c.H >= 12 {
 				if rows := strings.Join(c.PlainRows(), "\n"); !strings.Contains(rows, wantUnlockHint) {
 					t.Fatalf("the hint is missing at %dx%d:\n%s", sz[0], sz[1], rows)
 				}

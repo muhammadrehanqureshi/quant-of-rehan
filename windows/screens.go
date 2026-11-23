@@ -1125,34 +1125,62 @@ func (a *App) putBST(c *Canvas, x, y int, buy, sell, total *int64, keys ...strin
 // digit fields. The KSE100 tile uses it below 96 columns, where the wide field
 // would collide with its PKR group; every other list has the room for the one
 // alignment.
-func (a *App) putBSTPacked(c *Canvas, x, y int, buy, sell, total *int64, keys ...string) int {
+//
+// Owner order 2026-11-23: this form keeps the leaders' columns too. LOADS's
+// shorter S used to pull its U and its & T= off the cells TREET and ENGROH
+// used, so the three rows no longer read as one table. Each field now starts on
+// the cell the widest leader sets, the value still sits hard against its own
+// '=', the comma still sits hard against its own number, and only the padding
+// between the comma and the next label moves.
+func (a *App) putBSTPacked(c *Canvas, x, y int, buy, sell, total *int64, cols bstCols, keys ...string) int {
 	th := a.th
-	vx := x
-	put := func(s string, fg RGB, bold bool) {
-		vx += a.flashText(c, vx, y, s, fg, bold, keys...)
+	put := func(at int, s string, fg RGB, bold bool) {
+		a.flashText(c, at, y, s, fg, bold, keys...)
 	}
 	if buy != nil && sell != nil {
-		put("B=", th.Soft, false)
-		put(commaInt(*buy), th.Good, true)
-		put(",", th.Soft, false)
-		put("  S=", th.Soft, false)
-		put(commaInt(*sell), th.Bad, true)
-		put(",", th.Soft, false)
+		buyS, sellS := commaInt(*buy), commaInt(*sell)
+		put(x, "B=", th.Soft, false)
+		put(x+2, buyS, th.Good, true)
+		put(x+2+runeLen(buyS), ",", th.Soft, false)
+		put(x+cols.sell, "S=", th.Soft, false)
+		put(x+cols.sell+2, sellS, th.Bad, true)
+		put(x+cols.sell+2+runeLen(sellS), ",", th.Soft, false)
 		if total != nil {
 			un := *total - *buy - *sell
 			if un < 0 {
 				un = 0
 			}
-			put("  U=", th.Soft, false)
-			put(commaInt(un), th.Warn, un > 0)
-			put("  &  T=", th.Soft, false)
-			put(commaInt(*total), totalBlue, false)
+			totS := commaInt(*total)
+			put(x+cols.unc, "U=", th.Soft, false)
+			put(x+cols.unc+2, commaInt(un), th.Warn, un > 0)
+			put(x+cols.tot, "&  T=", th.Soft, false)
+			put(x+cols.tot+5, totS, totalBlue, false)
+			return cols.tot + 5 + runeLen(totS)
 		}
+		return cols.unc
 	} else if total != nil {
-		put("T=", th.Soft, false)
-		put(commaInt(*total), totalBlue, false)
+		put(x, "T=", th.Soft, false)
+		totS := commaInt(*total)
+		put(x+2, totS, totalBlue, false)
+		return 2 + runeLen(totS)
 	}
-	return vx - x
+	return 0
+}
+
+// leaderBSTPackedWidth is the cells putBSTPacked uses for one leader on the
+// shared shelf. It measures from the columns rather than the row's own digits,
+// so the tile can tell whether the form fits before it paints the first row.
+func leaderBSTPackedWidth(l Leader, cols bstCols) int {
+	if !l.HasSplit() {
+		if l.HasVolume() {
+			return 2 + runeLen(commaInt(*l.Volume))
+		}
+		return 0
+	}
+	if l.HasVolume() {
+		return cols.tot + 5 + runeLen(commaInt(*l.Volume))
+	}
+	return cols.unc
 }
 
 // The three ways a KSE100 leader can write its volumes, widest first. Owner
@@ -1520,7 +1548,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	usedWide, usedPacked, usedBare := 0, 0, 0
 	for _, l := range leaders[:nL] {
 		usedWide = max(usedWide, leaderBSTWidth(l, cols, true))
-		usedPacked = max(usedPacked, leaderBSTWidth(l, cols, false))
+		usedPacked = max(usedPacked, leaderBSTPackedWidth(l, cols))
 		usedBare = max(usedBare, leaderBSTBareWidth(l))
 	}
 	edge := ix + iw - 2
@@ -1629,7 +1657,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 		case bstWideForm:
 			a.putBSTWide(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		case bstPackedForm:
-			a.putBSTPacked(c, ix+3, row, buy, sell, vol, volKey, pxKey)
+			a.putBSTPacked(c, ix+3, row, buy, sell, vol, cols, volKey, pxKey)
 		case bstBareForm:
 			a.putBSTBare(c, ix+3, row, buy, sell, vol, volKey, pxKey)
 		}

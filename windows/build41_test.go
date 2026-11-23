@@ -19,7 +19,8 @@ func TestUEndsWithoutAComma(t *testing.T) {
 	}
 
 	packed := NewCanvas(80, 1, a.th.Panel)
-	a.putBSTPacked(packed, 0, 0, &b, &s, &total)
+	cols := bstLeaderCols([]Leader{{Buy: &b, Sell: &s, Volume: &total}})
+	a.putBSTPacked(packed, 0, 0, &b, &s, &total, cols)
 	if row := packed.PlainRows()[0]; strings.Contains(row, "U=100,") {
 		t.Fatalf("the packed U field still carries a comma: %q", row)
 	}

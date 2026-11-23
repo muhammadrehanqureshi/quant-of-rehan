@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"time"
 	"unicode"
 )
@@ -9,11 +10,17 @@ import (
 //
 // Owner order 2026-11-23: "i will click the windows build open and the window
 // will open and then it will ask me for a password". The window opens on the
-// box, the box says "Enter password" until he types, and the hint under it
-// claims the password is thirteen characters long. That hint is a decoy, on his
-// own order: the password is the four digits below and the hint never changes
-// to match them. The right one opens the HUD after the welcome line; a wrong
-// one gets the taunt, the box is cleared and the gate stays shut.
+// box, the box says "Enter password" until it has the keys, and the hint under
+// it claims the password is thirteen characters long. That hint is a decoy, on
+// his own order: the password is the four digits below and the hint never
+// changes to match them. The right one opens the HUD after the welcome line; a
+// wrong one gets the taunt, the box is cleared and the gate stays shut.
+//
+// Owner order 2026-11-23 (later): the gate is one of the build's own tiles, with
+// the same frame, diamond title and bright bars as every other panel, the same
+// filled input box the forms use, and the same blinking block at the end of the
+// box, so the cursor moves exactly as it does on the screens behind it. A click
+// on the box takes it: the placeholder goes and the block keeps blinking.
 const (
 	unlockPassword    = "7861"
 	unlockPlaceholder = "Enter password"
@@ -32,8 +39,19 @@ func (a *App) keyLogin(k Key) {
 		a.quit = true
 	case KEnter:
 		a.submitPassword()
+	case KMouse:
+		if k.Btn == MouseLeft && a.passW > 0 &&
+			k.X >= a.passX && k.X < a.passX+a.passW &&
+			k.Y >= a.passY && k.Y < a.passY+a.passH {
+			a.passFocus = true
+			a.passMsg = ""
+		}
 	case KBackspace:
-		if a.passOK || a.passText == "" {
+		if a.passOK {
+			return
+		}
+		a.passFocus = true
+		if a.passText == "" {
 			return
 		}
 		r := []rune(a.passText)
@@ -43,6 +61,7 @@ func (a *App) keyLogin(k Key) {
 		if a.passOK || !unicode.IsPrint(k.R) || k.R == ' ' {
 			return
 		}
+		a.passFocus = true
 		if runeLen(a.passText) >= unlockMaxChars {
 			return
 		}
@@ -72,74 +91,57 @@ func (a *App) loginOpens(now time.Time) bool {
 	return a.locked && a.passOK && !now.Before(a.unlockAt)
 }
 
-// drawLogin paints the gate: the mark's name, the password box with its
-// placeholder or its masked digits, the decoy hint and the last verdict.
+// drawLogin paints the gate as one of the build's own tiles: the panel frame
+// with its diamond and bright bars, the password field built like the forms'
+// input boxes, the decoy hint and the last verdict, and the blinking block at
+// the end of the field while it has the keys. The field's cells are kept on the
+// app so a mouse click can take it.
 func (a *App) drawLogin(c *Canvas) {
 	th := a.th
 	w, h := c.W, c.H
 	if w < 12 || h < 8 {
 		return
 	}
-	// The panel is as wide as the window when the window is narrow, so the
-	// hint's 37 characters are never cut: thirteen is the number it must show.
-	bw := min(58, w)
-	bh := min(11, h)
-	bx := (w - bw) / 2
-	by := (h - bh) / 2
+	pw := min(58, w)
+	ph := min(9, h)
+	px, py := (w-pw)/2, (h-ph)/2
+	ix, iy, iw, _ := a.panel(c, px, py, pw, ph, "QUANT OF REHAN", "")
 
-	c.Fill(bx, by, bw, bh, th.Panel)
-	c.Put(bx, by, '┏', th.Line, false)
-	c.Put(bx+bw-1, by, '┓', th.Line, false)
-	c.Put(bx, by+bh-1, '┗', th.Line, false)
-	c.Put(bx+bw-1, by+bh-1, '┛', th.Line, false)
-	c.HLine(bx+1, by, bw-2, '─', th.Line)
-	c.HLine(bx+1, by+bh-1, bw-2, '─', th.Line)
-	if bw >= 6 {
-		c.HLine(bx+bw-4, by+bh-1, 3, '━', th.Accent)
+	// The input box, exactly as inputRow draws one: the same fill, the same
+	// placeholder ink and the same block cursor.
+	const labelW = 10
+	c.Text(ix, iy+1, labelW, "PASSWORD", th.Soft, false)
+	bx := ix + labelW
+	bw := max(6, min(iw-labelW, 34))
+	field := mix(th.Panel, th.Accent, 0.3)
+	for k := 0; k < bw; k++ {
+		c.Set(bx+k, iy+1, ' ', th.Text, field, false)
+	}
+	masked := strings.Repeat("*", runeLen(a.passText))
+	switch {
+	case a.passText != "":
+		c.Text(bx+1, iy+1, bw-2, fit(masked, bw-2), th.Hot, true)
+	case !a.passFocus:
+		// The placeholder stands until the box is clicked or typed in.
+		c.Text(bx+1, iy+1, bw-2, unlockPlaceholder, mix(th.Soft, th.Panel, 0.25), false)
+	}
+	// The same blink the calculator's and the forms' boxes use: half a second
+	// on, half a second off, from the frame clock.
+	if a.passFocus && !a.passOK && int(a.animSeconds()*2)%2 == 0 {
+		at := bx + 1 + min(runeLen(masked), bw-3)
+		c.Set(at, iy+1, '█', th.Accent, field, false)
 	}
 
-	inside := bw - 2
-	centred := func(y int, s string, fg RGB, bold bool) {
-		x := bx + 1 + max(0, (inside-runeLen(s))/2)
-		c.Text(x, y, inside, s, fg, bold)
+	if iw >= runeLen(unlockHint)+2 {
+		c.Text(ix+max(0, (iw-runeLen(unlockHint))/2), iy+3, iw, unlockHint, th.Soft, false)
 	}
-
-	centred(by+1, "QUANT OF REHAN", th.Hot, true)
-
-	// The password box, the same field the HUD's own forms use.
-	fw := min(inside-2, 34)
-	fx := bx + 1 + (inside-fw)/2
-	fy := by + 3
-	c.Fill(fx, fy, fw, 3, th.Field)
-	c.Put(fx, fy, '┏', th.Line, false)
-	c.Put(fx+fw-1, fy, '┓', th.Line, false)
-	c.Put(fx, fy+2, '┗', th.Line, false)
-	c.Put(fx+fw-1, fy+2, '┛', th.Line, false)
-	c.HLine(fx+1, fy, fw-2, '─', th.Line)
-	c.HLine(fx+1, fy+2, fw-2, '─', th.Line)
-	shown := unlockPlaceholder
-	ink := th.Soft
-	if a.passText != "" {
-		shown, ink = "", th.Accent
-		for range a.passText {
-			shown += "*"
-		}
-	}
-	tx := fx + 2
-	room := fw - 4
-	n := c.Text(tx, fy+1, room, shown, ink, a.passText != "")
-	if !a.passOK && n < room {
-		c.Put(tx+n, fy+1, '█', th.Hot, false)
-	}
-
-	if bh > 7 {
-		centred(fy+4, unlockHint, th.Soft, false)
-	}
-	if bh > 9 && a.passMsg != "" {
-		msgInk := th.Bad
+	if a.passMsg != "" && ph >= 8 {
+		ink := th.Bad
 		if a.passOK {
-			msgInk = th.Good
+			ink = th.Good
 		}
-		centred(by+bh-2, a.passMsg, msgInk, true)
+		c.Text(ix+max(0, (iw-runeLen(a.passMsg))/2), iy+5, iw, a.passMsg, ink, true)
 	}
+
+	a.passX, a.passY, a.passW, a.passH = bx, iy+1, bw, 1
 }

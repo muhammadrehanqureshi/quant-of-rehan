@@ -172,10 +172,15 @@ type App struct {
 
 	// the password gate, owner order 2026-11-23: the window opens on the box
 	// before the HUD, and only unlockPassword opens it.
-	locked   bool
+	locked bool
 	passText string
-	passMsg  string
-	passOK   bool
+	passMsg string
+	passOK bool
+	passFocus bool // the box has the keys, so its placeholder is gone
+	passX int      // the box's cells, so a click can take it
+	passY int
+	passW int
+	passH int
 	unlockAt time.Time
 	priceY      int // the PRICE ALERTS tile's top row, for the wheel
 	priceH      int // and its height
@@ -1129,7 +1134,7 @@ func (a *App) onTick(now time.Time) {
 	a.now = now
 	if a.loginOpens(now) {
 		a.locked = false
-		a.passText, a.passMsg, a.passOK = "", "", false
+		a.passText, a.passMsg, a.passOK, a.passFocus = "", "", false, false
 		// The HUD paints every row of its first frame, not the gate's.
 		a.prevRows = nil
 	}

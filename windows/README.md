@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 158
+# Quant of Rehan for Windows (console edition), build 159
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 159
+
+* **Build 159 (version 3.8.34).** The password gate is now one of the build's own tiles: the same panel frame, diamond title and bright bars as QUANT CORE and KSE100, and the password field is built exactly like the forms' input boxes, with its PASSWORD label, its filled box and its placeholder ink. The box carries the same half second blinking block the calculator and the forms use, and a click on the box takes it: the placeholder goes and the block keeps blinking, so the cursor behaves as it does everywhere else in the build. A click elsewhere on the tile leaves the box alone. The KSE100 leaders' volumes are back on shared columns: B, S, U and T start on the same cells on all three rows, so LOADS's shorter S no longer pulls its U= and its & T= off the columns TREET and ENGROH use. Each value still sits hard against its own '=' and each comma against its own number. The executable's file version is `3.8.34.0`.
 
 ## What is new in build 158
 
