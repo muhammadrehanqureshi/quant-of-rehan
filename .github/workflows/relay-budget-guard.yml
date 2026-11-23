@@ -6,7 +6,11 @@ name: Relay budget guard
 # and sends one deduped owner email at 80 percent or exhaustion.
 on:
   schedule:
-    - cron: "0,30 4-10 * * 1-5"
+    # 4-11 UTC is 09:00 to 16:59 PKT. The hour 11 fires at 16:00 and 16:30 are
+    # inside Friday's second band (14:32 to 16:30), which the audit of
+    # 2026-11-23 found unwatched; the guard's own 09:00 and 15:50 filters make
+    # the extra Mon-Thu wakes cost a checkout and nothing else.
+    - cron: "0,30 4-11 * * 1-5"
   workflow_dispatch:
 
 permissions:

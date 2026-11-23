@@ -74,5 +74,53 @@ class ReadinessGateTest(unittest.TestCase):
         self.assertNotIn("while true", text)
 
 
+class ScanAuditFixesTest(unittest.TestCase):
+    """Owner audit 2026-11-23: the drift found in the scheduled windows.
+
+    Each finding is pinned by what the workflow must contain, so a later edit
+    cannot quietly restore the defect:
+
+      * the readiness report indexed an empty band list on a closed day and
+        failed the run (44800521311, the Friday fire delivered after midnight);
+      * the failsafe grid stopped at 15:50 and resumed at 16:05, leaving
+        Friday's 14:32 to 16:30 band unwatched for fifteen minutes;
+      * the signal push safety net ran Tue-Sat, so Saturday fired and Monday
+        morning had no push at all;
+      * the budget guard stopped at 15:30, so Friday's second band had no
+        budget check.
+    """
+
+    def _read(self, name: str) -> str:
+        return (ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
+
+    def test_the_readiness_report_never_indexes_a_closed_day(self):
+        text = self._read("readiness-report.yml")
+        guard = text.index("if not bands:")
+        self.assertLess(guard, text.index("bands[-1]"),
+                        "the empty band guard must run before the band is read")
+        # The sentence is one print split over two source lines, so the test
+        # reads its two halves rather than a run of text the file never holds.
+        self.assertIn("is not a PSX trading", text)
+        self.assertIn("no session edge to check", text)
+
+    def test_the_failsafe_watches_the_whole_friday_second_band(self):
+        text = self._read("session-failsafe.yml")
+        self.assertIn('cron: "55 10 * * 1-5"', text,
+                      "15:55 PKT closes the 15:50 to 16:05 hole in Friday's band")
+        self.assertNotIn('cron: "0,5,15,25,35,45 11 * * 1-5"', text,
+                         "a fire on the hour is the one GitHub drops")
+
+    def test_the_signal_safety_net_runs_on_the_trading_week(self):
+        text = self._read("signal-push.yml")
+        self.assertIn('cron: "45 3 * * 1-5"', text)
+        self.assertNotIn('cron: "45 3 * * 2-6"', text,
+                         "2-6 fires on Saturday and skips Monday")
+
+    def test_the_budget_guard_covers_the_friday_second_band(self):
+        text = self._read("relay-budget-guard.yml")
+        self.assertIn('cron: "0,30 4-11 * * 1-5"', text,
+                      "hour 11 UTC is 16:00 and 16:30 PKT")
+
+
 if __name__ == "__main__":
     unittest.main()

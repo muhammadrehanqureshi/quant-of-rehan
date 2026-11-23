@@ -21,12 +21,17 @@ name: Session failsafe
 # 04:00-10:50 UTC = 09:00-15:50 PKT every ten minutes, the bands, the recorder
 # warm-ups and the break. The 09:00 fire is the first one inside the 08:55
 # warm-up, so a dropped 08:55 schedule is recovered before the 09:15 pre-open.
-# 11:05-11:45 UTC = 16:05-16:45 PKT, the post-market tail.
+# 10:55 UTC = 15:55 PKT and 11:05-11:45 UTC = 16:05-16:45 PKT, the Friday
+# second band tail and the post-market tail. The 15:55 fire is the audit of
+# 2026-11-23: the grid stopped at 15:50 and resumed at 16:05, so Friday's
+# 14:32 to 16:30 band went unwatched for a quarter of an hour. It is 15:55 and
+# not 16:00 because a fire on the hour is the one GitHub drops under load.
 
 on:
   schedule:
     - cron: "45 3 * * 1-5"
     - cron: "*/10 4-10 * * 1-5"
+    - cron: "55 10 * * 1-5"
     - cron: "5,15,25,35,45 11 * * 1-5"
   workflow_dispatch:
 
