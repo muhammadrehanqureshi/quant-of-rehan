@@ -82,6 +82,12 @@ func (a *App) render() *Canvas {
 	th := a.th
 	c := NewCanvas(a.w, a.h, th.BG)
 	a.hits = a.hits[:0]
+	// Owner order 2026-11-23: the password gate is the whole window until the
+	// right password is typed, so no tile, tab or click is drawn behind it.
+	if a.locked {
+		a.drawLogin(c)
+		return c
+	}
 	if a.w < minW || a.h < minH {
 		msg := fmt.Sprintf("TERMINAL TOO SMALL: need %dx%d, have %dx%d", minW, minH, a.w, a.h)
 		c.Text(max(0, (a.w-runeLen(msg))/2), a.h/2, a.w, msg, th.Warn, true)

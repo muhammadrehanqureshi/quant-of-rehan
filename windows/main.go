@@ -17,6 +17,8 @@ Keys:  1-5 or F1-F5 or TAB switch screens   R refresh   D signal details (Home)
        Search: type, UP/DOWN, ENTER, ESC clears
 Mouse: click tabs, rows and switches, wheel scrolls, right click goes Home
 Sound and the two alert flags are changed only on SETTINGS.
+The window opens on the password box: type the password, ENTER opens the HUD,
+ESC or Ctrl+C closes the window.
 
 Flags:
 `
@@ -126,6 +128,10 @@ func main() {
 	if openOwnConsole() {
 		return
 	}
+
+	// Owner order 2026-11-23: the window opens on the password box before the
+	// HUD. Snapshots, --selftest, --feedwatch and --version above never see it.
+	app.locked = true
 
 	t := newTerm()
 	if err := app.run(t); err != nil {
