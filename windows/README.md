@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 157
+# Quant of Rehan for Windows (console edition), build 158
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 158
+
+* **Build 158 (version 3.8.33).** The window opens on a password box before the HUD. The box reads `Enter password` until something is typed, and the line under it reads `HINT: Password contains 13 characters.` That hint is a decoy the owner asked for and the real password is the four digits he set, so the hint is never corrected. ENTER on the right password shows `Welcome back, Mr. Rehan!` and then opens the HUD; a wrong one shows `Nice try, buddy. Get your punk ahh out of here.`, clears the box and keeps the HUD shut. The typed password is masked with asterisks, BACKSPACE rubs out a digit, and ESC or Ctrl+C closes the window. `--snapshot`, `--selftest`, `--feedwatch` and `--version` never show the box. The green globe is now one shade of green, the theme's own green, on every dot at every depth while the mark is green (pre-market from 08:55, the session and the post-market window); the red globe was already a single red. The executable's file version is `3.8.33.0`.
 
 ## What is new in build 157
 

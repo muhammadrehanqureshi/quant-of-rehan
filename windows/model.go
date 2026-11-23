@@ -186,8 +186,9 @@ const appVersion = "4.0.21"
 // naming the scrip and the price with the scrip box listing every match, no
 // broker refresh line on the BUILD VERSION & RELAY tile, the boards putting the
 // percentage beside the price, and an ALERTS LOG that keeps the price and the
-// percentage it was written with.
-const hudBuild = "3.8.32"
+// percentage it was written with. Build 158 is 3.8.33, the password gate the
+// owner asked for and the green globe in one shade of green.
+const hudBuild = "3.8.33"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

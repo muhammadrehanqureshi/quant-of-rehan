@@ -169,6 +169,14 @@ type App struct {
 	priceSym    string
 	priceBuf    string
 	priceMsg    string
+
+	// the password gate, owner order 2026-11-23: the window opens on the box
+	// before the HUD, and only unlockPassword opens it.
+	locked   bool
+	passText string
+	passMsg  string
+	passOK   bool
+	unlockAt time.Time
 	priceY      int // the PRICE ALERTS tile's top row, for the wheel
 	priceH      int // and its height
 
@@ -1119,6 +1127,12 @@ func (a *App) watchQuotes(now time.Time) {
 
 func (a *App) onTick(now time.Time) {
 	a.now = now
+	if a.loginOpens(now) {
+		a.locked = false
+		a.passText, a.passMsg, a.passOK = "", "", false
+		// The HUD paints every row of its first frame, not the gate's.
+		a.prevRows = nil
+	}
 	a.syncReqCount()
 	// Owner order 2026-11-18: every market day's stored session is cleared at
 	// 08:55, including on a window opened late.
@@ -1183,6 +1197,10 @@ func (a *App) cycle(d int) {
 }
 
 func (a *App) onKey(k Key) {
+	if a.locked {
+		a.keyLogin(k)
+		return
+	}
 	if k.Kind == KCtrlC {
 		a.quit = true
 		return

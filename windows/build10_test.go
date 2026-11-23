@@ -65,10 +65,11 @@ func sphereLuma(c RGB) float64 {
 	return 0.2126*float64(c.R) + 0.7152*float64(c.G) + 0.0722*float64(c.B)
 }
 
-// Owner order 2026-11-11 (eleventh pass): the three depth bands are back. The
-// near side is the brightest, the far side the dimmest, and one frame carries
-// the banding that gives the globe its depth.
-func TestSphereShadesByDepth(t *testing.T) {
+// Owner order 2026-11-11 (eleventh pass): the three depth bands are back, and
+// sphereInk still steps down from the front to the back. Owner order
+// 2026-11-23 replaces the drawing rule: the green globe is one green on every
+// dot, so the bands no longer show on the lit cells.
+func TestTheGreenGlobeIsOneShade(t *testing.T) {
 	th := themeAt(0)
 	near, mid, far := th.Good, mix(th.Good, th.Soft, 0.45), mix(th.Good, th.Soft, 0.78)
 	if got := sphereInk(1, near, mid, far); got != near {
@@ -93,7 +94,9 @@ func TestSphereShadesByDepth(t *testing.T) {
 			inks[ce.FG] = true
 		}
 	}
-	if len(inks) < 2 {
-		t.Fatalf("the globe drew %d ink(s), so it has no depth shading", len(inks))
+	// Owner order 2026-11-23: the green globe is one green on every dot, so
+	// the depth bands no longer show on the lit cells.
+	if len(inks) != 1 || !inks[a.th.Good] {
+		t.Fatalf("the green globe drew %d ink(s) %v, want the one green %v", len(inks), inks, a.th.Good)
 	}
 }
