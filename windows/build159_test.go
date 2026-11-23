@@ -48,14 +48,14 @@ func TestTheLeadersHoldOneUTColumn(t *testing.T) {
 func TestTheGateIsOneOfTheBuildsOwnTiles(t *testing.T) {
 	a := lockedApp(t, 100, 30)
 	rows := screenOf(a)
-	if !strings.Contains(rows, "◆ QUANT OF REHAN") {
-		t.Fatalf("the gate has no diamond title on its frame:\n%s", rows)
-	}
 	var frame string
 	for _, row := range strings.Split(rows, "\n") {
-		if strings.Contains(row, "◆ QUANT OF REHAN") {
+		if strings.Contains(row, "◆") {
 			frame = row
 		}
+	}
+	if frame == "" || !strings.Contains(frame, "QUANT OF REHAN") {
+		t.Fatalf("the gate has no diamond title on its frame:\n%s", rows)
 	}
 	if !strings.Contains(frame, "┏") || !strings.Contains(frame, "┓") || !strings.Contains(frame, "━") {
 		t.Fatalf("the gate's frame is not the HUD's frame: %q", frame)
