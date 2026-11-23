@@ -1440,6 +1440,7 @@ func (a *App) drawAlerts(c *Canvas, x, y, w, h int) {
 	if h-boardH-7 < 5 {
 		priceH = 0
 	}
+	a.boardFields = a.measureBoards()
 			if w >= 84 {
 		// Owner order 2026-11-16: both boards are exactly equal and together
 		// fill the page width. An even width takes a two cell gutter, an odd
@@ -1542,26 +1543,45 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	}
 	lv.set(len(board), ih)
 	cw := contentW(lv, iw)
+	// Owner order 2026-11-23 (latest): both boards keep the two cells the
+	// scrollbar uses clear, so a board that does not scroll still ends its rows
+	// on the cell the other board's rows end on.
+	layW := min(cw, iw-2)
 	// Owner order 2026-11-20 (latest): the board writes the one quote group
 	// every other tile uses, so PKR holds one column down the board and the
 	// price is right aligned in its own field. The field is measured on the rows
 	// the board is showing, because the label may not step left for a scrip that
 	// carries fewer digits; the field still ends on the cell the old right
 	// aligned blob ended on, so the percentage keeps its own column.
-	pxW := 6
-	for n := 0; n < lv.view; n++ {
-		i := lv.off + n
-		if i >= len(board) {
-			break
-		}
-		pxW = max(pxW, runeLen(commaFloat(board[i].Price, 2)))
-	}
-	const priceEnd = 28
-	priceX := ix + priceEnd - quoteLabelW - pxW
+	pxW, qtyW, valW := a.boardFields.pxW, a.boardFields.qtyW, a.boardFields.valW
 	// Owner order 2026-11-13: one bar pair for the whole build. The boards
 	// rank their rows on the last minute, but each bar reads the measured day
 	// B and S pair the scanner, the search tile and the KSE100 leaders use.
 	tbl := a.scanTable()
+	if pxW == 0 {
+		// A board drawn on its own measures its own rows; the Alerts page
+		// measures both boards first, so the two share every column.
+		pxW, qtyW, valW = 6, 1, 3
+		for n := 0; n < lv.view; n++ {
+			i := lv.off + n
+			if i >= len(board) {
+				break
+			}
+			pxW = max(pxW, runeLen(commaFloat(board[i].Price, 2)))
+			qty := board[i].BuyShares
+			if side == sideSell {
+				qty = board[i].SellShares
+			}
+			qtyW = max(qtyW, runeLen(compactNum(float64(qty))))
+			buy, sell := barPair(tbl, board[i].Symbol, board[i].BuyShares, board[i].SellShares)
+			valW = max(valW, runeLen(signedCompact(buy-sell)))
+		}
+	}
+	// Owner order 2026-11-23 (latest): the price, the percentage, the quantity
+	// and the bar step left as one group, and NET DELTA and its figure close the
+	// row right after the bar. The group is measured once for the whole board, so
+	// every column keeps one cell down every row.
+	lay := boardRowLayout(ix, layW, pxW, qtyW, valW)
 	for n := 0; n < lv.view; n++ {
 		i := lv.off + n
 		if i >= len(board) {
@@ -1582,14 +1602,12 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		// Owner order 2026-11-20 (latest): PKR stands on one column and the price
 		// is right aligned in its own field, so the three rows read as one quote
 		// group and the label no longer floats with the number of digits.
-		a.drawQuoteStart(c, priceX, ry, pxW, commaFloat(b.Price, 2), pxKey)
+		a.drawQuoteStart(c, lay.priceX, ry, lay.pxW, commaFloat(b.Price, 2), pxKey)
 		// Owner order 2026-11-16: both boards carry the side's share quantity and
-		// its bar. The bar keeps the row's right edge, the quantity stands on the
-		// same two cell gutter to its left, and the change steps out first when
-		// the row is narrow, because the quantity and the bar are the two fields
-		// the owner asked to see. The quantity is this side's own: bought shares on
-		// the buying board, sold shares on the selling board.
-		const chgW = 9
+		// its bar. The quantity is this side's own: bought shares on the buying
+		// board, sold shares on the selling board. Owner order 2026-11-23
+		// (latest): the quantity and the bar stand on the columns the row layout
+		// fixes once for the whole board.
 		qty := b.BuyShares
 		if side == sideSell {
 			qty = b.SellShares
@@ -1597,35 +1615,119 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		// Owner order 2026-11-16: the board's figure is the share quantity alone;
 		// the old "sh" suffix is withdrawn from both tiles.
 		qtyTxt := compactNum(float64(qty))
-		// Owner order 2026-11-16: the board's figure is the side's share
-		// quantity, right aligned on its fixed column. The bar still reads the
-		// row's own measured pair, never the board's chosen side.
-		barW := shareBarSpan
-		if barW > cw {
-			barW = cw
+		if lay.chgFits && b.ChangePct != nil {
+			a.flashText(c, lay.chgX, ry, padRight(changeText(*b.ChangePct), lay.chgW), a.dirColor(*b.ChangePct), true, pxKey)
 		}
-		barX := ix + cw - barW
-		pkrFieldW := 10
-		pkrX := barX - 2 - pkrFieldW
-		if pkrX < ix+25 {
-			pkrX = ix + 25
-			pkrFieldW = max(1, barX-2-pkrX)
-		}
-		if pkrFieldW < 1 {
-			pkrFieldW = 1
-		}
-		if b.ChangePct != nil && pkrX-(ix+29) >= chgW+2 {
-			a.flashText(c, ix+29, ry, padRight(changeText(*b.ChangePct), chgW), a.dirColor(*b.ChangePct), true, pxKey)
-		}
-		rightAlign(c, pkrX, ry, pkrFieldW, []Span{{qtyTxt, good, true}})
+		rightAlign(c, lay.qtyX, ry, lay.qtyW, []Span{{qtyTxt, good, true}})
 		// Owner order 2026-11-12 (latest): both boards draw the one bar, so a
 		// selling board is red because the sellers are in front, never green
 		// because that board's own side is selling, and the pair is the same
 		// measured day pair every other page prints for the scrip.
 		barBuy, barSell := barPair(tbl, b.Symbol, b.BuyShares, b.SellShares)
-		a.drawShareBar(c, barX, ry, barW, barBuy, barSell, false, 0)
+		a.drawShareBar(c, lay.barX, ry, lay.barW, barBuy, barSell, false, 0)
+		// Owner order 2026-11-23 (latest): NET DELTA and its figure stand right
+		// after the bar, and the figure's last cell closes the row.
+		if lay.netW > 0 {
+			net := barBuy - barSell
+			ink, bold := th.Soft, false
+			switch {
+			case net > 0:
+				ink, bold = th.Good, true
+			case net < 0:
+				ink, bold = th.Bad, true
+			}
+			c.Text(lay.netX, ry, netLabelEq, "NET DELTA=", th.Soft, false)
+			c.Text(lay.netX+netLabelEq, ry, lay.netW-netLabelEq,
+				padLeft(signedCompact(net), lay.netW-netLabelEq), ink, bold)
+		}
 	}
 	a.scrollbar(c, x+w-2, iy, ih, lv)
+}
+
+// boardRow is the geometry of one ALERTS board row. Owner order 2026-11-23
+// (latest): the price, the percentage, the quantity and the bar step left as
+// one group and NET DELTA and its figure close the row right after the bar, so
+// the figure's last cell stands on the row's last content cell.
+type boardGeom struct {
+	pxW, priceX int
+	chgX, chgW  int
+	chgFits     bool
+	qtyX, qtyW  int
+	barX, barW  int
+	netX, netW  int // netW is 0 when the board has no room for the block
+}
+
+// boardRowLayout right anchors that group. The bar keeps its sixteen cells
+// while the group fits; when it does not, the bar gives way first, then the
+// percentage steps out, and a board with no room for the NET DELTA block keeps
+// the geometry the boards had before it, with the bar on the row's own edge.
+func boardRowLayout(ix, cw, pxW, qtyW, vW int) boardGeom {
+	const chgW = 9
+	right := ix + cw - 1
+	// The row's number, its flagged mark and its symbol keep the first fourteen
+	// cells, so the quote group may never step left of ix+14.
+	left := ix + 14
+	netW := netLabelEq + vW
+	for _, withChange := range []bool{true, false} {
+		w, gap := chgW, 1
+		if !withChange {
+			w, gap = 0, 0
+		}
+		for barW := shareBarSpan; barW >= 6; barW-- {
+			netX := right - netW + 1
+			barX := netX - 1 - barW
+			qtyX := barX - 2 - qtyW
+			chgX := qtyX - gap - w
+			priceX := chgX - 1 - (quoteLabelW + pxW)
+			if priceX >= left {
+				return boardGeom{pxW: pxW, priceX: priceX, chgX: chgX, chgW: w,
+					chgFits: withChange, qtyX: qtyX, qtyW: qtyW,
+					barX: barX, barW: barW, netX: netX, netW: netW}
+			}
+		}
+	}
+	// No room for NET DELTA: the boards keep the geometry they had, with the
+	// bar on the row's right edge and the quantity two cells to its left.
+	barW := min(shareBarSpan, cw)
+	barX := ix + cw - barW
+	qtyW = 10
+	qtyX := barX - 2 - qtyW
+	if qtyX < ix+25 {
+		qtyX = ix + 25
+		qtyW = max(1, barX-2-qtyX)
+	}
+	return boardGeom{pxW: pxW, priceX: ix + 28 - quoteLabelW - pxW, chgX: ix + 29,
+		chgW: chgW, chgFits: qtyX-(ix+29) >= chgW+2, qtyX: qtyX, qtyW: qtyW,
+		barX: barX, barW: barW}
+}
+
+// boardMeasure is the width of the three fields the ALERTS boards must share:
+// the price, the side's own quantity and the bar's NET DELTA figure. Owner
+// order 2026-11-23 (latest): the Alerts page measures both boards before it
+// draws either, so the buying rows and the selling rows stand on the same
+// columns instead of each board measuring whatever it happens to hold.
+type boardMeasure struct{ pxW, qtyW, valW int }
+
+func (a *App) measureBoards() boardMeasure {
+	m := boardMeasure{pxW: 6, qtyW: 1, valW: 3}
+	tbl := a.scanTable()
+	for _, side := range []int{sideBuy, sideSell} {
+		rows := a.boardRows(200)
+		if side == sideSell {
+			rows = a.sellRows(200)
+		}
+		for _, b := range rows {
+			m.pxW = max(m.pxW, runeLen(commaFloat(b.Price, 2)))
+			qty := b.BuyShares
+			if side == sideSell {
+				qty = b.SellShares
+			}
+			m.qtyW = max(m.qtyW, runeLen(compactNum(float64(qty))))
+			buy, sell := barPair(tbl, b.Symbol, b.BuyShares, b.SellShares)
+			m.valW = max(m.valW, runeLen(signedCompact(buy-sell)))
+		}
+	}
+	return m
 }
 
 // alertPct is the move the alert was raised at. Owner order 2026-11-20: the

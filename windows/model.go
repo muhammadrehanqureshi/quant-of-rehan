@@ -189,11 +189,13 @@ const appVersion = "4.0.21"
 // percentage it was written with. Build 158 is 3.8.33, the password gate the
 // owner asked for and the green globe in one shade of green. Build 159 is
 // 3.8.35, the LATEST SIGNAL tile's three calls side by side with six cells
-// between them, and the opening range law's calls.
+// between them, and the opening range law's calls. Build 161 is 3.8.36, the
+// ALERTS boards' price, percentage, quantity and bar stepped left as one group
+// with NET DELTA and its figure right after the bar.
 //
 // 3.8.34, the gate drawn as one of the build's own tiles with its blinking box
 // cursor, and the KSE100 leaders' U= and & T= back on shared columns.
-const hudBuild = "3.8.35"
+const hudBuild = "3.8.36"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
