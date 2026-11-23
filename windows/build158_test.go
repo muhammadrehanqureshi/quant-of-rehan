@@ -14,7 +14,7 @@ const (
 	wantUnlockPlaceholder = "Enter password"
 	wantUnlockHint        = "HINT: Password contains 13 characters."
 	wantUnlockWelcome     = "Welcome back, Mr. Rehan!"
-	wantUnlockTaunt       = "Nice try, buddy. Get your punk ahh out of here."
+	wantUnlockTaunt       = "Nice try, buddy. Get your punk ahh out of here. HAHAHA!"
 	wantUnlockPassword    = "7861"
 )
 

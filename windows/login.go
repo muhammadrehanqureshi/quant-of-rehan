@@ -26,7 +26,7 @@ const (
 	unlockPlaceholder = "Enter password"
 	unlockHint        = "HINT: Password contains 13 characters."
 	unlockWelcome     = "Welcome back, Mr. Rehan!"
-	unlockTaunt       = "Nice try, buddy. Get your punk ahh out of here."
+	unlockTaunt       = "Nice try, buddy. Get your punk ahh out of here. HAHAHA!"
 	unlockMaxChars    = 16
 	unlockWelcomeFor  = 1500 * time.Millisecond
 )
