@@ -833,6 +833,25 @@ async function ensureFeedAlive(env, now) {
       return { dispatched: false, reason: "band just opened" };
     }
   }
+  // Owner audit 2026-11-23, measured live on the relay: at 09:15 PKT this
+  // watchdog forced a second band dispatch, which /health recorded as source
+  // "watchdog", while the 08:55 loop was still running. Nothing had printed yet, so the newest frame was the previous
+  // session's and read as a dead recorder. The exchange prints nothing before
+  // its pre-open, so staleness there is not evidence of anything. The check
+  // now waits for the day's own scan window (pre-open, a band, post-close) to
+  // be open for the same three minutes a band open gets.
+  const weekday = k.getUTCDay();
+  const scanSpans = [
+    ...(PRE_OPEN_WINDOWS[weekday] || []),
+    ...bandsFor(k).map((b) => [b[0][0] * 60 + b[0][1],
+                              b[1][0] * 60 + b[1][1]]),
+    ...(POST_CLOSE_WINDOWS[weekday] || []),
+  ];
+  const scan = scanSpans.find((s) => mins >= s[0] && mins < s[1]);
+  if (!scan) return { dispatched: false, reason: "no scan window open" };
+  if (mins - scan[0] <= FEED_WATCHDOG_OPEN_GUARD_MINUTES) {
+    return { dispatched: false, reason: "scan window just opened" };
+  }
   // The cooldown is read first so a poll in a live window costs one KV read,
   // not a snapshot read, while nothing is wrong.
   const key = `SCAN:WATCHDOG:${dayStamp(k)}:${hmText(window[0])}`;
