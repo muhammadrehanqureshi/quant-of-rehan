@@ -610,11 +610,19 @@
      scrip, and its box opens the same list; and the SECTORS rows read at
      11sp on one line with the diamond standing from the moment the list
      opens.
+
+     versionCode 140 / versionName 4.4.7 belong to the owner's order of
+     2026-11-23: an empty SEARCH box and an empty ORDER FLOW box list no
+     scrip at all, exactly as they did before build 155, and a typed ticker
+     narrows to its own matches. A SEARCH option is the scrip drawn by CUSTOM
+     SCRIPS OF VOLUME's own builder: the ticker, its B, S, U and T line with
+     NET DELTA, then its price with the move's arrow, so the list has one
+     scrip style and not a second one of its own.
      -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="139"
-    android:versionName="4.4.6">
+    android:versionCode="140"
+    android:versionName="4.4.7">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

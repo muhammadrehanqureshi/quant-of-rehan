@@ -1999,6 +1999,20 @@ public class MainActivity extends Activity {
             }
             sb.append(String.format(Locale.US, "%d.\u00A0%s",
                     i + 1, symbols.get(i)));
+            appendScripQuote(sb, quote);
+        }
+        return sb;
+    }
+
+    /**
+     * One scrip's quote lines, in the exact shape CUSTOM SCRIPS OF VOLUME
+     * prints them: the B, S, U and T line with its NET DELTA, then the price
+     * with the move's own arrow. Owner order 2026-11-23: the SEARCH page's
+     * options draw a scrip through this same builder, so a scrip reads the
+     * same in every list and the app has one scrip style, never a second.
+     */
+    private void appendScripQuote(SpannableStringBuilder sb,
+                                  Watcher.Quote quote) {
             if (quote.buy != null && quote.sell != null) {
                 // Owner order 2026-11-06: B, S and U share the first line;
                 // the venue's total T starts the next one. U is shown
@@ -2063,8 +2077,6 @@ public class MainActivity extends Activity {
                         from, sb.length(), 0);
                 sb.setSpan(new TypefaceSpan(ARROW_FACE), from, from + 1, 0);
             }
-        }
-        return sb;
     }
 
     /** One coloured quantity: the digits alone carry the colour, the
@@ -3570,11 +3582,10 @@ public class MainActivity extends Activity {
 
     /**
      * Owner order 2026-11-05 (sixth pass): the tile is a SEARCH, never a
-     * ranking of its own. Owner order 2026-11-22: the box opens the app's
-     * own list the way CUSTOM SCRIPS OF VOLUME's menu does, minus the
-     * caret, so an empty box lists every scrip the flow answer carries and
-     * a typed ticker narrows it. The list is a six-row window with the
-     * diamond beside it, and a scrip's own book waits for his tap.
+     * ranking of its own. Owner order 2026-11-23: the box lists nothing
+     * until he types. A typed ticker answers with only the scrips whose own
+     * ticker starts with it, at most eight, in the six-row window with the
+     * diamond beside it; the whole ticker he types opens that scrip's book.
      */
     private void renderFlowResults(String query) {
         if (orderFlowResults == null) {
@@ -3593,16 +3604,34 @@ public class MainActivity extends Activity {
             fitFlowWindow();
             return;
         }
+        // Owner order 2026-11-23: an empty box asks for the scrip and lists
+        // nothing. Build 155 printed the whole KMIALL answer the moment the
+        // tile opened, which is a directory, not a search.
+        if (query.isEmpty()) {
+            orderFlowResults.removeAllViews();
+            flowRowCells.clear();
+            flowRenderedQuery = "";
+            flowRenderedCount = -1;
+            orderFlowResults.setVisibility(View.GONE);
+            if (orderFlowSelected != null) {
+                orderFlowSelected.setVisibility(View.GONE);
+            }
+            fitFlowWindow();
+            return;
+        }
         for (Watcher.FlowRow row : flowRows) {
-            if (!query.isEmpty() && row.symbol.equals(query)) {
+            if (row.symbol.equals(query)) {
                 // The whole ticker he typed: its own book, no list to read.
                 selectFlow(query);
                 return;
             }
         }
+        // Only the matches of what he typed, and no more than the eight the
+        // rest of the console lists (owner order 2026-11-23).
         List<Watcher.FlowRow> visible = new ArrayList<>();
         for (Watcher.FlowRow row : flowRows) {
-            if (query.isEmpty() || row.symbol.startsWith(query)) {
+            if (row.symbol.startsWith(query)
+                    && visible.size() < FLOW_RESULTS_SHOWN) {
                 visible.add(row);
             }
         }
@@ -4564,8 +4593,8 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * The relay's symbol list in its own window: every scrip while the box
-     * is empty, the matches of what he typed otherwise.
+     * The relay's symbol list in its own window: nothing while the box is
+     * empty, the matches of what he typed otherwise.
      */
     private void renderSearchResults(String query) {
         if (searchResults == null || searchStatus == null) {
@@ -4573,15 +4602,20 @@ public class MainActivity extends Activity {
         }
         List<String> symbols = Watcher.symbols();
         String q = query == null ? "" : query.trim().toUpperCase(Locale.US);
-        // Owner order 2026-11-22 ("There is not a proper search function for
-        // stocks"): the box opens the app's own list the way CUSTOM SCRIPS OF
-        // VOLUME's menu does, minus the caret. An empty box lists every
-        // scrip in its window and a typed letter narrows that list, so a
-        // scrip is reachable by browsing or by its ticker.
-        if (q.isEmpty() && selectedSymbol != null) {
-            selectSymbol(null);
+        // Owner order 2026-11-23: an empty box lists nothing at all. The tile
+        // is a search, not a scrip directory; the first letter opens the list
+        // onto its own matches and clearing the box closes it again.
+        if (q.isEmpty()) {
+            searchRows.clear();
+            renderedQuery = "";
+            searchResults.setVisibility(View.GONE);
+            if (selectedSymbol != null) {
+                selectSymbol(null);
+            }
             searchStatus.setText("");
             searchStatus.setVisibility(View.GONE);
+            fitSearchWindow();
+            return;
         }
         // The rows carry a state (a tapped symbol stays pinned), so they are
         // only rebuilt when the query or the visible set actually changes; a
@@ -4597,16 +4631,18 @@ public class MainActivity extends Activity {
             searchStatus.setText(getString(R.string.search_waiting));
             return;
         }
+        // Owner order 2026-11-23: only the matches of what he typed, at most
+        // eight of them, exactly the law the tile carried before build 155.
         List<String> filtered = new java.util.ArrayList<>();
         for (String symbol : symbols) {
-            if (q.isEmpty() || symbol.startsWith(q)) {
+            if (symbol.startsWith(q)) {
                 filtered.add(symbol);
             }
         }
-        // Owner order 2026-11-22: every match is in the list, and the
-        // window's six rows plus the diamond are what keep the tile one
-        // size, so a long list is a scroll rather than a taller tile.
-        List<String> visible = filtered;
+        // The window's six rows plus the diamond keep the tile one size, so a
+        // long match list is a scroll rather than a taller tile.
+        List<String> visible = filtered.subList(0,
+                Math.min(filtered.size(), 8));
         // v1.8.4 (owner 13:30 report): the rows and the pinned line must be
         // VISIBLE exactly when there is something to show, because the
         // panel's gap law needs the empty views gone but the populated panel
@@ -4682,30 +4718,13 @@ public class MainActivity extends Activity {
             // sign: the glyph face holds the arrow, its colour is the
             // move's own, and the percentage is the move's magnitude -
             // the arrow IS the sign.
+            // Owner order 2026-11-23: the option is the scrip exactly as
+            // CUSTOM SCRIPS OF VOLUME prints it, drawn by that tile's own
+            // builder, so the list has one scrip style and not a second one
+            // of its own. The day's high and low close the price line, the
+            // high green and the low red (owner order 2026-11-07).
             SpannableStringBuilder built = new SpannableStringBuilder(symbol);
-            int priceFrom = built.length();
-            built.append(String.format(Locale.US, " PKR %,.2f", quote.price));
-            int from = built.length();
-            if (quote.changePct != null) {
-                built.setSpan(new ForegroundColorSpan(getColor(
-                                quote.changePct >= 0 ? R.color.green_hi
-                                : R.color.red)), priceFrom, from, 0);
-                built.append(String.format(Locale.US, " %s %.2f%%",
-                        quote.changePct >= 0 ? "\u25B2" : "\u25BC",
-                        Math.abs(quote.changePct)));
-                built.setSpan(new ForegroundColorSpan(getColor(
-                                quote.changePct >= 0 ? R.color.green_hi
-                                : R.color.red)), from, built.length(), 0);
-                built.setSpan(new TypefaceSpan(ARROW_FACE), from + 1,
-                        from + 2, 0);
-            }
-            if (quote.changePct == null) {
-                built.setSpan(new ForegroundColorSpan(themeBodyInk),
-                        priceFrom, from, 0);
-            }
-            // Owner order 2026-11-07: the day's own high and low stand on
-            // the search row, the high in green and the low in red. A side
-            // the relay did not report is not invented (SO-3).
+            appendScripQuote(built, quote);
             if (quote.high != null) {
                 built.append(" H=");
                 int highFrom = built.length();
@@ -4736,11 +4755,13 @@ public class MainActivity extends Activity {
         // other line on the console, its symbols read as the body reads.
         row.setTextSize(13f);
         row.setTextColor(themeBodyInk);
-        // Owner order 2026-11-22 ("everything is so far apart"): a scrip
-        // and its quote are one line, so the row carries the list's own 2dp
-        // air and a 26dp floor instead of an open menu's 5dp.
-        row.setPadding(dp(14), dp(2), dp(14), dp(2));
-        row.setMinHeight(dp(26));
+        row.setGravity(Gravity.CENTER);
+        // Owner order 2026-11-23: an option is a scrip block of up to three
+        // lines, so it takes the volume tile's own line spacing, keeps the
+        // menu row's 14dp column and 5dp air, and carries no fixed floor: the
+        // lines decide the height.
+        row.setLineSpacing(dp(3), 1f);
+        row.setMinHeight(0);
         // The row keeps menuRow's 14dp column, because the dividing lines
         // above and below it are cut to that same column.
         // Owner order 2026-10-22 (the search highlight): every row whose
