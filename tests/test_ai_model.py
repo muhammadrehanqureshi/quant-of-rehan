@@ -214,14 +214,14 @@ class RoutingTest(unittest.TestCase):
         """
         from tests.kalman_fixture import setup_values
 
-        # 11:30 is inside the fixture's measured dip, where the 15 minute
-        # VWAP still sits above the price (the law's entry window).
-        as_of = datetime(2026, 10, 8, 11, 30, tzinfo=KARACHI)
+        # 11:42 is 130 minutes in: the fixture has cleared its opening range
+        # and all three frames sit above their own VWAP (the law's window).
+        as_of = datetime(2026, 10, 8, 11, 42, tzinfo=KARACHI)
         open_at = as_of.replace(hour=9, minute=32, second=0, microsecond=0)
         bars = {}
         for symbol in ["AAA"] + [f"QUIET{index:02d}" for index in range(70)]:
             rows = []
-            for index in range(118):
+            for index in range(130):
                 if symbol == "AAA":
                     op, hi, lo, close, volume = setup_values(index)
                 else:
@@ -235,7 +235,7 @@ class RoutingTest(unittest.TestCase):
         # sellers, so any refusal below is the trend law's own.
         session = scanner.SessionData(
             day=as_of.date(), as_of=as_of, bars=bars, volume_available=True,
-            bars_seen=118 * len(bars), bars_rejected=0, duplicate_bars=0,
+            bars_seen=130 * len(bars), bars_rejected=0, duplicate_bars=0,
             previous_close={symbol: rows[-1].close
                             for symbol, rows in bars.items()},
             buy_volume={symbol: 200_000 for symbol in bars},

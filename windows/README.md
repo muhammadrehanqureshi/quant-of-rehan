@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 159
+# Quant of Rehan for Windows (console edition), build 160
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 160
+
+* **Build 160 (version 3.8.35).** The LATEST SIGNAL tile shows the day's calls side by side. The first call sits on the tile's very left with all of its details (its number, symbol, entry time, entry price, target, stop and score), then six blank cells, then the second call, six more, and the third. A card with no calls draws the one latest signal exactly as before, and a tile too narrow for three columns shows the calls that fit rather than squeezing them. The quant's law behind the card is now the opening range with the VWAP on the 5, 15 and 30 minute charts: the session's first 30 completed minutes form the range, the latest completed close must hold above its high inside a three range height chase cap, and all three frames' closes must sit above their own VWAP. Every call is scored out of 100 and a day carries at most three. The wrong password's sentence now ends `HAHAHA!`: `Nice try, buddy. Get your punk ahh out of here. HAHAHA!`. The executable's file version is `3.8.35.0`.
 
 ## What is new in build 159
 

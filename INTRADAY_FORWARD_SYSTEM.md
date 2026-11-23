@@ -1,23 +1,32 @@
 # Intraday Forward Validation System
 
-## Active strategy, 2026-11-16 (Karachi)
+## Active strategy, 2026-11-23 (Karachi)
 
-The only intraday strategy is `kalman_vwap_zscore_sa_v1` (owner order
-2026-11-16, below): the Kalman Trend with VWAP on the 5, 15 and 30 minute
-charts, and the z-score of the price minus VWAP spread as the mathematical
-base. The previous strategies are removed, not disabled: the
-hybrid statistical arbitrage and mean reversion law, the market leg it read,
-the relative strength gate, the three frame VWAP pullback and the fresh one
-minute flip have no module, no constant and no code path left.
-See src/signals/kalman_trend.py and src/signals/kalman_zscore_vwap.py for
-the authoritative contracts: entry, stop and exit on the intraday band feed,
-the owner's +2% target, parameters grid-fit in GitHub Actions. Momentum/RSI
-gates and daily-model routing no longer decide entries. Historical
-opening-range and momentum results never count as evidence for the new rule.
-The frozen chronological evidence gate and source-confirmation checks remain.
-All tests, backtests and builds run in GitHub Actions, never on the owner's PC.
-The scheduled session loop requests one-second cycles and preserves one shared
-daily entry claim. No broker orders are transmitted.
+The only intraday strategy is `opening_range_vwap_v1` (owner order 2026-11-23):
+the opening range with the VWAP on the 5, 15 and 30 minute charts
+(src/signals/opening_range_vwap.py). The range is the session's first 30
+completed one minute bars, every one of those minutes present; the latest
+completed close must hold above the range high by no more than three range
+heights; and the 5, 15 and 30 minute frames must each close above their own
+rolling VWAP. The Kalman Trend and the z-score price-VWAP spread are removed,
+not disabled: `kalman_zscore_vwap.py` is deleted and the ZSCORE_* constants
+are gone. `kalman_trend.py` survives only as the causal filter the historical
+research scripts replay, and no live entry reads a Kalman state.
+
+Every call carries a score out of 100, and the day carries at most three
+calls (`MAX_TRADES_PER_DAY`). The plan is unchanged: paper entry at the last
+completed close, the owner's -1% stop and +2% target. The day-gain (at most 2%
+from the venue's previous close) and buyer-led (at least 2:1) gates from owner
+order 2026-11-19 still stand. The frozen chronological evidence gate and
+source-confirmation checks remain. All tests, backtests and builds run in
+GitHub Actions, never on the owner's PC. The scheduled session loop requests
+one-second cycles and keeps one shared claim per call number. No broker orders
+are transmitted.
+
+## Kalman Trend, VWAP and z-score spread, owner order 2026-11-16 (withdrawn 2026-11-23, kept as the record)
+
+The strategy below ran until the owner's order of 2026-11-23 replaced it with
+the opening range law above. Its module is gone and no live path reads it.
 
 ## Owner order 2026-11-19 (Karachi): all three frames, earlier call, under 2% on the day, buyer-led
 
@@ -54,7 +63,7 @@ servlet capture carries neither a previous close nor a print side, so the
 broker tape is the only source that can produce a pick now. The reason is
 reported per gate in the scan's own tally, never hidden.
 
-## Kalman Trend, VWAP 5m/15m/30m and z-score spread, owner order 2026-11-16 (Karachi)
+## Kalman Trend, VWAP 5m/15m/30m and z-score spread, owner order 2026-11-16 (withdrawn 2026-11-23, kept as the record)
 
 The running intraday strategy, and the only strategy the scanner can build an
 entry from, is labelled `kalman_vwap_zscore_sa_v1` with the reader

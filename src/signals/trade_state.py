@@ -74,6 +74,11 @@ class SessionState:
     #: Every name already called today, so the day's three calls are three
     #: names and never the same name three times (owner order 2026-11-21).
     symbols_called: list[str] = field(default_factory=list)
+    #: Every call made today, in order, with the details the LATEST SIGNAL
+    #: tile prints: number, symbol, entry time, entry, target, stop and score.
+    #: Owner order 2026-11-23: the day's calls are shown side by side, so the
+    #: state has to keep all of them, not only the one being monitored.
+    calls: list[dict] = field(default_factory=list)
     symbol: str | None = None
     entry_price: float | None = None
     entry_time: str | None = None
@@ -288,6 +293,15 @@ class SessionState:
         self.stop_hit = False
         self.exit_reason = None
         self.scanner_version = strategy or config.SCANNER_VERSION
+        self.calls.append({
+            "n": self.trades_today,
+            "symbol": symbol,
+            "entry_time": self.entry_time,
+            "entry_price": self.entry_price,
+            "target_price": self.target_price,
+            "stop_loss": self.stop_loss,
+            "score": round(self.entry_score, 2),
+        })
         self.last_reason = (f"entered call {self.trades_today} of "
                             f"{config.MAX_TRADES_PER_DAY}, paper position open")
         self.state = State.TARGET_MONITORING
@@ -336,6 +350,7 @@ class SessionState:
             "date": self.day,
             "trades_taken": self.trades_today,
             "symbols_called": list(self.symbols_called),
+            "calls": [dict(call) for call in self.calls],
             "trade_status": self.state,
             "symbol": self.symbol,
             "entry": self.entry_price,

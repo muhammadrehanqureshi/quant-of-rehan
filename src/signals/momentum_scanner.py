@@ -1,24 +1,21 @@
 """The authoritative intraday scanner: one strategy, the one the owner named.
 
-Owner order 2026-11-16 (Karachi): the previous hybrid law is removed and the
-only strategy is the Kalman Trend with VWAP on the 5 minute, 15 minute and 30
-minute charts and the z-score price-VWAP spread as its statistical base
-(src/signals/kalman_zscore_vwap.py). The capture validation and the public
-SessionData/ScanResult contracts stay stable for all runners. The scanner
-builds its single entry through src/signals/kalman_trend.py's causal
-level+slope trend clock; the 15 and 30 minute frames confirm the regime and
-the 5 minute spread is the z-scored dislocation.
+Owner order 2026-11-23 (Karachi): the day trading strategy is the opening
+range with the VWAP on the 5, 15 and 30 minute charts
+(src/signals/opening_range_vwap.py). The Kalman Trend and the z-score
+price-VWAP spread that ran before it are removed, not disabled. The capture
+validation and the public SessionData/ScanResult contracts stay stable for
+all runners. The scanner builds its single entry through
+src/signals/opening_range_vwap.py: the session's first 30 completed minutes
+form the range, the latest completed close must hold above its high inside
+the chase cap, and all three frames' closes must sit above their own VWAP.
 
-Owner order 2026-11-19 (Karachi), the later order: all three VWAP frames stay,
-the call must arrive early, the pick may not already be more than 2% up on
-the day, and its measured buyers must be at least twice its measured sellers.
-The
-shortened 5 minute history makes the fast frame ready early, and (owner order
-2026-11-19, latest) the 30 minute frame votes on its first completed bar
-instead of its second, because two of its candles are an hourly candle the
-law does not read. The session carries the
-venue's previous close and the tape's buy/sell split so both gates read
-measured facts.
+Every call carries a score out of 100 and the day carries at most three
+(config.MAX_TRADES_PER_DAY). Owner order 2026-11-19 still stands: the pick
+may not already be more than 2% up on the day, measured from the venue's
+previous close, and its measured buyers must be at least twice its measured
+sellers. The session carries both facts so both gates read measured values,
+never guesses.
 The old RSI diagnostic remains solely for reproducing the HCAR postmortem.
 Asia/Karachi, UTC+5. Signal-only, no broker orders and no assured returns.
 """
@@ -35,13 +32,13 @@ from statistics import median
 from src import config
 from src.data import tape_bars
 from src.data.sessions import KARACHI, is_trading_day, open_time
-from src.signals import kalman_trend
+from src.signals import opening_range_vwap
 
 DATA_BLOCKED = "DATA_BLOCKED"
 NO_TRADE = "NO_TRADE"
 TRADE = "TRADE"
 # A ranked-but-not-proprietary call the owner ordered delivered anyway
-# (config.OWNER_ORDERED_CALLS): a Kalman flip that never confirmed,
+# (config.OWNER_ORDERED_CALLS): a setup the market veto refused,
 # but the market still showed the winner and the owner refuses to keep
 # getting an empty channel. The candidate it carries is the same row shape
 # a TRADE carries, so downstream recorders can log it unchanged; the
@@ -188,7 +185,8 @@ class ScanResult:
     ranked: list[dict] = field(default_factory=list)
     coverage_text: str = ""
     # Why no candidate: the per-gate rejection counts summed across the whole
-    # universe during this scan (src/signals/kalman_trend.py fills it). A NO
+    # universe during this scan (src/signals/opening_range_vwap.py fills it).
+    # A NO
     # TRADE can
     # now name the gates that ran and how many symbols each one rejected,
     # instead of one undated blanket sentence. Empty dict on DATA_BLOCKED (the
@@ -676,7 +674,7 @@ def _wilder_rsi(closes: list[float], period: int = 14) -> float | None:
 def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData,
                  tally: dict | None = None,
                  frames: bool = False) -> dict | None:
-    """Score one symbol under the Kalman Trend and z-score spread law.
+    """Score one symbol under the opening range and three VWAP frame law.
 
     `frames` says whether this deployment reads the 5 minute, 15 minute and
     30 minute VWAP frames (src/signals/mtf_vwap.py). The one running law
@@ -684,26 +682,27 @@ def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData,
     reason is named; the live pipeline passes the deployment flag from
     src/config.py.
     """
-    return kalman_trend.candidate(symbol, rows, session, tally, frames=frames)
+    return opening_range_vwap.candidate(symbol, rows, session, tally,
+                                        frames=frames)
 
 
-def _signal_z(row: dict) -> float:
-    """The spread z-score a ranked row was built from, for tie-breaking."""
-    view = ((row.get("setup") or {}).get("zscore") or {})
+def _signal_extension(row: dict) -> float:
+    """The range-height extension a ranked row was built from, for ties."""
+    view = ((row.get("setup") or {}).get("opening_range") or {})
     try:
-        return abs(float(view.get("z") or 0.0))
+        return abs(float(view.get("extension") or 0.0))
     except (TypeError, ValueError):
         return 0.0
 
 
 def _rank_key(row: dict) -> tuple:
-    """Highest score first; a score tie goes to the deeper measured spread.
+    """Highest score first; a score tie goes to the clearer breakout.
 
     The score is rounded for display, so two different setups can print the
     same number. Alphabetical order is never allowed to decide which of those
-    two names is called: the stronger z-score spread does.
+    two names is called: the breakout that cleared its own range by more does.
     """
-    return (-float(row.get("score") or 0.0), -_signal_z(row),
+    return (-float(row.get("score") or 0.0), -_signal_extension(row),
             str(row.get("symbol") or ""))
 
 
@@ -733,7 +732,7 @@ def select_one(session: SessionData, quality: QualityReport,
     if quality.status == DATA_BLOCKED:
         return ScanResult(DATA_BLOCKED, quality.reason, quality, {}, coverage_text=coverage)
     context = market_context(session)
-    context["ai"] = {"active": False, "reason": "Kalman and z-score spread rules do not use the daily momentum prior"}
+    context["ai"] = {"active": False, "reason": "the opening range law does not use the daily momentum prior"}
     tally: dict = {}
     ranked = rank_candidates(session, tally=tally, frames=frames)
     # Owner order 2026-11-21: three calls a day means three names, never the
@@ -765,7 +764,7 @@ def select_one(session: SessionData, quality: QualityReport,
         # This stays a NO TRADE under every owner order: there is no setup
         # to carry, and naming a symbol with none would be a fabricated
         # signal (SO-3), not a watch. The strict law is untouched.
-        reason = "no symbol passed the Kalman Trend entry gates"
+        reason = "no symbol passed the opening range entry gates"
         if tally.get("already_called_today"):
             reason = ("every name that passed the entry gates was already "
                       "called today, and a name is called once a day")
@@ -820,15 +819,17 @@ def signal_message(candidate: dict, market: dict, entry: float,
     setup = candidate.get("setup") or {}
     stop = candidate["stop_loss"]
     strategy = candidate.get("strategy") or config.SCANNER_VERSION
-    zview = setup.get("zscore") or {}
-    z = zview.get("z")
-    fast = (zview.get("frames") or {}).get("5m") or {}
-    if z is not None and fast.get("vwap") is not None:
-        reason = (f"Kalman trend up with 5m, 15m and 30m aligned; the 5m "
-                  f"price-VWAP spread is {z:+.2f} sigma versus its own "
-                  f"trailing mean (VWAP {fast['vwap']})")
+    view = setup.get("opening_range") or {}
+    rng = view.get("opening_range") or {}
+    if rng.get("high") is not None and rng.get("low") is not None:
+        reason = (f"the opening range {rng['low']:.2f} to {rng['high']:.2f} "
+                  f"is broken, with the 5m, 15m and 30m closes above their "
+                  f"own VWAP and the breakout "
+                  f"{float(view.get('extension') or 0.0):.2f} range(s) past "
+                  f"the high")
     else:
-        reason = "Kalman trend up with the 5m, 15m and 30m VWAP frames aligned"
+        reason = ("the opening range is broken with the 5m, 15m and 30m "
+                  "VWAP frames aligned")
     lines = [
         "QUANT LONG SIGNAL - PAPER REFERENCE",
         "",
@@ -917,7 +918,7 @@ def call_watch_message(result, quality, market: dict, as_of) -> str:
         "",
         "This is one WATCH call, not a paper entry: the market veto stands,",
         "no position opens, and the day's one confirmed paper trade slot",
-        "stays free. The Kalman Trend entry laws are untouched.",
+        "stays free. The opening range entry laws are untouched.",
     ]
     return "\n".join(lines)
 
@@ -931,14 +932,11 @@ def no_trade_message(quality: QualityReport, market: dict,
              f"({quality.leaders_fresh}/{quality.leader_symbols} leaders fresh)\n"
              f"Market: {market.get('status', 'UNKNOWN')}\n"
              f"Market context: {market.get('reason', 'unavailable')}\n"
-             # Owner order 2026-11-16 withdrew the VWAP pullback and the fresh
-             # one minute flip, so the card may not name either of them. What
-             # the scan actually refused is the running law: the three frames
-             # never lined up with the 5m price-VWAP spread stretched below its
-             # own trailing mean inside the 2% target room.
-             "Reason: no 5m/15m/30m Kalman and VWAP entry: the 5m price-VWAP "
-             "spread was not stretched below its own mean with the 2% target "
-             "room.\n"
+             # Owner order 2026-11-23: the card names the law that actually
+             # refused it, never a withdrawn strategy.
+             "Reason: no opening range entry: the range was not formed, the "
+             "latest close was not above its high inside the chase cap, or "
+             "one of the 5m/15m/30m closes was not above its own VWAP.\n"
              f"Source: {quality.source}")
     if gate_tally:
         lines += "\nWhy nothing passed, measured per gate:\n"

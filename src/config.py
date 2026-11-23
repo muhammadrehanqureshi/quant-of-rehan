@@ -258,13 +258,13 @@ def is_etf_symbol(symbol: str) -> bool:
 
     return eligibility.is_etf(symbol)
 
-# The scanner's identity is the one law it runs. Owner order 2026-11-16
-# (Karachi): the previous hybrid law is removed, and the only strategy is the
-# Kalman Trend with the 5 minute and 15 minute VWAP frames and the
-# z-score price-VWAP spread as its statistical-arbitrage base
-# (src/signals/kalman_zscore_vwap.py). The name is kept as a constant because
-# the relay, the journal and the research gate file every signal under it.
-SCANNER_VERSION = "kalman_vwap_zscore_sa_v1"
+# The scanner's identity is the one law it runs. Owner order 2026-11-23
+# (Karachi): the day trading strategy is the opening range with the VWAP on
+# the 5, 15 and 30 minute charts (src/signals/opening_range_vwap.py). The
+# Kalman Trend, the z-score price-VWAP spread and every rule that read them
+# are removed. The name is kept as a constant because the relay, the journal
+# and the research gate file every signal under it.
+SCANNER_VERSION = "opening_range_vwap_v1"
 
 # The Kalman Trend, the owner's sole intraday strategy (owner order
 # 2026-10-30). The filter numbers below are the starting pair; the tuned
@@ -329,29 +329,32 @@ MTF_VWAP_LOOKBACK = {5: 3, 15: 12, 30: 12}
 # the 30 minute window the law reads anyway.
 MTF_MIN_BARS = {5: 3, 15: 2, 30: 1}
 
-# ------------------- the z-score price-VWAP spread strategy
-# Owner order 2026-11-16 (Karachi): the Kalman Trend with VWAP on the 5, 15
-# and 30 minute charts, and the z-score of the price minus VWAP spread as the
-# mathematical base (src/signals/kalman_zscore_vwap.py). The one minute trend
-# is the execution clock; the 15 and 30 minute frames must stay above their
-# VWAP with Kalman state +1 while the 5 minute spread is stretched below its
-# trailing mean. The new law is the ONE entry law, not a second engine.
-ZSCORE_ENABLED = _flag("ZSCORE_ENABLED", True)
-ZSCORE_STRATEGY_VERSION = "kalman_vwap_zscore_sa_v1"
-#: The frame whose price-VWAP spread is standardised for the entry.
-ZSCORE_SIGNAL_FRAME_MINUTES = int(_number("ZSCORE_SIGNAL_FRAME_MINUTES", 5))
-#: How many trailing standard deviations below the mean spread the signal
-#: frame must sit before the dislocation counts.
-ZSCORE_Z_MIN = _number("ZSCORE_Z_MIN", 1.0)
-#: The minimum number of earlier spreads used for the mean and sigma.
-ZSCORE_MIN_SPREADS = int(_number("ZSCORE_MIN_SPREADS", 3))
-# Owner order 2026-11-21: a call must score MORE than this out of 100. The
-# law's own minimum dislocation prints 89.1 and a deeper one ranks higher, so
-# the 80 point floor never refuses the setup the entry law itself accepts and
-# the day can still carry its three calls. The floor is checked where the call
-# is chosen (src/signals/momentum_scanner.select_one), never inside the entry
-# law, so every refusal keeps its own measured reason.
-MIN_CALL_SCORE = _number("MIN_CALL_SCORE", 80.0)
+# ----------------------- the opening range with the three VWAP frames
+# Owner order 2026-11-23 (Karachi): the day trading strategy is the opening
+# range with the VWAP on the 5, 15 and 30 minute charts
+# (src/signals/opening_range_vwap.py). The Kalman Trend and the z-score
+# price-VWAP spread are removed outright: no Kalman state is read and no
+# spread is standardised. The range is the first OPENING_RANGE_MINUTES
+# completed one minute bars of the session, every minute of them present, and
+# the latest completed close must sit above the range high by no more than
+# OPENING_RANGE_MAX_EXTENSION times the range's own height. All three frames'
+# completed closes must sit above their own rolling VWAP.
+OPENING_RANGE_ENABLED = _flag("OPENING_RANGE_ENABLED", True)
+OPENING_RANGE_STRATEGY_VERSION = "opening_range_vwap_v1"
+#: The length of the session's opening range, in completed one minute bars.
+OPENING_RANGE_MINUTES = int(_number("OPENING_RANGE_MINUTES", 30))
+#: Anti-chase unit: the breakout may sit at most this many range heights
+#: above the range high. One range height is also the score's clear unit.
+OPENING_RANGE_MAX_EXTENSION = _number("OPENING_RANGE_MAX_EXTENSION", 3.0)
+# Owner order 2026-11-21: a call must score MORE than this out of 100.
+# Owner order 2026-11-23: the new law's own weakest legal setup (a formed
+# range, a held breakout inside the chase cap and all three frames above
+# VWAP) scores 50 before any measured strength is added, so the floor sits at
+# 50 and never refuses the law's own answer. Stronger setups rank higher. The
+# floor is checked where the call is chosen
+# (src/signals/momentum_scanner.select_one), never inside the entry law, so
+# every refusal keeps its own measured reason.
+MIN_CALL_SCORE = _number("MIN_CALL_SCORE", 50.0)
 # Owner order 2026-11-19 (Karachi): the pick's day gain may not be more than
 # 2%. The reference is the venue's own previous close (the tape's `close`
 # field), never the session's first bar: a name that gapped up at the open
@@ -683,16 +686,15 @@ def config_snapshot() -> dict:
             "vwap_lookback": {str(k): v for k, v in MTF_VWAP_LOOKBACK.items()},
             "min_bars": {str(k): v for k, v in MTF_MIN_BARS.items()},
         },
-        "zscore_spread_stat_arb": {
-            "enabled": ZSCORE_ENABLED,
-            "version": ZSCORE_STRATEGY_VERSION,
-            "signal_frame_minutes": ZSCORE_SIGNAL_FRAME_MINUTES,
-            "z_min": ZSCORE_Z_MIN,
-            "min_spreads": ZSCORE_MIN_SPREADS,
-            "basis": "z score of the current price minus rolling VWAP "
-                     "spread against that spread's own trailing mean and "
-                     "standard deviation, with the 15 and 30 minute frames "
-                     "above VWAP and every Kalman state up",
+        "opening_range_vwap": {
+            "enabled": OPENING_RANGE_ENABLED,
+            "version": OPENING_RANGE_STRATEGY_VERSION,
+            "range_minutes": OPENING_RANGE_MINUTES,
+            "max_extension_heights": OPENING_RANGE_MAX_EXTENSION,
+            "basis": "the session's first completed bars as the opening "
+                     "range, a held close above its high inside the chase "
+                     "cap, and the 5, 15 and 30 minute closes above their "
+                     "own rolling VWAP",
         },
         "entry_gates": {
             "max_day_gain_pct": round(MAX_DAY_GAIN_PCT * 100, 4),
@@ -706,7 +708,8 @@ def config_snapshot() -> dict:
         "min_relative_volume": MIN_RELATIVE_VOLUME,
         "min_session_traded_value": MIN_SESSION_TRADED_VALUE,
         "score_weights": dict(SCORE_WEIGHTS),  # historical research only
-        "score_basis": "Kalman trend quality, volume and cost-inclusive reward/risk",
+        "score_basis": "opening range shape, VWAP strength, breakout "
+                        "clearance and breakout volume, out of 100",
         "scanner_version": SCANNER_VERSION,
         "ai_signal_enabled": False,
         "ai_tie_break_enabled": False,

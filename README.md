@@ -21,33 +21,24 @@ No order placement, no broker trading integration: signals and research only.
 ## The strategy in one paragraph
 
 Scan the current KMIALL universe for one setup, the one the owner named: the
-Kalman Trend with VWAP on the 5, 15 and 30 minute charts, with the z-score of
-the price minus VWAP spread as the mathematical base. The one minute Kalman
-trend must be up, the 5 minute Kalman state must be up, and the 15 and 30
-minute frames must both have Kalman state up and a close above their own
-VWAP. Owner order 2026-11-19 keeps all three frames and adds two rules: the
-pick may not already be more than 2% up on the day measured from the venue's
-previous close, and its measured buyers must be at least twice its measured
-sellers. The same order shortened the 5 minute history (a three bar VWAP plus
-three earlier spreads), so the fast frame is ready at 10:07. Owner order
-2026-11-19 (latest, the owner's own arithmetic) then took the doubt out of the
-slow frame: a frame never waits for two of its own candles, because two 30
-minute candles are one hourly candle and the hourly candle is not in this
-strategy, so the 30 minute frame votes on its first completed bar, at 10:02
-from the 09:32 open (09:47 on Friday's earlier open). The binding minute is
-now the fast frame's z history, 10:07 on a Mon-Thu day and 09:52 on Friday.
-The 5 minute spread must then sit at
-least `ZSCORE_Z_MIN`
-standard deviations below its own trailing mean, measured against that
-spread's own dispersion so a quiet scrip needs a smaller move than a violent
-one. That is the statistical-arbitrage entry: buy a measured dislocation
-inside a rising multi-timeframe regime. The plan is the owner's law either
-way: paper entry at the last completed close, stop at entry minus 1%, target
-at entry plus 2%, three calls a day each scored above 80 out of 100, and no
-trade after a broad selloff. A
-candidate only exists on completed minutes; there is no momentum fallback, no
-RSI fallback and no second strategy. Entry and exit intent only: nothing
-reaches a broker (SO-1).
+opening range with the VWAP on the 5, 15 and 30 minute charts. The opening
+range is the session's first 30 completed one minute bars, every minute of
+them present, and the latest completed close must sit above the range high by
+no more than three range heights, so a name already far past the range is a
+chase and is refused. The 5, 15 and 30 minute frames must each have a
+completed close above their own rolling VWAP. Owner order 2026-11-19 still
+stands on top: the pick may not already be more than 2% up on the day
+measured from the venue's previous close, and its measured buyers must be at
+least twice its measured sellers. Every call carries a score out of 100: the
+law's own shape (a formed range, a held breakout and all three frames above
+VWAP) is 50, and the rest is measured from how far each frame sits above its
+VWAP, how far the breakout cleared the range and the breakout bar's volume
+against the range's own average. The plan is the owner's law: paper entry at
+the last completed close, stop at entry minus 1%, target at entry plus 2%,
+three calls a day at most, and no trade after a broad selloff. A candidate
+only exists on completed minutes; there is no momentum fallback, no RSI
+fallback and no second strategy. Entry and exit intent only: nothing reaches
+a broker (SO-1).
 
 ## Architecture
 
@@ -84,19 +75,18 @@ rather than inventing a fresher number.
   returns exactly one confirmed long under the one running law, NO TRADE, or
   DATA BLOCKED, with market context gating and late-entry refusal instead of
   any fallback signal.
-- **The one strategy**: [src/signals/kalman_zscore_vwap.py](src/signals/kalman_zscore_vwap.py)
-  is the running law (`kalman_vwap_zscore_sa_v1`, owner order 2026-11-16):
-  the Kalman Trend with VWAP on the 5, 15 and 30 minute charts and the z-score
-  of the price minus VWAP spread as its statistical base. The 15 and 30 minute
-  frames must stay above VWAP with Kalman state up, and the 5 minute spread
-  must be at least `ZSCORE_Z_MIN` trailing standard deviations below its own
-  mean.
-  The owner's order of 2026-11-16 removed the previous hybrid statistical
-  arbitrage and mean reversion law, the market leg it read, the relative
-  strength gate, the three frame pullback and the fresh one minute flip: their
-  modules and constants are gone and `kalman_trend.py` builds no entry from
-  them. The 5, 15 and 30 minute frames are read from the session tape alone;
-  the 1 day frame and its daily file remain withdrawn.
+- **The one strategy**: [src/signals/opening_range_vwap.py](src/signals/opening_range_vwap.py)
+  is the running law (`opening_range_vwap_v1`, owner order 2026-11-23): the
+  opening range with the VWAP on the 5, 15 and 30 minute charts. The range is
+  the session's first 30 completed one minute bars, the latest close must sit
+  above its high inside the three range height chase cap, and every frame's
+  completed close must sit above that frame's own rolling VWAP. Every call
+  carries a score out of 100 and the day carries at most three.
+  The owner's order of 2026-11-23 removed the Kalman Trend and the z-score
+  price-VWAP spread that ran before it: `kalman_zscore_vwap.py` is deleted,
+  the ZSCORE_* constants are gone, and `kalman_trend.py` is now only the
+  historical filter the research scripts replay. Nothing in the live path
+  reads a Kalman state or standardises a spread.
 - **Owner order 2026-11-19 (Karachi)**: all three VWAP frames stay, the call
   must come early, the pick may not already be more than 2% up on the day, and
   its measured buyers must be at least twice its measured sellers. The 5
@@ -260,8 +250,8 @@ Full detail in [charts/README.md](charts/README.md) and
 ```
 src/config.py                     the ONE configuration surface
 src/signals/momentum_scanner.py   the ONE scanner (one law, one winner)
-src/signals/kalman_zscore_vwap.py the ONE strategy: Kalman, 5m/15m/30m VWAP and the z-score spread
-src/signals/kalman_trend.py       the causal trend clock and the one entry builder
+src/signals/opening_range_vwap.py the ONE strategy: the opening range and the 5m/15m/30m VWAP
+src/signals/kalman_trend.py       the causal Kalman filter, replayed by research only
 src/signals/mtf_vwap.py           the 5, 15 and 30 minute VWAP frames
 src/signals/trade_state.py        the persisted daily state and trade lock
 src/signals/contracts.py          the typed boundary: models, faults, ingest guard
@@ -345,16 +335,15 @@ python scripts/intraday_pipeline.py --finalize
 - [android/README.md](android/README.md), [charts/README.md](charts/README.md),
   [cloud/README.md](cloud/README.md): the three components in full.
 
-## Status, 2026-11-14
+## Status, 2026-11-23
 
-- **One strategy only**: the hybrid statistical arbitrage and mean reversion
-  law, the market leg it read, the relative strength gate, the three frame
-  VWAP pullback and the fresh one minute flip are removed. The only entry law
-  is the Kalman Trend with the 5, 15 and 30 minute VWAP frames and the z-score
-  price-VWAP spread (`kalman_vwap_zscore_sa_v1`), and the scan always reads its
-  frames. Owner order 2026-11-19 keeps all three frames, shortens the 5 minute
-  history so the fast frame is ready early, and adds the 2% day-gain and 2:1
-  buyer gates.
+- **One strategy only**: the Kalman Trend and the z-score price-VWAP spread
+  are removed, along with the earlier hybrid law, the relative strength gate,
+  the three frame VWAP pullback and the fresh one minute flip. The only entry
+  law is the opening range with the 5, 15 and 30 minute VWAP frames
+  (`opening_range_vwap_v1`), every call is scored out of 100, and the day
+  carries at most three. Owner order 2026-11-19 still stands: the 2% day-gain
+  cap from the venue's previous close and the 2:1 buyer gate.
 - **Suite green**: every pull request runs `governance-guard` (the governance
   check, the whole unit suite, the worker's JavaScript) and the HUD's own
   `build` job, and it merges only when all of them pass.
@@ -363,4 +352,4 @@ python scripts/intraday_pipeline.py --finalize
   standing (SO-24); the checks are never waived.
 - **Signal-only and paper only**: live trading is disabled, and the paper gate
   needs genuinely accumulated forward sessions before it opens.
-- **Versions**: the HUD is v3.7.8 (build 123) and the phone app v4.4.1.
+- **Versions**: the HUD is v3.8.35 (build 160) and the phone app v4.4.7.

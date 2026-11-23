@@ -425,11 +425,10 @@ class PipelineCycleTest(unittest.TestCase):
         text.encode("ascii")
 
     def test_full_paper_cycle(self):
-        # 11:20 is a slot with enough tape for all three frames (the 30 minute
-        # frame's second bar is complete well before the Friday open plus two
-        # hours) and a price still stretched below the 5 minute VWAP inside the
-        # fixture's measured dip.
-        first = self.scan("11:20")
+        # 11:28 is a slot with a formed opening range, a held breakout and all
+        # three frames above their own VWAP, while the fixture is still under
+        # the 2% day-gain cap and clear of the band's last-entry minute.
+        first = self.scan("11:28")
         quality = first["data_quality"]
 
         self.assertEqual(quality["status"], "OK")
@@ -539,7 +538,7 @@ class PipelineCycleTest(unittest.TestCase):
         stop or target sentence, never on the entry sentence.
         """
         with patch.object(pipeline, "email_signal", return_value=True):
-            first = self.scan("11:20")
+            first = self.scan("11:28")
             self.assertEqual(first["status"], scanner.TRADE)
             entry = first["candidate"]["price"]["last"]
             stop = round(entry * (1 - config.KALMAN_STOP_PCT), 4)
@@ -551,7 +550,7 @@ class PipelineCycleTest(unittest.TestCase):
                 row = json.loads(line)
                 if row["symbol"] == WINNER:
                     for bar in row["bars"]:
-                        if bar["t"] == "11:20":
+                        if bar["t"] == "11:29":
                             bar.update(o=entry,
                                        h=round(entry * 1.005, 4),
                                        l=round(entry * 0.98, 4),
@@ -599,7 +598,7 @@ class PipelineCycleTest(unittest.TestCase):
         runner cannot rely on seeing the exit event again. It must bank the
         stored close before it reads a fresh tape, and only once.
         """
-        self.scan("11:20")
+        self.scan("11:28")
         state = trade_state.SessionState.load(FRIDAY, path=self.state_path)
         self.assertTrue(state.in_position())
         state.mark_stop_hit(state.entry_price * 0.99, FIXED_NOW)
@@ -633,7 +632,7 @@ class PipelineCycleTest(unittest.TestCase):
         precision the relay's research routes validate (the 30 second slot
         label is refused with 400 "invalid observation").
         """
-        first = self.scan("11:20")
+        first = self.scan("11:28")
         self.assertEqual(first["status"], scanner.TRADE)
         self.assertEqual(first["claim"]["ok"], True)
         self.assertEqual(first["claim"]["detail"], "claimed call 1 of 3")
@@ -654,7 +653,7 @@ class PipelineCycleTest(unittest.TestCase):
         self.relay.claims = False
         with contextlib.redirect_stdout(io.StringIO()):
             with patch.object(pipeline, "email_signal") as mail:
-                result = run_scan("11:20", self.capture)
+                result = run_scan("11:28", self.capture)
 
         self.assertEqual(result["status"], State.DAILY_LOCKED)
         self.assertEqual(result["delivered"], "LOCKED")
@@ -672,7 +671,7 @@ class PipelineCycleTest(unittest.TestCase):
         """No answer, no entry: an unverifiable lock cannot promise one trade."""
         self.relay.refuse = ("/research/claim",)
         with contextlib.redirect_stdout(io.StringIO()):
-            result = run_scan("11:20", self.capture)
+            result = run_scan("11:28", self.capture)
 
         self.assertEqual(result["status"], State.DAILY_LOCKED)
         self.assertEqual(result["trade_state"]["trades_today"], 0)
@@ -712,7 +711,7 @@ class PipelineCycleTest(unittest.TestCase):
         """
         with contextlib.redirect_stdout(io.StringIO()):
             with patch.object(pipeline, "email_signal", return_value=False):
-                result = run_scan("11:20", self.capture)
+                result = run_scan("11:28", self.capture)
 
         self.assertEqual(result["status"], scanner.TRADE)
         self.assertEqual(result["trade_state"]["trades_today"], 1)
@@ -804,7 +803,7 @@ class PipelineCycleTest(unittest.TestCase):
         the scan clock alone must never buy a write.
         """
         with contextlib.redirect_stdout(io.StringIO()):
-            first = run_scan("11:20", self.capture)      # TRADE: archived
+            first = run_scan("11:28", self.capture)      # TRADE: archived
             second = run_scan("11:40", self.capture)     # target hit: changed
 
         self.assertEqual(first["status"], scanner.TRADE)
@@ -845,7 +844,7 @@ class TapeBarCycleTest(PipelineCycleTest):
                                   self.symbols())
 
     def test_the_cycle_runs_on_tape_bars_and_says_so(self):
-        first = self.scan("11:20")
+        first = self.scan("11:28")
         quality = first["data_quality"]
 
         self.assertIn("MKT-FEED tape", quality["source"])

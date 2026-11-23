@@ -15,7 +15,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.data.sessions import KARACHI, open_time  # noqa: E402
-from src.signals import kalman_trend  # noqa: E402
 from src.signals import momentum_scanner as scanner  # noqa: E402
 from src.signals import mtf_vwap  # noqa: E402
 
@@ -162,26 +161,30 @@ class LawTest(unittest.TestCase):
 class CandidateContractTest(unittest.TestCase):
     def test_without_frames_the_law_refuses_and_names_it(self):
         """The one running law cannot be evaluated without its frames."""
+        from src.signals import opening_range_vwap
         from tests.kalman_fixture import setup_rows
 
         rows = setup_rows(scanner, SESSION_OPEN)
         tally: dict = {}
-        result = kalman_trend.candidate("OGDC", rows, session_of(rows), tally)
+        result = opening_range_vwap.candidate("OGDC", rows,
+                                              session_of(rows), tally)
         self.assertIsNone(result)
-        self.assertIn("zscore_frames_not_read", tally)
+        self.assertIn("opening_range_frames_not_read", tally)
 
     def test_when_the_frames_are_read_a_short_session_fails_closed(self):
+        from src.signals import opening_range_vwap
         from tests.kalman_fixture import setup_rows
 
-        # Owner order 2026-11-19 (latest): the 30 minute frame votes on its
-        # first completed bar, so a tape shorter than half an hour is what
-        # still fails closed here.
+        # The opening range is the first 30 completed minutes, so a tape
+        # shorter than half an hour has no range to break.
         rows = setup_rows(scanner, SESSION_OPEN, count=25)
         tally: dict = {}
-        result = kalman_trend.candidate("OGDC", rows, session_of(rows), tally,
-                                        frames=True)
+        result = opening_range_vwap.candidate("OGDC", rows,
+                                              session_of(rows), tally,
+                                              frames=True)
         self.assertIsNone(result)
-        self.assertTrue(any(key.startswith("zscore_") for key in tally), tally)
+        self.assertTrue(any(key.startswith("opening_range_") for key in tally),
+                        tally)
 
 
 if __name__ == "__main__":
