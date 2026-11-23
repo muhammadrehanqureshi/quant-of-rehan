@@ -444,6 +444,17 @@ class RelayWorkerContractTest(unittest.TestCase):
 
         start = self.source.index("async function ensureFeedAlive(env, now)")
         body = self.source[start:start + 3600]
+        # Owner audit 2026-11-23: measured live, the watchdog forced a second
+        # band dispatch at 09:15 PKT while the 08:55 loop was still running.
+        # The pre-open recorder had printed nothing yet, so the newest frame
+        # was the previous session's and read as a dead feed. The staleness
+        # check now waits for the day's own scan window to be open.
+        self.assertIn('reason: "no scan window open"', body)
+        self.assertIn('reason: "scan window just opened"', body)
+        self.assertLess(
+            body.index("scan window just opened"),
+            body.index("SCAN:WATCHDOG:"),
+            "the scan window guard must run before the staleness check")
         for want in ("dispatchWindowsFor(k)", "newestFrameAgeMs(snapshot, now)",
                      "FEED_WATCHDOG_STALE_MS", "FEED_WATCHDOG_COOLDOWN_MS",
                      "force: true"):
