@@ -98,7 +98,10 @@ class ScanAuditFixesTest(unittest.TestCase):
         guard = text.index("if not bands:")
         self.assertLess(guard, text.index("bands[-1]"),
                         "the empty band guard must run before the band is read")
-        self.assertIn("not a PSX trading day, so there is no session edge", text)
+        # The sentence is one print split over two source lines, so the test
+        # reads its two halves rather than a run of text the file never holds.
+        self.assertIn("is not a PSX trading", text)
+        self.assertIn("no session edge to check", text)
 
     def test_the_failsafe_watches_the_whole_friday_second_band(self):
         text = self._read("session-failsafe.yml")
