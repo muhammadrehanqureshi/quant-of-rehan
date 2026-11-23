@@ -32,6 +32,7 @@ from src.data.sessions import KARACHI, open_time  # noqa: E402
 from src.signals import kalman_trend  # noqa: E402
 from src.signals import momentum_scanner as scanner  # noqa: E402
 from src.signals import mtf_vwap  # noqa: E402
+from src.signals import opening_range_vwap  # noqa: E402
 
 
 WEDNESDAY = date(2026, 10, 7)      # Mon-Thu session: 09:32 to 15:30 PKT
@@ -370,10 +371,10 @@ class TestHighestScoreSelection(unittest.TestCase):
     """The delivered call is the highest score in the scanned KMIALL set."""
 
     @staticmethod
-    def row(symbol: str, score: float, z: float) -> dict:
+    def row(symbol: str, score: float, extension: float) -> dict:
         return {
             "symbol": symbol, "score": score, "strategy": "test",
-            "setup": {"zscore": {"z": z}},
+            "setup": {"opening_range": {"extension": extension}},
             "price": {"last": 100.0}, "stop_loss": 99.0, "target": 102.0,
             "net_reward_risk": 1.5,
         }
@@ -399,13 +400,13 @@ class TestHighestScoreSelection(unittest.TestCase):
         self.assertEqual(result.candidate["symbol"], "LIQ001")
         self.assertEqual(result.ranked[0]["symbol"], "LIQ001")
 
-    def test_a_score_tie_goes_to_the_deeper_spread_not_the_alphabet(self):
+    def test_a_score_tie_goes_to_the_clearer_breakout_not_the_alphabet(self):
         bars = {"AAA": minute_rows(40, step=0.01),
                 "ZZZ": minute_rows(40, step=0.01)}
         session = session_of(bars, 39)
         rows = {
-            "AAA": self.row("AAA", 92.5, -1.2),
-            "ZZZ": self.row("ZZZ", 92.5, -3.1),
+            "AAA": self.row("AAA", 92.5, 0.4),
+            "ZZZ": self.row("ZZZ", 92.5, 1.6),
         }
 
         with patch.object(scanner, "score_symbol",
@@ -489,9 +490,9 @@ class TestOwnerOrderedCallWatch(unittest.TestCase):
         # tail beside the one name the fixture moves.
         for index in range(70):
             bars[f"QUIET{index:02d}"] = minute_rows(150)
-        # 118 minutes is inside the fixture's measured dip, where the 15 minute
-        # VWAP still sits above the price (the law's entry window).
-        session = session_of(bars, 118)
+        # 130 minutes in, the fixture has cleared its opening range and all
+        # three frames sit above their own VWAP (the law's entry window).
+        session = session_of(bars, 130)
         quality = scanner.assess_quality(session, list(bars))
         assert quality.status != scanner.DATA_BLOCKED, quality.reason
         scanner.market_context = lambda s: {
@@ -575,7 +576,8 @@ class TestOwnerDayAndFlowGates(unittest.TestCase):
 
     def tally_for(self, session, rows):
         tally: dict = {}
-        kalman_trend.candidate("OGDC", rows, session, tally, frames=True)
+        opening_range_vwap.candidate("OGDC", rows, session, tally,
+                                     frames=True)
         return tally
 
     def test_a_pick_already_five_percent_up_on_the_day_is_refused(self):

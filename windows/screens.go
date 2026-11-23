@@ -955,6 +955,20 @@ func (a *App) drawSignal(c *Canvas, x, y, w, h int, twoCol bool) {
 		}
 		return
 	}
+	// Owner order 2026-11-23: once the day has calls, the tile puts each call
+	// in its own column, all of its details under one another, with six blank
+	// cells between one call and the next. It is drawn ahead of the single
+	// card, because the card's own verdict may be a later NO TRADE while the
+	// calls already made today are still what the owner is watching.
+	calls := parseCalls(a.signals)
+	if len(calls) > 0 && !twoCol {
+		cd := cardDate(a.signals)
+		if cd == "" || a.relayDate() == "" || cd == a.relayDate() {
+			a.drawCalls(c, ix, iy, iw, ih, calls)
+			a.drawWinLossRecord(c, ix, iy+ih-1, iw)
+			return
+		}
+	}
 	disp := latestSignalDisplay(a.signals, a.relayDate())
 	f := parseSignal(a.signals)
 	if disp == signalNone || disp == unavailable || f.State != "trade" {
@@ -1041,6 +1055,49 @@ func (a *App) drawSignal(c *Canvas, x, y, w, h int, twoCol bool) {
 		}
 	}
 	a.drawWinLossRecord(c, ix, iy+ih-1, iw)
+}
+
+// drawCalls lays the day's calls side by side. The first call sits on the
+// tile's very left with all of its details (its number, symbol, entry time,
+// entry price, target, stop and score), the second starts exactly six blank
+// cells after the first column, and the third after the second. A tile too
+// narrow for all three shows the calls that do fit, never a squeezed fourth.
+func (a *App) drawCalls(c *Canvas, ix, iy, iw, ih int, calls []Call) {
+	th := a.th
+	// One column is 26 cells: the widest detail line is "SL 2786.9860  84/100"
+	// at 22, so a value never runs into the next call.
+	const colW, gap = 26, 6
+	fitN := (iw + gap) / (colW + gap)
+	if fitN < 1 {
+		fitN = 1
+	}
+	if fitN > len(calls) {
+		fitN = len(calls)
+	}
+	if fitN > 3 {
+		fitN = 3
+	}
+	for i := 0; i < fitN; i++ {
+		call := calls[i]
+		x := ix + i*(colW+gap)
+		w := colW
+		if x+w > ix+iw {
+			w = ix + iw - x
+		}
+		if w <= 0 {
+			break
+		}
+		c.Text(x, iy, w, "CALL "+call.N+"/3", th.Accent, true)
+		c.Text(x, iy+1, w, fit(call.Symbol, w), th.Hot, true)
+		c.Text(x, iy+2, w, fit(call.Time+"  "+call.Entry, w), th.Text, false)
+		c.Text(x, iy+3, w, fit("TP "+call.Target, w), th.Good, false)
+		if iy+4 < iy+ih {
+			c.Spans(x, iy+4, w, []Span{
+				{"SL ", th.Bad, false}, {call.Stop, th.Bad, false},
+				{"  ", th.Soft, false}, {call.Score, th.Accent, false},
+			})
+		}
+	}
 }
 
 // drawWinLossRecord is the closed signal record, moved from QUANT STATUS to

@@ -425,11 +425,10 @@ class PipelineCycleTest(unittest.TestCase):
         text.encode("ascii")
 
     def test_full_paper_cycle(self):
-        # 11:20 is a slot with enough tape for all three frames (the 30 minute
-        # frame's second bar is complete well before the Friday open plus two
-        # hours) and a price still stretched below the 5 minute VWAP inside the
-        # fixture's measured dip.
-        first = self.scan("11:20")
+        # 11:30 is a slot with a formed opening range, a held breakout and all
+        # three frames above their own VWAP, while the fixture is still under
+        # the 2% day-gain cap.
+        first = self.scan("11:30")
         quality = first["data_quality"]
 
         self.assertEqual(quality["status"], "OK")
@@ -539,7 +538,7 @@ class PipelineCycleTest(unittest.TestCase):
         stop or target sentence, never on the entry sentence.
         """
         with patch.object(pipeline, "email_signal", return_value=True):
-            first = self.scan("11:20")
+            first = self.scan("11:30")
             self.assertEqual(first["status"], scanner.TRADE)
             entry = first["candidate"]["price"]["last"]
             stop = round(entry * (1 - config.KALMAN_STOP_PCT), 4)
@@ -599,7 +598,7 @@ class PipelineCycleTest(unittest.TestCase):
         runner cannot rely on seeing the exit event again. It must bank the
         stored close before it reads a fresh tape, and only once.
         """
-        self.scan("11:20")
+        self.scan("11:30")
         state = trade_state.SessionState.load(FRIDAY, path=self.state_path)
         self.assertTrue(state.in_position())
         state.mark_stop_hit(state.entry_price * 0.99, FIXED_NOW)

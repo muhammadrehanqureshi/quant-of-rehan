@@ -79,6 +79,53 @@ type SignalFields struct {
 	State string
 }
 
+// Call is one of the day's calls, as the card's CALLS TODAY ledger words it.
+type Call struct {
+	N      string
+	Symbol string
+	Time   string
+	Entry  string
+	Target string
+	Stop   string
+	Score  string
+}
+
+// parseCalls reads the CALLS TODAY ledger scripts/intraday_pipeline.py appends
+// to every card once the day has a call. Owner order 2026-11-23: the LATEST
+// SIGNAL tile shows each call in its own column, so the ledger is the one
+// place the tile learns about the calls before the one being monitored. A card
+// without a ledger returns nil, and the tile draws its single card as before.
+func parseCalls(raw string) []Call {
+	var out []Call
+	for _, line := range regexp.MustCompile(`\r?\n`).Split(raw, -1) {
+		t := strings.TrimSpace(line)
+		if !strings.HasPrefix(strings.ToUpper(t), "CALL ") || !strings.Contains(t, " | ") {
+			continue
+		}
+		parts := strings.Split(t, "|")
+		if len(parts) < 7 {
+			continue
+		}
+		field := func(i int) string { return strings.TrimSpace(parts[i]) }
+		after := func(s, label string) string {
+			return strings.TrimSpace(strings.TrimPrefix(strings.ToLower(s), label))
+		}
+		head := strings.Fields(field(0))
+		n := ""
+		if len(head) >= 2 {
+			n = head[1]
+		}
+		out = append(out, Call{
+			N: n, Symbol: field(1), Time: field(2),
+			Entry:  after(field(3), "entry"),
+			Target: after(field(4), "target"),
+			Stop:   after(field(5), "stop"),
+			Score:  after(field(6), "score"),
+		})
+	}
+	return out
+}
+
 // signalScore reads the card's own "Score: 72/100" line, which
 // scripts/intraday_pipeline.py writes when a candidate carried a score. A card
 // without one says not reported rather than showing a made up number.

@@ -210,6 +210,53 @@ def email_signal(text: str, marker: str) -> bool:
         return False
 
 
+def calls_ledger(state: SessionState | None) -> str:
+    """The day's calls, one line each, as the LATEST SIGNAL tile reads them.
+
+    Owner order 2026-11-23: the tile shows each call in its own column, with
+    all of its details, so every card carries the day's calls in a stable
+    line shape:
+
+        CALL 1 OF 3 | HCAR | 09:41:07 | entry 148.6200 | target 151.5924 |
+        stop 147.1338 | score 89/100
+
+    The ledger is appended to whatever verdict the card already carries, so
+    a NO TRADE or monitoring card still lets the tile show the calls already
+    made today. An empty ledger adds nothing.
+    """
+    calls = list(getattr(state, "calls", None) or []) if state is not None else []
+    if not calls:
+        return ""
+    lines = ["", f"CALLS TODAY ({len(calls)} of {config.MAX_TRADES_PER_DAY})"]
+    for call in calls:
+        try:
+            clock = datetime.fromisoformat(
+                str(call.get("entry_time") or "")).strftime("%H:%M:%S")
+        except ValueError:
+            clock = "not reported"
+        score = call.get("score")
+        score_text = (f"{score:.0f}/100" if isinstance(score, (int, float))
+                      else "not reported")
+        fields = [
+            f"CALL {call.get('n')} OF {config.MAX_TRADES_PER_DAY}",
+            str(call.get("symbol")),
+            clock,
+            "entry " + _call_price(call.get("entry_price")),
+            "target " + _call_price(call.get("target_price")),
+            "stop " + _call_price(call.get("stop_loss")),
+            "score " + score_text,
+        ]
+        lines.append(" | ".join(fields))
+    return "\n".join(lines)
+
+
+def _call_price(value) -> str:
+    """A call's price as four decimals, or the honest words for a missing one."""
+    if isinstance(value, (int, float)):
+        return f"{value:.4f}"
+    return "not reported"
+
+
 def push_card(text: str, state: SessionState | None = None,
               signature: str | None = None) -> bool:
     """Write the current verdict to the app's signal card (POST /signals).
@@ -229,7 +276,10 @@ def push_card(text: str, state: SessionState | None = None,
     the one second cadence free; the app's once-a-second freshness comes from
     /health and the broker feed, not from a rewritten card.
     """
-    key = signature if signature is not None else text
+    ledger = calls_ledger(state)
+    if ledger:
+        text = f"{text}\n{ledger}"
+    key = (signature if signature is not None else text) + ledger
     if state is not None and not state.card_is_new(key):
         print("card verdict unchanged; not republished")
         return False
@@ -392,10 +442,11 @@ def claim_signal(day, slot: str, call_no: int = 1) -> tuple[bool, str]:
 
 
 def mtf_summary(candidate: dict | None) -> str:
-    """The four cloud frame states as one card and email line, or empty."""
-    from src.signals import mtf_vwap
+    """The opening range and its three VWAP frames as one card line, or empty."""
+    from src.signals import opening_range_vwap
 
-    return mtf_vwap.summary(((candidate or {}).get("setup") or {}).get("mtf"))
+    return opening_range_vwap.summary(
+        ((candidate or {}).get("setup") or {}).get("opening_range"))
 
 
 def card_text(day, slot: str, body: str, alert: bool) -> str:
@@ -715,7 +766,7 @@ def run_scan(slot: str, capture: Path | None = None,
             "status": scanner.DATA_BLOCKED, "reason": quality.reason,
             "capture": capture_label(path, session),
             "data_quality": quality.as_dict(), "trade_state": state.to_dict(),
-            "ai": {"active": False, "reason": "Kalman flip rules have no daily-model routing"},
+            "ai": {"active": False, "reason": "the opening range law has no daily-model routing"},
             "mtf": None,
             "universe_size": len(symbols),
             "universe_sha256": universe_fingerprint(symbols),
@@ -737,7 +788,7 @@ def run_scan(slot: str, capture: Path | None = None,
         print(json.dumps(payload, indent=2, allow_nan=False))
         return payload
 
-    ai_status = {"active": False, "reason": "Kalman flip rules have no daily-model routing"}
+    ai_status = {"active": False, "reason": "the opening range law has no daily-model routing"}
     # The only strategy reads the three VWAP frames, so the frames are always
     # read here: passing the deployment flag would let a scan run a law it
     # cannot evaluate (owner order 2026-11-12).
@@ -753,7 +804,7 @@ def run_scan(slot: str, capture: Path | None = None,
     # market. Don't go against the market."): the ONE orchestrator consults
     # the measured memory before anything is delivered, so both the
     # one-second band loop and the scheduled slots learn from the closed
-    # trades the research archive banks. The strict Kalman flip law is
+    # trades the research archive banks. The opening range law is
     # untouched; the memory only refuses what its own record says failed.
     adaptive_note: dict = {"memory": None, "veto": None,
                            "error": None}
@@ -1201,7 +1252,8 @@ def run_finalize(capture: Path | None = None,
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="KMIALL long-only Kalman Trend scan")
+    parser = argparse.ArgumentParser(
+        description="KMIALL long-only opening range and VWAP scan")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--scan", action="store_true")
     mode.add_argument("--finalize", action="store_true")
