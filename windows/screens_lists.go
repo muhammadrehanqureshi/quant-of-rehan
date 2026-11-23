@@ -1440,6 +1440,7 @@ func (a *App) drawAlerts(c *Canvas, x, y, w, h int) {
 	if h-boardH-7 < 5 {
 		priceH = 0
 	}
+	a.boardFields = a.measureBoards()
 			if w >= 84 {
 		// Owner order 2026-11-16: both boards are exactly equal and together
 		// fill the page width. An even width takes a two cell gutter, an odd
@@ -1542,38 +1543,45 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	}
 	lv.set(len(board), ih)
 	cw := contentW(lv, iw)
+	// Owner order 2026-11-23 (latest): both boards keep the two cells the
+	// scrollbar uses clear, so a board that does not scroll still ends its rows
+	// on the cell the other board's rows end on.
+	layW := min(cw, iw-2)
 	// Owner order 2026-11-20 (latest): the board writes the one quote group
 	// every other tile uses, so PKR holds one column down the board and the
 	// price is right aligned in its own field. The field is measured on the rows
 	// the board is showing, because the label may not step left for a scrip that
 	// carries fewer digits; the field still ends on the cell the old right
 	// aligned blob ended on, so the percentage keeps its own column.
-	pxW := 6
-	qtyW := 1
-	valW := 3
+	pxW, qtyW, valW := a.boardFields.pxW, a.boardFields.qtyW, a.boardFields.valW
 	// Owner order 2026-11-13: one bar pair for the whole build. The boards
 	// rank their rows on the last minute, but each bar reads the measured day
 	// B and S pair the scanner, the search tile and the KSE100 leaders use.
 	tbl := a.scanTable()
-	for n := 0; n < lv.view; n++ {
-		i := lv.off + n
-		if i >= len(board) {
-			break
+	if pxW == 0 {
+		// A board drawn on its own measures its own rows; the Alerts page
+		// measures both boards first, so the two share every column.
+		pxW, qtyW, valW = 6, 1, 3
+		for n := 0; n < lv.view; n++ {
+			i := lv.off + n
+			if i >= len(board) {
+				break
+			}
+			pxW = max(pxW, runeLen(commaFloat(board[i].Price, 2)))
+			qty := board[i].BuyShares
+			if side == sideSell {
+				qty = board[i].SellShares
+			}
+			qtyW = max(qtyW, runeLen(compactNum(float64(qty))))
+			buy, sell := barPair(tbl, board[i].Symbol, board[i].BuyShares, board[i].SellShares)
+			valW = max(valW, runeLen(signedCompact(buy-sell)))
 		}
-		pxW = max(pxW, runeLen(commaFloat(board[i].Price, 2)))
-		qty := board[i].BuyShares
-		if side == sideSell {
-			qty = board[i].SellShares
-		}
-		qtyW = max(qtyW, runeLen(compactNum(float64(qty))))
-		buy, sell := barPair(tbl, board[i].Symbol, board[i].BuyShares, board[i].SellShares)
-		valW = max(valW, runeLen(signedCompact(buy-sell)))
 	}
 	// Owner order 2026-11-23 (latest): the price, the percentage, the quantity
 	// and the bar step left as one group, and NET DELTA and its figure close the
 	// row right after the bar. The group is measured once for the whole board, so
 	// every column keeps one cell down every row.
-	lay := boardRowLayout(ix, cw, pxW, qtyW, valW)
+	lay := boardRowLayout(ix, layW, pxW, qtyW, valW)
 	for n := 0; n < lv.view; n++ {
 		i := lv.off + n
 		if i >= len(board) {
@@ -1691,6 +1699,35 @@ func boardRowLayout(ix, cw, pxW, qtyW, vW int) boardGeom {
 	return boardGeom{pxW: pxW, priceX: ix + 28 - quoteLabelW - pxW, chgX: ix + 29,
 		chgW: chgW, chgFits: qtyX-(ix+29) >= chgW+2, qtyX: qtyX, qtyW: qtyW,
 		barX: barX, barW: barW}
+}
+
+// boardMeasure is the width of the three fields the ALERTS boards must share:
+// the price, the side's own quantity and the bar's NET DELTA figure. Owner
+// order 2026-11-23 (latest): the Alerts page measures both boards before it
+// draws either, so the buying rows and the selling rows stand on the same
+// columns instead of each board measuring whatever it happens to hold.
+type boardMeasure struct{ pxW, qtyW, valW int }
+
+func (a *App) measureBoards() boardMeasure {
+	m := boardMeasure{pxW: 6, qtyW: 1, valW: 3}
+	tbl := a.scanTable()
+	for _, side := range []int{sideBuy, sideSell} {
+		rows := a.boardRows(200)
+		if side == sideSell {
+			rows = a.sellRows(200)
+		}
+		for _, b := range rows {
+			m.pxW = max(m.pxW, runeLen(commaFloat(b.Price, 2)))
+			qty := b.BuyShares
+			if side == sideSell {
+				qty = b.SellShares
+			}
+			m.qtyW = max(m.qtyW, runeLen(compactNum(float64(qty))))
+			buy, sell := barPair(tbl, b.Symbol, b.BuyShares, b.SellShares)
+			m.valW = max(m.valW, runeLen(signedCompact(buy-sell)))
+		}
+	}
+	return m
 }
 
 // alertPct is the move the alert was raised at. Owner order 2026-11-20: the

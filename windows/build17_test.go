@@ -91,8 +91,10 @@ func TestAlertBarsUseTheScannerPair(t *testing.T) {
 }
 
 // Owner order 2026-11-16: the two ALERTS boards are equal width, so the share
-// quantities and the bars end on one column, and their bars carry no NET DELTA
-// label: the only question a bar answers is which side owns the B/S pair.
+// quantities and the bars end on one column. Owner order 2026-11-23 (latest):
+// NET DELTA stands after each bar, and the two boards measure their fields
+// together, so the selling columns stand exactly one board pitch after the
+// buying ones whether or not either board scrolls.
 func TestAlertBoardsShareTheRightHandColumns(t *testing.T) {
 	a := demoApp(t, 160, 40)
 	a.screen = scrAlerts
@@ -125,7 +127,7 @@ func TestAlertBoardsShareTheRightHandColumns(t *testing.T) {
 	if left < 0 || right < 0 {
 		t.Fatalf("the ALERTS boards carry no share rows to measure:\n%s", strings.Join(rows, "\n"))
 	}
-	if got := right - left; got != a.alertSplitX-1 {
-		t.Errorf("the selling quantity ends %d cells after the buying one, want %d", got, a.alertSplitX-1)
+	if got := right - left; got != a.alertSplitX {
+		t.Errorf("the selling quantity ends %d cells after the buying one, want the board pitch %d", got, a.alertSplitX)
 	}
 }

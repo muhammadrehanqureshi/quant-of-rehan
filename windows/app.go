@@ -232,6 +232,10 @@ type App struct {
 	prevRows []string
 	prevW    int
 	prevH    int
+
+	// boardFields is the price, quantity and NET DELTA width the Alerts page
+	// measures for both boards before drawing either of them.
+	boardFields boardMeasure
 }
 
 func NewApp(cfg Settings, cfgPath string, relay *Relay) *App {

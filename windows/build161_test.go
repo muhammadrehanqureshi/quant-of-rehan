@@ -36,13 +36,21 @@ func TestBuild161BoardsCarryNetDeltaAfterTheBar(t *testing.T) {
 			if !strings.Contains(row, "PKR ") || !strings.ContainsRune(row, barBlock) {
 				continue
 			}
-			r := []rune(row)
+			// The board's own frame closes the row, so it is dropped before the
+			// row's last ink is measured.
+			r := []rune(strings.TrimRight(row, " "))
+			for len(r) > 0 && r[len(r)-1] == '│' {
+				r = r[:len(r)-1]
+			}
 			last := len(r) - 1
 			for last > 0 && r[last] == ' ' {
 				last--
 			}
-			if last >= frame-1 {
-				t.Fatalf("side %d: the row runs into the frame: %q", side, row)
+			// The figure's last cell is the row's last content cell: two cells
+			// inside the frame, or four when the scrollbar stands there.
+			if last != frame-2 && last != frame-4 {
+				t.Fatalf("side %d: the NET DELTA figure ends on %d, want the row's last content cell inside frame %d: %q",
+					side, last, frame, row)
 			}
 			at := col(row, "NET DELTA=")
 			if at < 0 {
