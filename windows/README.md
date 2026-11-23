@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 160
+# Quant of Rehan for Windows (console edition), build 161
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 161
+
+* **Build 161 (version 3.8.36).** BIG BUYING NOW and BIG SELLING NOW step their current price, percentage, quantity and bar left as one group and end every row with NET DELTA and its figure right after the bar. The figure's last cell stands on the row's last content cell, the label sits one blank cell after the bar, and the price, the percentage, the bar and the NET DELTA keep one column down every row. The bar gives way first when a board is too narrow for the whole group, then the percentage steps out, and a board with no room for the block keeps the layout it had. The executable's file version is `3.8.36.0`.
 
 ## What is new in build 160
 
