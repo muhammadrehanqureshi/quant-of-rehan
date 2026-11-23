@@ -1064,9 +1064,11 @@ func (a *App) drawSignal(c *Canvas, x, y, w, h int, twoCol bool) {
 // narrow for all three shows the calls that do fit, never a squeezed fourth.
 func (a *App) drawCalls(c *Canvas, ix, iy, iw, ih int, calls []Call) {
 	th := a.th
-	// One column is 26 cells: the widest detail line is "SL 2786.9860  84/100"
-	// at 22, so a value never runs into the next call.
-	const colW, gap = 26, 6
+	// One column is 21 cells: the widest detail line is "SL 2786.9860  84/100"
+	// at 20, so a value never runs into the next call. The tile's own inner
+	// width at the owner's window is 76 cells, which carries three columns and
+	// their two six cell gutters with one cell to spare.
+	const colW, gap = 21, 6
 	fitN := (iw + gap) / (colW + gap)
 	if fitN < 1 {
 		fitN = 1

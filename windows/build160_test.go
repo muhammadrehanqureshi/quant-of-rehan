@@ -31,10 +31,10 @@ func TestTheLatestSignalShowsEachCallInItsOwnColumn(t *testing.T) {
 	if one < 0 || two < 0 || three < 0 {
 		t.Fatalf("the three calls are not side by side: %q", head)
 	}
-	// A column is 26 cells and the gutter is exactly 6, so each call starts
-	// 32 cells after the one before it.
-	if two-one != 32 || three-two != 32 {
-		t.Fatalf("the call columns start at %d, %d, %d, not one 32 cell pitch: %q",
+	// A column is 21 cells and the gutter is exactly 6, so each call starts
+	// 27 cells after the one before it.
+	if two-one != 27 || three-two != 27 {
+		t.Fatalf("the call columns start at %d, %d, %d, not one 27 cell pitch: %q",
 			one, two, three, head)
 	}
 
