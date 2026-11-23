@@ -9,7 +9,10 @@
 # Schedule (UTC, Karachi = UTC+5, SO-8):
 #   13:45 Mon-Thu = 18:45 PKT, after the 15:30 close
 #   14:45 Fri     = 19:45 PKT, after the 16:30 close
-#   03:45 Tue-Sat = 08:45 PKT safety net, before the 09:32/09:17 open
+#   03:45 Mon-Fri = 08:45 PKT safety net, before the 09:32/09:17 open. The
+#                   weekday field was 2-6, which put this fire on Saturday,
+#                   never a trading day, and left Monday morning without one;
+#                   the audit of 2026-11-23 corrected it.
 #
 # Budget: up to 46 scheduled runs/month, capped at 10 minutes each.
 # Combined with intraday capture, scheduled ceilings are 1,840 minutes/month.
@@ -20,7 +23,7 @@ on:
   schedule:
     - cron: "45 13 * * 1-4"
     - cron: "45 14 * * 5"
-    - cron: "45 3 * * 2-6"
+    - cron: "45 3 * * 1-5"
   workflow_dispatch:
     inputs:
       dry_run:

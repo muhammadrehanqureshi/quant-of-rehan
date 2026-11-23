@@ -145,6 +145,14 @@ jobs:
               starts.append(at)
 
           bands = session_bands(day)
+          # Owner audit 2026-11-23: run 44800521311 was the Friday 16:52 fire,
+          # delivered by GitHub at 00:16 on Saturday. This block then indexed
+          # an empty band list and died with IndexError, so a closed day read
+          # as a broken report. A date with no session has no edge to check.
+          if not bands:
+              print("BANDS         none: this Karachi date is not a PSX trading "
+                    "day, so there is no session edge to check")
+              raise SystemExit(0)
           edges = [("warm-up 08:55", datetime.combine(day, time(8, 55), PKT))]
           for band in bands:
               start, _end = band_bounds(day, band)
