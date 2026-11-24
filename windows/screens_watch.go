@@ -29,10 +29,10 @@ const watchFooter = `Select a scrip and press "del" to remove that.`
 // (later): the page names the key that opens its box.
 const watchAddHint = `Press "/" to add`
 
-// watchSorts are the orders the WATCH LIST can be in. Its first order is the
-// owner's own: the list reads in the order he put the scrips on it, and that is
-// where the page starts.
-var watchSorts = append([]string{"MY ORDER"}, flowSorts...)
+// watchSorts are the orders the WATCH LIST can be in: the same seven chips the
+// ORDER FLOW page carries. Owner order 2026-11-24 (later): the MY ORDER chip is
+// gone from the page, so every list is read through one of those seven figures.
+var watchSorts = flowSorts
 
 // watchRows is the owner's list as table rows. A ticker with no frame in the
 // latest ORDER FLOW answer keeps its row, so the list never hides a scrip he
@@ -55,16 +55,15 @@ func (a *App) watchRows() []FlowRow {
 	return rows
 }
 
-// watchSorted is the list in the order the page is showing it. The first order
-// is the owner's own, so the page starts exactly as he put the list together;
-// every other order sorts it by the same figures the ORDER FLOW chips name, and
-// the rows that carry no figure for the chosen order go to the bottom.
+// watchSorted is the list in the order the page is showing it: the same figures
+// the ORDER FLOW chips name, with the rows that carry no figure for the chosen
+// order at the bottom.
 func (a *App) watchSorted() []FlowRow {
 	rows := a.watchRows()
-	if a.watchSort <= 0 || a.watchSort >= len(watchSorts) {
+	if a.watchSort < 0 || a.watchSort >= len(watchSorts) {
 		return rows
 	}
-	s := a.watchSort - 1
+	s := a.watchSort
 	sort.SliceStable(rows, func(i, j int) bool {
 		ki, oi := flowKey(rows[i], s)
 		kj, oj := flowKey(rows[j], s)

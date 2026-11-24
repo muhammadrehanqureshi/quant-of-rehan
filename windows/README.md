@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 167
+# Quant of Rehan for Windows (console edition), build 168
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 168
+
+* **Build 168 (version 4.3.0).** CUSTOM SCRIPS OF VOLUME left aligns its NET DELTA, so 2.8M, 8.51k and 268.31k all start on the one cell the widest figure starts on. The WATCH LIST drops the MY ORDER chip and reads its seven ORDER FLOW orders, opening on TOTAL VOLUME like ORDER FLOW does. Every row of BIG BUYING NOW and BIG SELLING NOW keeps the price and the percentage its own transaction printed at, so the numbers no longer move with the live quote while the row stands. The executable's file version is `4.3.0.0`.
 
 ## What is new in build 167
 

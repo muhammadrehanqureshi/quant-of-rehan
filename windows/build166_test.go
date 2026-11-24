@@ -51,8 +51,8 @@ func TestBuild166TheOrderChipsStandInTheOwnersOrder(t *testing.T) {
 	if a.ofSort != flowSortTotalVolume {
 		t.Fatalf("ORDER FLOW opens in order %d, want TOTAL VOLUME at %d", a.ofSort, flowSortTotalVolume)
 	}
-	if a.watchSort != 0 {
-		t.Fatalf("the WATCH LIST opens in order %d, want the owner's own at 0", a.watchSort)
+	if a.watchSort != flowSortTotalVolume {
+		t.Fatalf("the WATCH LIST opens in order %d, want TOTAL VOLUME at %d", a.watchSort, flowSortTotalVolume)
 	}
 }
 

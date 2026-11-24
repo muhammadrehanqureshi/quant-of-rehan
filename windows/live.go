@@ -346,12 +346,12 @@ func capRows(rows []FlowStat, limit int) []FlowStat {
 // stock's running minute total, so the same scrip can stand twice with two
 // different quantities and a row leaves when its own step ages out.
 func (a *App) boardRows(limit int) []FlowStat {
-	return capRows(a.flow.Increments(a.now, a.quotes, boardFloorShares, 0, sideBuy), limit)
+	return capRows(a.flow.Increments(a.now, boardFloorShares, 0, sideBuy), limit)
 }
 
 // sellRows lists the selling transactions at or above the board floor.
 func (a *App) sellRows(limit int) []FlowStat {
-	return capRows(a.flow.Increments(a.now, a.quotes, boardFloorShares, 0, sideSell), limit)
+	return capRows(a.flow.Increments(a.now, boardFloorShares, 0, sideSell), limit)
 }
 
 // buyingLeaders is the KSE100 tile's BUYING NOW line: one row per stock, its
