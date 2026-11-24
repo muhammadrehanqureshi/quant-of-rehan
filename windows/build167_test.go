@@ -12,12 +12,23 @@ func TestBuild167TheWatchFooterIsOneInk(t *testing.T) {
 	a := demoApp(t, 158, 41)
 	a.screen = scrWatch
 	c := a.render()
+	// The sentence is found cell by cell, so its own offset is exact whatever
+	// the row string does with its edges.
+	target := []rune(watchFooter)
 	row, at := -1, -1
-	for y := 0; y < c.H; y++ {
-		line := c.Row(y)
-		if i := strings.Index(line, watchFooter); i >= 0 {
-			row, at = y, utf8.RuneCountInString(line[:i])
-			break
+	for y := 0; y < c.H && row < 0; y++ {
+		for x := 0; x+len(target) <= c.W; x++ {
+			hit := true
+			for i, r := range target {
+				if c.Cells[y*c.W+x+i].Ch != r {
+					hit = false
+					break
+				}
+			}
+			if hit {
+				row, at = y, x
+				break
+			}
 		}
 	}
 	if row < 0 {
