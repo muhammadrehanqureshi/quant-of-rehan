@@ -188,11 +188,18 @@ func TestOrderFlowSortKeepsUnmeasuredAtTheBottom(t *testing.T) {
 	if a.sortedFlow()[0].ChangePct == nil {
 		t.Errorf("by change")
 	}
-	for i := 0; i < len(flowSorts)*2; i++ {
+	// Owner order 2026-11-24 (later): from CHANGE, stepping through every order
+	// lands on the last chip, and one more step wraps to the first.
+	a.ofSort = flowSortChange
+	for i := 0; i < len(flowSorts)-1; i++ {
 		a.onKey(Key{Kind: KRune, R: 'o'})
 	}
 	if a.ofSort != len(flowSorts)-1 {
-		t.Errorf("o steps through the orders and wraps: %d", a.ofSort)
+		t.Errorf("o steps through the orders: %d", a.ofSort)
+	}
+	a.onKey(Key{Kind: KRune, R: 'o'})
+	if a.ofSort != flowSortChange {
+		t.Errorf("o must wrap to the first order: %d", a.ofSort)
 	}
 }
 
