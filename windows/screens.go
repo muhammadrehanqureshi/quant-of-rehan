@@ -441,28 +441,13 @@ func (a *App) drawNav(c *Canvas, y int) {
 		x += w + 1
 	}
 
-	// Sound and the two alert flags live only on Settings now. The footer is
-	// navigation and a short key hint, nothing that can be switched by accident.
+	// Owner order 2026-11-24: the footer carries the three keys that move the
+	// whole build and nothing else. TAB to the next tab, R to refresh, Q to
+	// quit, the same three on every page.
 	right := c.W - 1
-	hints := []string{"TAB NEXT  R REFRESH  Q QUIT", "R REFRESH  Q QUIT", "Q QUIT"}
-	switch a.screen {
-	case scrScanner:
-		hints = []string{"TAB NEXT  ESC CLEAR  CTRL+C QUIT", "TAB NEXT  ESC CLEAR  CTRL+C QUIT", "CTRL+C QUIT"}
-	case scrAlerts:
-		hints = []string{"A PRICE ALERT  TAB NEXT  R REFRESH  Q QUIT", "TAB NEXT  R REFRESH  Q QUIT", "Q QUIT"}
-	case scrHome:
-		// Owner order 2026-11-12 (latest): the D DETAILS hint is withdrawn from
-		// the home footer. D itself still flips the card to its raw text.
-		hints = []string{"TAB NEXT  R REFRESH  Q QUIT", "R REFRESH  Q QUIT", "Q QUIT"}
-	case scrOrderFlow:
-		hints = []string{"TAB NEXT  R REFRESH  Q QUIT", "R REFRESH  Q QUIT", "Q QUIT"}
-	}
-	// The longest hint that leaves a gap after the tabs.
-	for _, hint := range hints {
-		if right-runeLen(hint) >= x+1 {
-			rightAlign(c, 0, y, right+1, hintSpans(hint, th))
-			break
-		}
+	hint := "TAB NEXT  R REFRESH  Q QUIT"
+	if right-runeLen(hint) >= x+1 {
+		rightAlign(c, 0, y, right+1, hintSpans(hint, th))
 	}
 }
 
@@ -824,13 +809,16 @@ func (a *App) drawHome(c *Canvas, x, y, w, h int) {
 	// STOP LOSS, one under the other. When that would leave the market tile too
 	// short for the blank line above its note (a window under 33 rows), the same
 	// five go in two columns instead, so nothing is squeezed.
-	// Six rows now that SCORE joined the card, so the tile is two rows taller.
-	sigH := 8
+	// Owner order 2026-11-24: a call is the owner's own block, its CALL n/3
+	// heading and six labelled lines under it, so the tile is ten rows tall
+	// with the W/L record on its last one. A window without the room draws the
+	// one card in two columns instead, eight rows tall.
+	sigH := 10
 	const marketFull = 14 // two rows of index, a spacer, three leaders, buying, a gap and the note
 	if mh := y + h - (gy + sigH + gap); mh < marketFull && w >= 60 {
-		sigH = 6
+		sigH = 8
 	}
-	a.drawSignal(c, x, gy, w, sigH, sigH == 6)
+	a.drawSignal(c, x, gy, w, sigH, sigH == 8)
 	my := gy + sigH + gap
 	if mh := y + h - my; mh >= 6 {
 		a.drawMarket(c, x, my, w, mh)
@@ -1059,48 +1047,61 @@ func (a *App) drawSignal(c *Canvas, x, y, w, h int, twoCol bool) {
 	a.drawWinLossRecord(c, ix, iy+ih-1, iw)
 }
 
-// drawCalls lays the day's calls side by side. The first call sits on the
-// tile's very left with all of its details (its number, symbol, entry time,
-// entry price, target, stop and score), the second starts exactly six blank
-// cells after the first column, and the third after the second. A tile too
-// narrow for all three shows the calls that do fit, never a squeezed fourth.
+// drawCalls lays the day's calls side by side, each one written as the owner's
+// own block: its CALL n/3 heading, then SCRIP, SCORE, ENTRY TIME, ENTRY PRICE,
+// TARGET PRICE and STOP LOSS one under the other with every value on one
+// column after the longest label. Owner order 2026-11-24: the next call starts
+// five blank cells after the longest line of the one before it, so the two
+// blocks can never read as one, and a tile too narrow for all of them shows
+// the calls that do fit.
 func (a *App) drawCalls(c *Canvas, ix, iy, iw, ih int, calls []Call) {
 	th := a.th
-	// One column is 21 cells: the widest detail line is "SL 2786.9860  84/100"
-	// at 20, so a value never runs into the next call. The tile's own inner
-	// width at the owner's window is 76 cells, which carries three columns and
-	// their two six cell gutters with one cell to spare.
-	const colW, gap = 21, 6
-	fitN := (iw + gap) / (colW + gap)
-	if fitN < 1 {
-		fitN = 1
+	const gap = 5
+	labels := [6]string{"SCRIP:", "SCORE:", "ENTRY TIME:", "ENTRY PRICE:",
+		"TARGET PRICE:", "STOP LOSS:"}
+	labelW := 0
+	for _, l := range labels {
+		labelW = max(labelW, runeLen(l))
 	}
-	if fitN > len(calls) {
-		fitN = len(calls)
+	// One blank cell stands between the longest label and the value column.
+	labelW++
+	val := func(s string) string {
+		if s == "" {
+			return notReported
+		}
+		return s
 	}
-	if fitN > 3 {
-		fitN = 3
-	}
-	for i := 0; i < fitN; i++ {
-		call := calls[i]
-		x := ix + i*(colW+gap)
-		w := colW
+	x := ix
+	for _, call := range calls {
+		values := [6]string{val(call.Symbol), val(call.Score), val(call.Time),
+			val(call.Entry), val(call.Target), val(call.Stop)}
+		inks := [6]RGB{th.Hot, th.Accent, th.Text, th.Text, th.Good, th.Bad}
+		// The block is as wide as its longest line, so the gutter is measured
+		// from the last character that block writes.
+		w := labelW
+		for _, v := range values {
+			w = max(w, labelW+runeLen(v))
+		}
+		if x > ix && x+w > ix+iw {
+			break
+		}
 		if x+w > ix+iw {
 			w = ix + iw - x
 		}
 		if w <= 0 {
 			break
 		}
-		c.Text(x, iy, w, "CALL "+call.N+"/3", th.Accent, true)
-		c.Text(x, iy+1, w, fit(call.Symbol, w), th.Hot, true)
-		c.Text(x, iy+2, w, fit(call.Time+"  "+call.Entry, w), th.Text, false)
-		c.Text(x, iy+3, w, fit("TP "+call.Target, w), th.Good, false)
-		if iy+4 < iy+ih {
-			c.Spans(x, iy+4, w, []Span{
-				{"SL ", th.Bad, false}, {call.Stop, th.Bad, false},
-				{"  ", th.Soft, false}, {call.Score, th.Accent, false},
-			})
+		c.Text(x, iy, w, fit("CALL "+call.N+"/3", w), th.Accent, true)
+		for i, label := range labels {
+			y := iy + 1 + i
+			if y >= iy+ih {
+				break
+			}
+			c.Text(x, y, labelW, label, th.Soft, false)
+			vw := max(0, w-labelW)
+			c.Text(x+labelW, y, vw, fit(values[i], vw), inks[i], true)
 		}
+		x += w + gap
 	}
 }
 

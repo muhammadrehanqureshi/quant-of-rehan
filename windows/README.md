@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 162
+# Quant of Rehan for Windows (console edition), build 163
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 163
+
+* **Build 163 (version 4.2.6).** The LATEST SIGNAL tile writes each of the day's calls as its own block: the `CALL n/3` heading, then SCRIP, SCORE, ENTRY TIME, ENTRY PRICE, TARGET PRICE and STOP LOSS one under the other, every value on one column after the longest label. The next call starts five blank cells after the longest line of the block before it, so two calls can never read as one, and a tile too narrow for all three shows the calls that fit. The tile is two rows taller to hold the block and the W/L record. Every page's footer now carries three keys and nothing else: `TAB NEXT  R REFRESH  Q QUIT`. The executable's file version is `4.2.6.0`.
 
 ## What is new in build 162
 
