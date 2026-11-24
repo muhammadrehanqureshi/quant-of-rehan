@@ -176,7 +176,7 @@ func TestOrderFlowEmptyAndFailedStates(t *testing.T) {
 
 func TestOrderFlowSortKeepsUnmeasuredAtTheBottom(t *testing.T) {
 	a := orderFlowApp(t, 122, 30, sampleOrderFlow)
-	a.ofSort = 1 // buying volume
+	a.ofSort = flowSortBuyingVolume
 	rows := a.sortedFlow()
 	if rows[0].Symbol != "BBB" || rows[1].Symbol != "AAA" {
 		t.Errorf("by buying volume: %s %s", rows[0].Symbol, rows[1].Symbol)
@@ -184,15 +184,22 @@ func TestOrderFlowSortKeepsUnmeasuredAtTheBottom(t *testing.T) {
 	if last := rows[len(rows)-1].Symbol; last != "CCC" && last != "DDD" {
 		t.Errorf("rows with no measured buying go last, not first as zeros: %s", last)
 	}
-	a.ofSort = 6 // change
+	a.ofSort = flowSortChange
 	if a.sortedFlow()[0].ChangePct == nil {
 		t.Errorf("by change")
 	}
-	for i := 0; i < len(flowSorts)*2; i++ {
+	// Owner order 2026-11-24 (later): from CHANGE, stepping through every order
+	// lands on the last chip, and one more step wraps to the first.
+	a.ofSort = flowSortChange
+	for i := 0; i < len(flowSorts)-1; i++ {
 		a.onKey(Key{Kind: KRune, R: 'o'})
 	}
 	if a.ofSort != len(flowSorts)-1 {
-		t.Errorf("o steps through the orders and wraps: %d", a.ofSort)
+		t.Errorf("o steps through the orders: %d", a.ofSort)
+	}
+	a.onKey(Key{Kind: KRune, R: 'o'})
+	if a.ofSort != flowSortChange {
+		t.Errorf("o must wrap to the first order: %d", a.ofSort)
 	}
 }
 

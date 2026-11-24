@@ -25,6 +25,10 @@ const watchPlaceholder = "Add a KMIALL scrip"
 // watchFooter is the one line the WATCH LIST page writes in its footer.
 const watchFooter = `Select a scrip and press "del" to remove that.`
 
+// watchAddHint is what the tile's own title bar says. Owner order 2026-11-24
+// (later): the page names the key that opens its box.
+const watchAddHint = `Press "/" to add`
+
 // watchSorts are the orders the WATCH LIST can be in. Its first order is the
 // owner's own: the list reads in the order he put the scrips on it, and that is
 // where the page starts.
@@ -147,7 +151,7 @@ func (a *App) drawWatchFoot(c *Canvas, ix, y, iw int) {
 // written under the box: the page's one instruction stands on its last row.
 func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 	th := a.th
-	ix, iy, iw, ih := a.panel(c, x, y, w, h, "WATCH LIST", pressSearchHint)
+	ix, iy, iw, ih := a.panel(c, x, y, w, h, "WATCH LIST", watchAddHint)
 	a.addHit(x, y, w, h, func() { a.watchSearch = true })
 
 	row := iy

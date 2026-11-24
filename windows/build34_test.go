@@ -32,8 +32,8 @@ func TestCalculatorQuantityFollowsPriceBox(t *testing.T) {
 
 // Owner order 2026-11-17: the ORDER FLOW order chip says UNCLEAR.
 func TestOrderFlowUnclearOrderChip(t *testing.T) {
-	if flowSorts[3] != "UNCLEAR" {
-		t.Fatalf("the third order is %q, want UNCLEAR", flowSorts[3])
+	if flowSorts[flowSortUnclear] != "UNCLEAR" {
+		t.Fatalf("the unclear order is %q, want UNCLEAR", flowSorts[flowSortUnclear])
 	}
 	a := orderFlowApp(t, 160, 45, sampleOrderFlow)
 	if s := plain(a); strings.Contains(s, "UNCLASSIFIED") {

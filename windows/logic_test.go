@@ -789,8 +789,10 @@ func TestKeyNavigation(t *testing.T) {
 	if a.screen != scrOrderFlow {
 		t.Fatalf("3 is order flow: %v", a.screen)
 	}
+	// Owner order 2026-11-24 (later): the page opens in TOTAL VOLUME, so one
+	// step lands on the chip after it.
 	press(r('o'))
-	if a.ofSort != 1 {
+	if a.ofSort != flowSortUnclear {
 		t.Fatalf("o steps the order: %d", a.ofSort)
 	}
 	press(r('2'))

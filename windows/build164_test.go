@@ -112,7 +112,8 @@ func TestBuild164TheWatchPageCarriesTheOrderLine(t *testing.T) {
 	if a.ofSort != of {
 		t.Fatalf("the watch page moved ORDER FLOW's order from %d to %d", of, a.ofSort)
 	}
-	if next := screenOf(a); !strings.Contains(next, "◆ TOTAL VOLUME") {
+	// Owner order 2026-11-24 (later): the second chip is CHANGE.
+	if next := screenOf(a); !strings.Contains(next, "◆ CHANGE") {
 		t.Fatalf("the chosen chip wears no diamond:\n%s", next)
 	}
 }
