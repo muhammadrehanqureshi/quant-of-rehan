@@ -476,8 +476,8 @@ func TestOrderFlowHasABarColumn(t *testing.T) {
 	a := demoApp(t, 160, 45)
 	a.screen = scrOrderFlow
 	s := plain(a)
-	if !strings.Contains(s, "BARS") {
-		t.Errorf("the order flow bar column is not called BARS:\n%s", s)
+	if !strings.Contains(s, "BAR") {
+		t.Errorf("the order flow bar column is not called BAR:\n%s", s)
 	}
 	// Owner order 2026-11-12 (latest): the NET DELTA has a column of its own
 	// after the bar, so the difference stands over every row's value.

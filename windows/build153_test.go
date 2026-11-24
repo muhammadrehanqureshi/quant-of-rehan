@@ -62,16 +62,20 @@ func TestBuild153OrderFlowStartsWithTheNumbering(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-21: the SYMBOL field is the heading's six cells instead
-// of build 152's eight, so the gap from SYMBOL to PRICE is two cells tighter,
-// and a longer name is drawn into the cells the field gave up.
+// Owner order 2026-11-21: the SYMBOL field is the heading's own cells instead of
+// build 152's eight, so the gap from SYMBOL to PRICE is tighter, and a longer
+// name is drawn into the cells the field gave up. Owner order 2026-11-24
+// (later): the field is one cell wider again, so one blank cell stands between
+// SCRIP and the gutter.
 func TestBuild153SymbolToPriceGapIsTwoCellsTighter(t *testing.T) {
 	flowDropHL = false
 	rows := []FlowRow{{Symbol: "AAA", Price: 10, Buy: i64(60), Sell: i64(40),
 		Volume: i64(100), Method: methodMeasured}}
 	cols, _ := flowColumns(rows)
-	if flowSymW != 6 {
-		t.Fatalf("the SCRIP field is %d cells, want the six a ticker wears", flowSymW)
+	// Owner order 2026-11-24 (later): the field is one cell wider than build 162's
+	// six, so a blank cell stands between the longest heading and the gutter.
+	if flowSymW != 7 {
+		t.Fatalf("the SCRIP field is %d cells, want SCRIP and the one blank cell", flowSymW)
 	}
 	if flowSymDrawW < len("PAKQATAR") {
 		t.Fatalf("a long ticker would be cut at %d cells, want at least %d", flowSymDrawW, len("PAKQATAR"))
@@ -83,9 +87,10 @@ func TestBuild153SymbolToPriceGapIsTwoCellsTighter(t *testing.T) {
 		t.Fatalf("PRICE starts on cell %d, want %d", cols[0].x, want)
 	}
 	// Build 152 held the field at eight cells, so a six letter heading left two
-	// blank cells and the gutter before PRICE.
-	if old := flowSymX + 8 + flowGutter; cols[0].x != old-2 {
-		t.Fatalf("PRICE starts on cell %d, want two cells left of build 152's %d", cols[0].x, old)
+	// blank cells and the gutter before PRICE; the field is three cells narrower
+	// than that now, and one cell wider than build 162's.
+	if old := flowSymX + 8 + flowGutter; cols[0].x != old-1 {
+		t.Fatalf("PRICE starts on cell %d, want one cell left of build 152's %d", cols[0].x, old)
 	}
 }
 

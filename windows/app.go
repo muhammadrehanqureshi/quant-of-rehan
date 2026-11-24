@@ -151,6 +151,7 @@ type App struct {
 	watchQuery  string     // the WATCH LIST's add box, upper case
 	watchSearch bool       // the WATCH LIST's add box has the keys
 	watchPick   int        // the WATCH LIST row the DEL key takes out
+	watchSort   int        // the WATCH LIST's order line: 0 is the owner's own order
 	watchMsg    string     // what the last add or remove did
 	bannerSell  bool       // the banner on show is a big selling flag
 	lvScan      listView   // the scanner's list
@@ -1878,9 +1879,9 @@ func (a *App) keyWatch(k Key) {
 			a.lvWatch.top()
 		}
 	case KLeft:
-		a.stepFlowSort(-1)
+		a.stepWatchSort(-1)
 	case KRight:
-		a.stepFlowSort(1)
+		a.stepWatchSort(1)
 	case KUp:
 		a.pickWatch(-1)
 	case KDown:
@@ -1953,19 +1954,63 @@ func (a *App) removeWatch() {
 	a.save()
 }
 
-// pickWatch moves the WATCH LIST's pick and walks the list with it.
+// watchSymbol is the ticker the DEL key takes out: the row the page has picked.
+func (a *App) watchSymbol() string {
+	if a.watchPick < 0 || a.watchPick >= len(a.cfg.Watch) {
+		return ""
+	}
+	return a.cfg.Watch[a.watchPick]
+}
+
+// watchIndex is a ticker's place in the owner's own list, or -1 when it is not
+// on the list.
+func (a *App) watchIndex(sym string) int {
+	for i, s := range a.cfg.Watch {
+		if s == sym {
+			return i
+		}
+	}
+	return -1
+}
+
+// pickWatch moves the WATCH LIST's pick and walks the list with it, in the
+// order the page is showing the rows.
 func (a *App) pickWatch(d int) {
-	n := len(a.cfg.Watch)
-	if n == 0 {
+	rows := a.watchSorted()
+	if len(rows) == 0 {
+		a.watchPick = 0
 		return
 	}
-	a.watchPick = min(max(0, a.watchPick+d), n-1)
-	if a.watchPick < a.lvWatch.off {
-		a.lvWatch.off = a.watchPick
+	cur := -1
+	sym := a.watchSymbol()
+	for i, r := range rows {
+		if r.Symbol == sym {
+			cur = i
+			break
+		}
 	}
-	if a.watchPick >= a.lvWatch.off+a.lvWatch.view {
-		a.lvWatch.off = a.watchPick - a.lvWatch.view + 1
+	if cur < 0 {
+		cur, d = 0, 0
 	}
+	n := min(max(0, cur+d), len(rows)-1)
+	if k := a.watchIndex(rows[n].Symbol); k >= 0 {
+		a.watchPick = k
+	}
+	if n < a.lvWatch.off {
+		a.lvWatch.off = n
+	}
+	if n >= a.lvWatch.off+a.lvWatch.view {
+		a.lvWatch.off = n - a.lvWatch.view + 1
+	}
+}
+
+// stepWatchSort moves the WATCH LIST to the next or previous order. Its first
+// order is the owner's own, so stepping round to it puts the list back in the
+// order he built it in.
+func (a *App) stepWatchSort(d int) {
+	n := len(watchSorts)
+	a.watchSort = ((a.watchSort+d)%n + n) % n
+	a.lvWatch.top()
 }
 
 // stepFlowSort moves the ORDER FLOW list to the next or previous order.

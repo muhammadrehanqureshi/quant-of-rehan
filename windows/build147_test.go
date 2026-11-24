@@ -74,7 +74,7 @@ func TestBuild147OrderFlowKeepsTheNetDeltaColumns(t *testing.T) {
 	}
 	// HIGH and LOW step out at this width so the bar and both NET DELTA columns
 	// stay; they are back on a wider window.
-	for _, want := range []string{"TOTAL (T)", "BARS", "NET DELTA"} {
+	for _, want := range []string{"TOTAL (T)", "BAR", "NET DELTA"} {
 		if !strings.Contains(rows[head], want) {
 			t.Errorf("the ORDER FLOW heading lost %q: %q", want, rows[head])
 		}

@@ -196,6 +196,13 @@ const appVersion = "4.0.21"
 // 3.8.34, the gate drawn as one of the build's own tiles with its blinking box
 // cursor, and the KSE100 leaders' U= and & T= back on shared columns.
 //
+// Build 164 is 4.2.7, the same day's next order: the WATCH LIST's box asks for
+// a KMIALL scrip and its footer carries the one sentence that says how to take
+// a scrip out, its rows are numbered as ORDER FLOW numbers its own with no
+// diamond under the #, its list takes the ORDER line of chips, the bar column is
+// headed BAR everywhere, and SCRIP keeps one more blank cell before PRICE on
+// ORDER FLOW and WATCH LIST alike.
+//
 // Build 163 is 4.2.6, the same day's next order: the LATEST SIGNAL tile writes
 // each call as its own block, CALL n/3 over SCRIP, SCORE, ENTRY TIME, ENTRY
 // PRICE, TARGET PRICE and STOP LOSS, five blank cells after the longest line of
@@ -211,7 +218,7 @@ const appVersion = "4.0.21"
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.2.6"
+const hudBuild = "4.2.7"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

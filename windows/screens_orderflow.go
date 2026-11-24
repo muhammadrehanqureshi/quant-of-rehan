@@ -53,37 +53,7 @@ func (a *App) sortedFlow() []FlowRow {
 		rows = kept
 	}
 	key := func(r FlowRow) (float64, bool) {
-		switch a.ofSort {
-		case 0:
-			if r.Volume != nil {
-				return float64(*r.Volume), true
-			}
-		case 1:
-			if r.Measured() {
-				return float64(*r.Buy), true
-			}
-		case 2:
-			if r.Measured() {
-				return float64(*r.Sell), true
-			}
-		case 3:
-			if r.Measured() && r.Unclassified != nil {
-				return float64(*r.Unclassified), true
-			}
-		case flowSortNetDelta:
-			if r.Measured() {
-				return float64(*r.Buy - *r.Sell), true
-			}
-		case flowSortNetDeltaPct:
-			if pct, ok := netDeltaPct(r); ok {
-				return pct, true
-			}
-		case 6:
-			if r.ChangePct != nil {
-				return *r.ChangePct, true
-			}
-		}
-		return 0, false
+		return flowKey(r, a.ofSort)
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
 		ki, oi := key(rows[i])
@@ -97,6 +67,43 @@ func (a *App) sortedFlow() []FlowRow {
 		return rows[i].Symbol < rows[j].Symbol
 	})
 	return rows
+}
+
+// flowKey is the figure one order sorts by, and whether the row carries it at
+// all. The ORDER FLOW page and the WATCH LIST page read the same seven orders
+// through this one switch, so a chip means the same thing on both.
+func flowKey(r FlowRow, order int) (float64, bool) {
+	switch order {
+	case 0:
+		if r.Volume != nil {
+			return float64(*r.Volume), true
+		}
+	case 1:
+		if r.Measured() {
+			return float64(*r.Buy), true
+		}
+	case 2:
+		if r.Measured() {
+			return float64(*r.Sell), true
+		}
+	case 3:
+		if r.Measured() && r.Unclassified != nil {
+			return float64(*r.Unclassified), true
+		}
+	case flowSortNetDelta:
+		if r.Measured() {
+			return float64(*r.Buy - *r.Sell), true
+		}
+	case flowSortNetDeltaPct:
+		if pct, ok := netDeltaPct(r); ok {
+			return pct, true
+		}
+	case 6:
+		if r.ChangePct != nil {
+			return *r.ChangePct, true
+		}
+	}
+	return 0, false
 }
 
 // putBSUT draws "B=1,234  S=5,678  U=12  &  T=6,924" for one stock. The three
@@ -342,7 +349,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			if barFieldW-shareNetW-shareBarGap >= shareBarBoxes {
 				barSpan = barFieldW - shareNetW - shareBarGap
 			}
-			c.Text(ix+barX, row, barSpan, "BARS", th.Soft, false)
+			c.Text(ix+barX, row, barSpan, "BAR", th.Soft, false)
 			c.Text(ix+barX+barSpan+shareBarGap, row, shareNetW, "NET DELTA", th.Soft, false)
 			// Owner order 2026-11-13: clicking the NET DELTA heading, like its
 			// own order chip, puts the list in delta order, highest positive
@@ -545,7 +552,7 @@ const (
 	flowNumX, flowNumW = 0, 3
 	flowNumHeading     = "#"
 	flowSymX           = flowNumX + flowNumW + flowGutter
-	flowSymW           = 6 // the cells between SCRIP and PRICE
+	flowSymW           = 7 // SCRIP and the one blank cell before PRICE
 	flowSymDrawW       = 8 // the cells a long ticker may use without being cut
 	flowSymHeading     = "SCRIP"
 )

@@ -21,7 +21,9 @@ func runeAt(row, text string) int {
 // quits; the per-page hints (ESC CLEAR, A PRICE ALERT, D DETAILS, CTRL+C QUIT)
 // are gone.
 func TestBuild163TheFooterCarriesThreeKeys(t *testing.T) {
-	for _, scr := range []screenID{scrHome, scrAlerts, scrOrderFlow, scrScanner, scrWatch, scrSettings} {
+	// The WATCH LIST keeps a footer line of its own, which build 164's own test
+	// reads; the five other pages carry the three keys and nothing else.
+	for _, scr := range []screenID{scrHome, scrAlerts, scrOrderFlow, scrScanner, scrSettings} {
 		a := demoApp(t, 130, 40)
 		a.screen = scr
 		rows := a.render().PlainRows()
