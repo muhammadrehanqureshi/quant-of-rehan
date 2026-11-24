@@ -62,7 +62,7 @@ func TestBuild165TheWatchBoxKeepsOneBlankLine(t *testing.T) {
 	}
 	chips := -1
 	for i := box + 1; i < len(rows); i++ {
-		if strings.Contains(rows[i], "MY ORDER") {
+		if strings.Contains(rows[i], "TOTAL VOLUME") {
 			chips = i
 			break
 		}
