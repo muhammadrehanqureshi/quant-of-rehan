@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 168
+# Quant of Rehan for Windows (console edition), build 169
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 169
+
+* **Build 169 (version 4.3.1).** BIG BUYING NOW and BIG SELLING NOW wear the heading ink every other tile wears, instead of green and red. Both boards keep the 50k floor and give each transaction its own row, so the same scrip can stand twice with two quantities. The ALERTS LOG reads in columns from the quantity onwards: the figure holds a right aligned field, the scrip holds a left aligned one, shares of, the scrip and were bought or were sold all start on one cell, and the current price and the percentage close the row on their own columns. The percentage is right aligned in its field on every page, so 5.56% ends on the cell 10.01% ends on. The executable's file version is `4.3.1.0`.
 
 ## What is new in build 168
 
