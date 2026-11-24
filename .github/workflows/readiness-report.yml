@@ -11,6 +11,15 @@ name: Session readiness report
 # the relay's own answer, the store's freshness, and every scan run started
 # today, and it names each band edge that left no run within 25 minutes.
 #
+# Owner order 2026-11-24: "Also, you didn't scan the post market yesterday."
+# The 08:52 fire of 2026-11-24 was delivered by GitHub at 03:16 PKT, and it
+# computed its day from the clock: it audited the NEW Karachi day, printed
+# PENDING for all four of that day's edges, and said nothing about the
+# post-market that had just closed. A report that cannot answer the question
+# it exists for is the defect this file now fixes: the audit names the last day
+# whose post-market has closed, and an edge counts as covered by a run that was
+# still in flight across it (the 15:32 band loop carries the 15:47 finalize).
+#
 # It prints to stdout, not only to the job summary, so `gh run view --log` shows
 # the whole answer. It never mails the owner and never touches the store.
 
@@ -128,12 +137,28 @@ jobs:
                   "win_loss": market.get("win_loss"),
               }, sort_keys=True))
 
+          # Owner order 2026-11-24: the audit names the last day whose
+          # post-market has closed, not whatever the clock reads. At 08:52 that
+          # is yesterday, at 15:52 it is today, and a fire delivered after
+          # midnight still reports on the session it was meant to audit.
+          audit_day = day
+          for back in range(0, 8):
+              candidate = day - timedelta(days=back)
+              if not is_trading_day(candidate):
+                  continue
+              closes = band_bounds(candidate, session_bands(candidate)[-1])[1]
+              if candidate != day or now >= closes + timedelta(minutes=17):
+                  audit_day = candidate
+                  break
+          print(f"AUDIT DAY     {audit_day} PKT session "
+                f"(the Karachi date now is {day})")
+
           raw = subprocess.run(
-              ["gh", "run", "list", "--limit", "60", "--json",
-               "workflowName,createdAt,conclusion,status"],
+              ["gh", "run", "list", "--limit", "100", "--json",
+               "workflowName,createdAt,startedAt,updatedAt,conclusion,status"],
               capture_output=True, text=True, check=True).stdout
           loops = {"KMIALL session scan loop", "KMIALL intraday momentum scan"}
-          starts = []
+          runs = []
           for run in json.loads(raw):
               if run.get("workflowName") not in loops:
                   continue
@@ -142,22 +167,28 @@ jobs:
               print(f"RUN           {at:%Y-%m-%d %H:%M} PKT  "
                     f"{run['workflowName']:<32} {run.get('status')} "
                     f"{run.get('conclusion') or ''}")
-              starts.append(at)
+              ended = run.get("updatedAt") or run.get("startedAt")
+              end = (datetime.fromisoformat(ended.replace("Z", "+00:00"))
+                     .astimezone(PKT) if ended else None)
+              runs.append((at, end, run["workflowName"]))
 
-          bands = session_bands(day)
+          bands = session_bands(audit_day)
           # Owner audit 2026-11-23: run 44800521311 was the Friday 16:52 fire,
           # delivered by GitHub at 00:16 on Saturday. This block then indexed
           # an empty band list and died with IndexError, so a closed day read
           # as a broken report. A date with no session has no edge to check.
           if not bands:
-              print("BANDS         none: this Karachi date is not a PSX trading "
+              print(f"BANDS         none: {audit_day} is not a PSX trading "
                     "day, so there is no session edge to check")
               raise SystemExit(0)
-          edges = [("warm-up 08:55", datetime.combine(day, time(8, 55), PKT))]
+          edges = [("warm-up 08:55",
+                    datetime.combine(audit_day, time(8, 55), PKT)),
+                   ("pre-open 09:20",
+                    datetime.combine(audit_day, time(9, 20), PKT))]
           for band in bands:
-              start, _end = band_bounds(day, band)
+              start, _end = band_bounds(audit_day, band)
               edges.append((f"band open {start:%H:%M}", start))
-          last_close = band_bounds(day, bands[-1])[1]
+          last_close = band_bounds(audit_day, bands[-1])[1]
           edges.append((f"post-market {last_close:%H:%M}+2",
                         last_close + timedelta(minutes=2)))
           edges.append((f"finalize {last_close:%H:%M}+17",
@@ -166,12 +197,48 @@ jobs:
               if when > now:
                   print(f"PENDING       {label}: not due yet")
                   continue
-              hit = [at for at in starts
-                     if timedelta(minutes=-5) <= at - when
-                     <= timedelta(minutes=25)]
-              if hit:
-                  print(f"OK            {label}: run at {hit[0]:%H:%M} PKT")
+              # A run covers an edge when it started near it, or when it was
+              # still running across it: the 15:32 band loop finalizes the day
+              # at 15:49, so the 15:47 finalize edge is covered with no run of
+              # its own. Owner order 2026-11-24.
+              hit = None
+              for at, end, name in runs:
+                  gap = at - when
+                  near = timedelta(minutes=-5) <= gap <= timedelta(minutes=25)
+                  across = at <= when and (end is None or end >= when)
+                  if near or across:
+                      hit = (at, name, near)
+                      break
+              if hit is None:
+                  print(f"MISSING       {label}: no scan run started near the "
+                        "edge and none was in flight across it")
+              elif hit[2]:
+                  print(f"OK            {label}: {hit[1]} started "
+                        f"{hit[0]:%H:%M} PKT")
               else:
-                  print(f"MISSING       {label}: no scan run started within "
-                        "25 minutes of the edge")
+                  print(f"OK            {label}: {hit[1]} in flight across "
+                        "the edge")
+
+          # The minute bars are the hard evidence that the window itself was
+          # captured, whatever the run names say. Owner order 2026-11-24.
+          history, trouble = read_json(BASE, "/history", attempts=3)
+          if history is None:
+              print(f"TAPE          unreadable ({trouble})")
+          else:
+              rows = [row for row in (history.get("days") or [])
+                      if str(row.get("day")) == audit_day.isoformat()]
+              opens = (last_close + timedelta(minutes=2)).strftime("%H:%M")
+              if not rows:
+                  print(f"TAPE          no minute-bar row for {audit_day}, so "
+                        "the session left nothing to audit")
+              else:
+                  last = str(rows[0].get("last") or "")
+                  print("TAPE          " + json.dumps({
+                      "day": rows[0].get("day"),
+                      "minutes": rows[0].get("minutes"),
+                      "first": rows[0].get("first"),
+                      "last": last,
+                      "post_market_opens": opens,
+                      "post_market_captured": bool(last) and last >= opens,
+                  }, sort_keys=True))
           PY

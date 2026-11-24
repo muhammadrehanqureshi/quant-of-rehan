@@ -103,6 +103,22 @@ class ScanAuditFixesTest(unittest.TestCase):
         self.assertIn("is not a PSX trading", text)
         self.assertIn("no session edge to check", text)
 
+    def test_the_readiness_report_audits_the_last_closed_day(self):
+        # Owner order 2026-11-24: "Also, you didn't scan the post market
+        # yesterday." The 08:52 fire was delivered at 03:16 PKT, took its day
+        # from the clock, audited the new day, and printed PENDING for every
+        # edge, so the post-market that had just closed was never reported.
+        # The audit now names the last day whose post-market has closed, and an
+        # edge is covered by a run that was still in flight across it.
+        text = self._read("readiness-report.yml")
+        self.assertIn("AUDIT DAY", text)
+        self.assertIn("audit_day = day", text)
+        self.assertIn("in flight across", text,
+                      "the 15:32 band loop carries the 15:47 finalize")
+        self.assertIn('read_json(BASE, "/history", attempts=3)', text,
+                      "the tape is the evidence that the window was captured")
+        self.assertIn("post_market_captured", text)
+
     def test_the_failsafe_watches_the_whole_friday_second_band(self):
         text = self._read("session-failsafe.yml")
         self.assertIn('cron: "55 10 * * 1-5"', text,
