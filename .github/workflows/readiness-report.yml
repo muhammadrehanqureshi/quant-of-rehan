@@ -176,7 +176,8 @@ jobs:
                   ended = run.get("updatedAt") or run.get("startedAt")
                   end = (datetime.fromisoformat(ended.replace("Z", "+00:00"))
                          .astimezone(PKT) if ended else None)
-                  runs.append((at, end, run["workflowName"]))
+                  runs.append((at, end, run["workflowName"],
+                               run.get("conclusion") or ""))
           runs.sort(key=lambda row: row[0], reverse=True)
 
           bands = session_bands(audit_day)
@@ -208,22 +209,30 @@ jobs:
               # still running across it: the 15:32 band loop finalizes the day
               # at 15:49, so the 15:47 finalize edge is covered with no run of
               # its own. Owner order 2026-11-24.
+              # A cancelled run scanned nothing, so it is never coverage: the
+              # first audit credited the 08:55 warm-up of 2026-11-23 to a
+              # cancelled 09:15 run and would have called a silent window OK.
+              # The nearest live run wins. Owner order 2026-11-24.
               hit = None
-              for at, end, name in runs:
+              for at, end, name, state in runs:
+                  if state == "cancelled":
+                      continue
                   gap = at - when
                   near = timedelta(minutes=-5) <= gap <= timedelta(minutes=25)
                   across = at <= when and (end is None or end >= when)
-                  if near or across:
-                      hit = (at, name, near)
-                      break
+                  if not (near or across):
+                      continue
+                  rank = abs(gap) if near else timedelta(days=999)
+                  if hit is None or rank < hit[0]:
+                      hit = (rank, at, name, near)
               if hit is None:
-                  print(f"MISSING       {label}: no scan run started near the "
-                        "edge and none was in flight across it")
-              elif hit[2]:
-                  print(f"OK            {label}: {hit[1]} started "
-                        f"{hit[0]:%H:%M} PKT")
+                  print(f"MISSING       {label}: no live scan run started near "
+                        "the edge and none was in flight across it")
+              elif hit[3]:
+                  print(f"OK            {label}: {hit[2]} started "
+                        f"{hit[1]:%H:%M} PKT")
               else:
-                  print(f"OK            {label}: {hit[1]} in flight across "
+                  print(f"OK            {label}: {hit[2]} in flight across "
                         "the edge")
 
           # The minute bars are the hard evidence that the window itself was
