@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 165
+# Quant of Rehan for Windows (console edition), build 166
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 166
+
+* **Build 166 (version 4.2.9).** The ORDER line of chips stands in the order CHANGE, NET DELTA, NET DELTA %, BUYING VOLUME, SELLING VOLUME, TOTAL VOLUME, UNCLEAR on ORDER FLOW and on the WATCH LIST, and both pages open in the order they opened in before: TOTAL VOLUME on ORDER FLOW, your own list order on the WATCH LIST. The WATCH LIST tile now names the key that opens its box: `Press "/" to add`. The executable's file version is `4.2.9.0`.
 
 ## What is new in build 165
 

@@ -176,7 +176,7 @@ func TestOrderFlowEmptyAndFailedStates(t *testing.T) {
 
 func TestOrderFlowSortKeepsUnmeasuredAtTheBottom(t *testing.T) {
 	a := orderFlowApp(t, 122, 30, sampleOrderFlow)
-	a.ofSort = 1 // buying volume
+	a.ofSort = flowSortBuyingVolume
 	rows := a.sortedFlow()
 	if rows[0].Symbol != "BBB" || rows[1].Symbol != "AAA" {
 		t.Errorf("by buying volume: %s %s", rows[0].Symbol, rows[1].Symbol)
@@ -184,7 +184,7 @@ func TestOrderFlowSortKeepsUnmeasuredAtTheBottom(t *testing.T) {
 	if last := rows[len(rows)-1].Symbol; last != "CCC" && last != "DDD" {
 		t.Errorf("rows with no measured buying go last, not first as zeros: %s", last)
 	}
-	a.ofSort = 6 // change
+	a.ofSort = flowSortChange
 	if a.sortedFlow()[0].ChangePct == nil {
 		t.Errorf("by change")
 	}

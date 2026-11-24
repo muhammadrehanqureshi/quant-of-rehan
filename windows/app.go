@@ -270,6 +270,9 @@ func NewApp(cfg Settings, cfgPath string, relay *Relay) *App {
 		priceEdit:  -1,
 	}
 	a.flow = NewFlow(defaultFlowCfg(cfg.BigOrderQty))
+	// Owner order 2026-11-24 (later): the chips read CHANGE first, but the list
+	// still opens on TOTAL VOLUME, the order it has always opened in.
+	a.ofSort = flowSortTotalVolume
 	a.flow.Allow = a.inUniverse
 	today := utcDay(a.now)
 	if cfg.ReqDay == today {

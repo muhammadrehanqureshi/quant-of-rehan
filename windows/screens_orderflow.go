@@ -13,13 +13,19 @@ import (
 // RIGHT) steps through them, and every chip is a click target. Owner order
 // 2026-11-13: NET DELTA is one of them, highest positive first, and ENTER on
 // the page puts the list in that order.
-var flowSorts = []string{"TOTAL VOLUME", "BUYING VOLUME", "SELLING VOLUME", "UNCLEAR", "NET DELTA", "NET DELTA %", "CHANGE"}
+// Owner order 2026-11-24 (later): the chips stand in this order on ORDER FLOW
+// and on the WATCH LIST, and the list opens in TOTAL VOLUME.
+var flowSorts = []string{"CHANGE", "NET DELTA", "NET DELTA %", "BUYING VOLUME", "SELLING VOLUME", "TOTAL VOLUME", "UNCLEAR"}
 
-// flowSortNetDelta and flowSortNetDeltaPct are the two NET DELTA orders'
-// indexes in flowSorts.
+// The seven orders' indexes in flowSorts.
 const (
-	flowSortNetDelta    = 4
-	flowSortNetDeltaPct = 5
+	flowSortChange        = 0
+	flowSortNetDelta      = 1
+	flowSortNetDeltaPct   = 2
+	flowSortBuyingVolume  = 3
+	flowSortSellingVolume = 4
+	flowSortTotalVolume   = 5
+	flowSortUnclear       = 6
 )
 
 // netDeltaPct is the NET DELTA as a share of the classified volume. A row
@@ -74,19 +80,19 @@ func (a *App) sortedFlow() []FlowRow {
 // through this one switch, so a chip means the same thing on both.
 func flowKey(r FlowRow, order int) (float64, bool) {
 	switch order {
-	case 0:
+	case flowSortTotalVolume:
 		if r.Volume != nil {
 			return float64(*r.Volume), true
 		}
-	case 1:
+	case flowSortBuyingVolume:
 		if r.Measured() {
 			return float64(*r.Buy), true
 		}
-	case 2:
+	case flowSortSellingVolume:
 		if r.Measured() {
 			return float64(*r.Sell), true
 		}
-	case 3:
+	case flowSortUnclear:
 		if r.Measured() && r.Unclassified != nil {
 			return float64(*r.Unclassified), true
 		}
@@ -98,7 +104,7 @@ func flowKey(r FlowRow, order int) (float64, bool) {
 		if pct, ok := netDeltaPct(r); ok {
 			return pct, true
 		}
-	case 6:
+	case flowSortChange:
 		if r.ChangePct != nil {
 			return *r.ChangePct, true
 		}
