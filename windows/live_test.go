@@ -71,8 +71,11 @@ func TestSearchBoxesAndEmptySortText(t *testing.T) {
 	}
 }
 
-// The big buying heading is green and the big selling heading is red.
-func TestAlertBoardHeadingsUseGreenAndRed(t *testing.T) {
+// Owner order 2026-11-24 (later): both board headings wear the same heading ink
+// every other tile wears, never green or red, so neither board reads as a
+// warning. The panel draws that title, in its accent or hot while it holds the
+// keys.
+func TestAlertBoardHeadingsUseThePageInk(t *testing.T) {
 	a := demoApp(t, 120, 30)
 	a.screen = scrAlerts
 	c := a.render()
@@ -87,11 +90,17 @@ func TestAlertBoardHeadingsUseGreenAndRed(t *testing.T) {
 		t.Fatalf("the alerts screen has no %q heading", title)
 		return RGB{}
 	}
-	if got := ink("BIG BUYING NOW"); got != a.th.Good {
-		t.Errorf("BIG BUYING NOW is %v, want green %v", got, a.th.Good)
+	buyInk, sellInk := ink("BIG BUYING NOW"), ink("BIG SELLING NOW")
+	for _, got := range []RGB{buyInk, sellInk} {
+		if got == a.th.Good || got == a.th.Bad {
+			t.Errorf("a board heading stands in the buy or sell ink %v", got)
+		}
+		if got != a.th.Accent && got != a.th.Hot {
+			t.Errorf("a board heading stands in %v, want the heading ink %v", got, a.th.Accent)
+		}
 	}
-	if got := ink("BIG SELLING NOW"); got != a.th.Bad {
-		t.Errorf("BIG SELLING NOW is %v, want red %v", got, a.th.Bad)
+	if buyInk != sellInk {
+		t.Errorf("the two headings stand in %v and %v, want one ink", buyInk, sellInk)
 	}
 }
 

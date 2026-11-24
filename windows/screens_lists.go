@@ -1905,7 +1905,15 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 			if f.Price > 0 {
 				// Owner order 2026-11-20: the log's figures are written once, so
 				// they carry no live flash key.
-				a.drawQuote(c, groupX, row, priceW, commaFloat(f.Price, 2), pct, "")
+				a.drawQuote(c, groupX, row, priceW, commaFloat(f.Price, 2), nil, "")
+				if pct != nil {
+					// Owner order 2026-11-24 (later): the whole move,
+					// arrow, gap and figure, is right aligned in the eight
+					// cells the group reserves, so 5.56% ends on the cell
+					// 10.01% ends on and the price keeps its own column.
+					c.Text(groupX+quoteLabelW+priceW+quoteGap, row, quotePctW+2,
+						padLeft(changeText(*pct), quotePctW+2), a.dirColor(*pct), true)
+				}
 			} else if pct != nil {
 				a.drawQuotePct(c, groupX+quoteLabelW+priceW+quoteGap, row, *pct)
 			}

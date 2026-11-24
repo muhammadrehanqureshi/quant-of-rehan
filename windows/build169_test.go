@@ -59,10 +59,10 @@ func TestBuild169TheBoardsWearThePageHeadingInk(t *testing.T) {
 func TestBuild169EachBoardRowIsItsOwnTransaction(t *testing.T) {
 	f := NewFlow(defaultFlowCfg(alertFloorShares))
 	f.Observe(flowT0, feedOf(map[string]LiveQuote{"GCIL": lq(20, 1_000_000)}), true)
-	f.Observe(flowT0.Add(time.Second), feedOf(map[string]LiveQuote{"GCIL": lq(20, 1_060_000)}), true) // 60k buy
-	f.Observe(flowT0.Add(2*time.Second), feedOf(map[string]LiveQuote{"GCIL": lq(20, 1_130_000)}), true) // 70k buy
+	f.Observe(flowT0.Add(time.Second), feedOf(map[string]LiveQuote{"GCIL": lq(20.01, 1_060_000)}), true) // 60k buy
+	f.Observe(flowT0.Add(2*time.Second), feedOf(map[string]LiveQuote{"GCIL": lq(20.02, 1_130_000)}), true) // 70k buy
 	// A 45k step is under the board's floor and never stands.
-	f.Observe(flowT0.Add(3*time.Second), feedOf(map[string]LiveQuote{"GCIL": lq(20, 1_175_000)}), true)
+	f.Observe(flowT0.Add(3*time.Second), feedOf(map[string]LiveQuote{"GCIL": lq(20.03, 1_175_000)}), true)
 	now := flowT0.Add(4 * time.Second)
 	a := demoApp(t, 158, 41)
 	a.flow = f

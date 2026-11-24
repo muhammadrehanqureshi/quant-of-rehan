@@ -210,10 +210,7 @@ func (a *App) drawQuoteStart(c *Canvas, pkrX, y, pxW int, px, pxKey string) int 
 func (a *App) drawQuotePct(c *Canvas, x, y int, pct float64) int {
 	ink := a.dirColor(pct)
 	c.Text(x, y, 1, arrow(pct), ink, true)
-	// Owner order 2026-11-24 (later): the percentage is right aligned in its
-	// six cells, so 5.56% ends on the same cell as 10.01% and every page's
-	// percentage holds one column.
-	c.Text(x+2, y, quotePctW, padLeft(pctFixed(pct), quotePctW), ink, true)
+	c.Text(x+2, y, quotePctW, pctFixed(pct), ink, true)
 	return x + 1 + 1 + quotePctW
 }
 
