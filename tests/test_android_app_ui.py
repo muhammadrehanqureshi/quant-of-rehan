@@ -2630,8 +2630,12 @@ class VersionTest(unittest.TestCase):
         # 2026-11-17: the centred closed faces and the SECTORS fix ship as
         # 4.4.2, versionCode 135. The owner's 2026-11-19 order ships as
         # 4.4.3, versionCode 136.
-        self.assertIn('android:versionCode="140"', manifest)
-        self.assertIn('android:versionName="4.4.7"', manifest)
+        # Owner order 2026-11-24: the SEARCH and ORDER FLOW menus wear the
+        # volume drop down law with no caret, QUANT STATUS reads seconds and
+        # the owner's date shape, and the leaders' money group stands in
+        # front of the scrip. They ship as 4.4.8, versionCode 141.
+        self.assertIn('android:versionCode="141"', manifest)
+        self.assertIn('android:versionName="4.4.8"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
