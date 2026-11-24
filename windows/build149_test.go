@@ -40,7 +40,7 @@ func TestBuild149BoardsHoldThePkrColumn(t *testing.T) {
 	if from < 0 {
 		t.Fatalf("the ALERTS boards are missing:\n%s", strings.Join(rows, "\n"))
 	}
-	pkrAt, endAt, arrowAt := -1, -1, -1
+	pkrAt, endAt, pctAt := -1, -1, -1
 	seen := 0
 	for _, row := range rows[from:] {
 		if seen > 0 && col(row, "┛") >= 0 {
@@ -48,25 +48,28 @@ func TestBuild149BoardsHoldThePkrColumn(t *testing.T) {
 		}
 		at := col(row, "PKR")
 		arrow := strings.IndexAny(row, "▲▼")
-		if at < 0 || arrow < 0 {
+		pct := col(row, "%")
+		if at < 0 || arrow < 0 || pct < 0 {
 			continue
 		}
-		body := []rune(row)[:utf8.RuneCountInString(row[:arrow])]
+		arrowAtRow := utf8.RuneCountInString(row[:arrow])
+		body := []rune(row)[:arrowAtRow]
 		if len(body) < 2 || body[len(body)-1] != ' ' {
 			t.Fatalf("the price leaves no gutter before its arrow: %q", row)
 		}
 		// The price is right aligned in its own field, so its digits end on the
-		// field's last cell and one blank stands between them and the arrow.
-		end := len(body) - 1
+		// field's last cell; owner order 2026-11-24 (later) right aligns the
+		// move in its field too, so a short one starts a cell later and every
+		// percentage ends on the one cell.
+		end := arrowAtRow - 1
 		for end > 0 && body[end-1] == ' ' {
 			end--
 		}
-		arrowAtRow := utf8.RuneCountInString(row[:arrow])
 		if seen == 0 {
-			pkrAt, endAt, arrowAt = at, end, arrowAtRow
-		} else if at != pkrAt || end != endAt || arrowAtRow != arrowAt {
-			t.Errorf("a board row left the quote column: PKR %d of %d, price ends %d of %d, arrow %d of %d: %q",
-				at, pkrAt, end, endAt, arrowAtRow, arrowAt, row)
+			pkrAt, endAt, pctAt = at, end, pct
+		} else if at != pkrAt || end != endAt || pct != pctAt {
+			t.Errorf("a board row left the quote column: PKR %d of %d, price ends %d of %d, percent ends %d of %d: %q",
+				at, pkrAt, end, endAt, pct, pctAt, row)
 		}
 		seen++
 	}
@@ -76,12 +79,9 @@ func TestBuild149BoardsHoldThePkrColumn(t *testing.T) {
 	// Owner order 2026-11-24 (later): a board row carries the price its own
 	// transaction printed, so the shared field is measured on those prices and
 	// not on the live quote. What still binds is the column: every price ends on
-	// the one cell and a single gutter stands between it and its arrow.
-	if endAt+1 != arrowAt {
-		t.Errorf("the price ends on %d and its arrow stands on %d, want one gutter between them",
-			endAt-1, arrowAt)
-	}
-	if arrowAt-pkrAt < quoteLabelW+6 {
+	// the one cell, every percentage ends on the one cell, and the quote group is
+	// at least as wide as the six cell price field it always reserved.
+	if pctAt-pkrAt < quoteLabelW+6 {
 		t.Errorf("PKR stands on %d and the arrow on %d, want a price field of at least six cells",
 			pkrAt, arrowAt)
 	}
