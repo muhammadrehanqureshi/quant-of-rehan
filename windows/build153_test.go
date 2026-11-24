@@ -101,8 +101,8 @@ func TestBuild153SymbolToPriceGapIsTwoCellsTighter(t *testing.T) {
 func TestBuild153CustomScripsNetDeltaStartsOnOneCell(t *testing.T) {
 	a := demoApp(t, 158, 41)
 	c := NewCanvas(60, 2, a.th.Panel)
-	a.shareBarNetLeft(c, 0, 0, shareBarWidth, 5_000_000, 200_000) // 4.8M
-	a.shareBarNetLeft(c, 0, 1, shareBarWidth, 3_200_000, 200_000) // 3M
+	a.shareBarNetLeft(c, 0, 0, shareBarWidth, shareNetW, 5_000_000, 200_000) // 4.8M
+	a.shareBarNetLeft(c, 0, 1, shareBarWidth, shareNetW, 3_200_000, 200_000) // 3M
 	rows := c.PlainRows()
 	// The bar's block is three bytes, so a cell is its rune index.
 	at := func(row string, ch rune) int {
