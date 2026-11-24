@@ -171,12 +171,9 @@ func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 			c.Text(ix+cols[k].x, row, cols[k].w, hd, th.Soft, false)
 		}
 		if iw-barX >= barFieldW {
-			barSpan := barFieldW
-			if barSpan > shareBarSpan {
-				barSpan = shareBarSpan
-			}
-			if barFieldW-shareNetW-shareBarGap >= shareBarBoxes {
-				barSpan = barFieldW - shareNetW - shareBarGap
+			barSpan := min(shareBarSpan, barFieldW-shareNetW-shareBarGap)
+			if barSpan < 1 {
+				barSpan = 1
 			}
 			c.Text(ix+barX, row, barSpan, "BAR", th.Soft, false)
 			c.Text(ix+barX+barSpan+shareBarGap, row, shareNetW, "NET DELTA", th.Soft, false)

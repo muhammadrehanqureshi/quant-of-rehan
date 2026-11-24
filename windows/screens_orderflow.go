@@ -342,12 +342,11 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		if iw-barX >= barFieldW {
 			// Owner order 2026-11-12 (latest): the bar's own column, then a NET
 			// DELTA column of its own after it, over the value every row writes.
-			barSpan := barFieldW
-			if barSpan > shareBarSpan {
-				barSpan = shareBarSpan
-			}
-			if barFieldW-shareNetW-shareBarGap >= shareBarBoxes {
-				barSpan = barFieldW - shareNetW - shareBarGap
+			// The bar's own span: its share of the field, never more than the
+			// sixteen cells, and never so short that the NET DELTA has no room.
+			barSpan := min(shareBarSpan, barFieldW-shareNetW-shareBarGap)
+			if barSpan < 1 {
+				barSpan = 1
 			}
 			c.Text(ix+barX, row, barSpan, "BAR", th.Soft, false)
 			c.Text(ix+barX+barSpan+shareBarGap, row, shareNetW, "NET DELTA", th.Soft, false)
@@ -515,7 +514,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 // stay on the page on the owner's window.
 func flowTail(iw, barX int) (barFieldW, pctX int, showNetPct bool) {
 	barFieldW = shareBarWidth
-	if room := iw - 2 - barX - shareBarGap - flowNetPctW; room >= shareNetW+shareBarGap+shareBarBoxes && room < barFieldW {
+	if room := iw - 2 - barX - shareBarGap - flowNetPctW; room >= shareNetW+shareBarGap+shareBarMinBoxes && room < barFieldW {
 		barFieldW = room
 	}
 	pctX = barX + barFieldW + shareBarGap
