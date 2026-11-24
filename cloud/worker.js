@@ -422,6 +422,15 @@ function hhmm(d) {
   return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }
 
+// Owner order 2026-11-24: the relay reports its own clock to the second, so
+// the phone's QUANT STATUS tile can read "18:03:02" without ever deriving a
+// time of its own. The minute and the date are the same instant as before;
+// only the seconds are new.
+function hhmmss(d) {
+  return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
+      + `:${pad(d.getUTCSeconds())}`;
+}
+
 function isTradingDay(k) {
   const wd = k.getUTCDay();
   if (wd === 0 || wd === 6) return false;
@@ -2897,7 +2906,7 @@ async function healthPayload(env) {
     // nothing (or uploaded to another account) cannot pass as a success.
     // Empty when the worker was uploaded outside CI.
     version: env.WORKER_VERSION || null,
-    karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
+    karachi_now: `${dayStamp(k)} ${hhmmss(k)} PKT`,
     // The app shows ONLINE only while a session is live, so the state is
     // answered by the same session law the notifications use (SO-8).
     // `market_state.phase` is the authoritative word (OPEN, BREAK, CLOSED,
@@ -3207,7 +3216,7 @@ export default {
       const health = await healthPayload(env);
       const k = karachiView(now.getTime());
       return json({ ...health,
-        karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
+        karachi_now: `${dayStamp(k)} ${hhmmss(k)} PKT`,
         signals: (await kvGet(env, "SIGNALS")) || "",
         market: snapshot });
     }
@@ -3448,7 +3457,7 @@ export default {
       const edgeState = marketState(now);
       const transitions = await trackMarketTransitions(env, snapshot, now, ctx);
       const winLoss = await marketWinLoss(env);
-      return json({ ok: true, karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
+      return json({ ok: true, karachi_now: `${dayStamp(k)} ${hhmmss(k)} PKT`,
         ...snapshot,
         win_loss: winLoss,
         market_transition: transitions,
@@ -3692,7 +3701,7 @@ export default {
       return json({
         ok: true,
         signals,
-        karachi_now: `${dayStamp(k)} ${hhmm(k)} PKT`,
+        karachi_now: `${dayStamp(k)} ${hhmmss(k)} PKT`,
         next_event: next.event
           ? { event: next.event, at_pk: `${dayStamp(karachiView(next.at.getTime()))} ${hhmm(karachiView(next.at.getTime()))}` }
           : null,
