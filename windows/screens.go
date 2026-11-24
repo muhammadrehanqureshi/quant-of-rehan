@@ -445,18 +445,8 @@ func (a *App) drawNav(c *Canvas, y int) {
 	// whole build and nothing else. TAB to the next tab, R to refresh, Q to
 	// quit, the same three on every page.
 	right := c.W - 1
-	// Owner order 2026-11-24 (later): the WATCH LIST page's footer carries one
-	// line, the sentence that says how to take a scrip out of the list.
-	if a.screen == scrWatch {
-		if right-runeLen(watchFooter) >= x+1 {
-			rightAlign(c, 0, y, right+1, []Span{
-				{"Select a scrip and press ", th.Soft, false},
-				{"\"del\"", th.Warn, true},
-				{" to remove that.", th.Soft, false},
-			})
-		}
-		return
-	}
+	// Owner order 2026-11-24 (later): the tab bar carries the three keys on every
+	// page again; the WATCH LIST's own instruction stands inside its panel.
 	hint := "TAB NEXT  R REFRESH  Q QUIT"
 	if right-runeLen(hint) >= x+1 {
 		rightAlign(c, 0, y, right+1, hintSpans(hint, th))
@@ -1594,7 +1584,7 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	if len(notes) > 2 {
 		notes = notes[:2]
 	}
-	board := a.boardRows(3)
+	board := a.buyingLeaders(3)
 	cols := bstLeaderCols(leaders)
 	// Owner report 2026-11-11: the bottom two leaders put PKR one cell left
 	// of the top one because the price was right aligned and a shorter price

@@ -29,12 +29,15 @@ func TestAlertsBoardIsNumberedAndScrolls(t *testing.T) {
 	a := busyApp(t, 122, 30, 25)
 	a.screen = scrAlerts
 	s := plain(a)
-	for _, want := range []string{`\b1\.\s+S01`, `\b2\.\s+S02`, `\b3\.\s+S03`} {
+	// Owner order 2026-11-24 (later): a board row wears the diamond when its own
+	// transaction is one the ALERTS LOG announced, so the number and the scrip
+	// may have that mark between them.
+	for _, want := range []string{`\b1\.\s+(?:◆\s+)?S01`, `\b2\.\s+(?:◆\s+)?S02`, `\b3\.\s+(?:◆\s+)?S03`} {
 		if !regexp.MustCompile(want).MatchString(s) {
 			t.Errorf("the big buying board must carry sequence numbers, missing %q:\n%s", want, s)
 		}
 	}
-	last := regexp.MustCompile(`\b25\.\s+S25`)
+	last := regexp.MustCompile(`\b25\.\s+(?:◆\s+)?S25`)
 	if last.MatchString(s) {
 		t.Fatalf("25 rows cannot fit at first")
 	}

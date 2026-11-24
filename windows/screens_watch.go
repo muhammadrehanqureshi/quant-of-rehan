@@ -129,9 +129,22 @@ func (a *App) drawWatchSorts(c *Canvas, ix, row, iw int) {
 	}
 }
 
-// drawWatch is the WATCH LIST page: the box that adds a scrip, the ORDER line
-// of chips, and the table of the owner's own tickers. Nothing is written under
-// the box: the page's one instruction stands in the footer.
+// drawWatchFoot writes the page's one instruction on the panel's own last row.
+func (a *App) drawWatchFoot(c *Canvas, ix, y, iw int) {
+	if iw < runeLen(watchFooter) {
+		return
+	}
+	th := a.th
+	c.Spans(ix, y, iw, []Span{
+		{"Select a scrip and press ", th.Soft, false},
+		{"\"del\"", th.Warn, true},
+		{" to remove that.", th.Soft, false},
+	})
+}
+
+// drawWatch is the WATCH LIST page: the box that adds a scrip, one blank line,
+// the ORDER line of chips, and the table of the owner's own tickers. Nothing is
+// written under the box: the page's one instruction stands on its last row.
 func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 	th := a.th
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "WATCH LIST", pressSearchHint)
@@ -141,12 +154,18 @@ func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 	bw := a.searchBox(c, ix, row, min(iw, 40), a.watchQuery, watchPlaceholder, a.watchSearch)
 	a.addHit(ix, row, bw, 1, func() { a.watchSearch = true })
 	row++
-	if ih < 2 {
+	if ih < 3 {
 		return
 	}
+	// Owner order 2026-11-24 (later): one blank line stands between the box and
+	// the ORDER line of chips.
+	row++
 	a.drawWatchSorts(c, ix, row, iw)
 	row++
 	row++ // one blank row above the table, as ORDER FLOW keeps it
+	// The page's one instruction stands on the panel's own last row, above the
+	// tab bar that carries TAB, R and Q again.
+	a.drawWatchFoot(c, ix, iy+ih-1, iw)
 
 	rows := a.watchSorted()
 	if len(rows) == 0 {
@@ -184,7 +203,7 @@ func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 		row++
 	}
 
-	view := (iy + ih - row) / per
+	view := (iy + ih - row - 1) / per // the panel's last row is the page's footer
 	if view < 1 {
 		return
 	}

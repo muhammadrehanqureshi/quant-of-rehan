@@ -341,14 +341,23 @@ func capRows(rows []FlowStat, limit int) []FlowStat {
 	return rows
 }
 
-// boardRows lists who is being bought hardest right now, from the flow engine.
+// boardRows lists the buying transactions at or above the board floor, each one
+// its own row. Owner order 2026-11-24 (later): a board names transactions, not a
+// stock's running minute total, so the same scrip can stand twice with two
+// different quantities and a row leaves when its own step ages out.
 func (a *App) boardRows(limit int) []FlowStat {
-	return capRows(aboveFloor(a.flow.Board(a.now, a.quotes, 0), sideBuy), limit)
+	return capRows(a.flow.Increments(a.now, a.quotes, boardFloorShares, 0, sideBuy), limit)
 }
 
-// sellRows lists who is being sold hardest right now.
+// sellRows lists the selling transactions at or above the board floor.
 func (a *App) sellRows(limit int) []FlowStat {
-	return capRows(aboveFloor(a.flow.BoardSide(a.now, a.quotes, 0, sideSell), sideSell), limit)
+	return capRows(a.flow.Increments(a.now, a.quotes, boardFloorShares, 0, sideSell), limit)
+}
+
+// buyingLeaders is the KSE100 tile's BUYING NOW line: one row per stock, its
+// buying over the window, which is the ranking that line has always used.
+func (a *App) buyingLeaders(limit int) []FlowStat {
+	return capRows(aboveFloor(a.flow.BoardSide(a.now, a.quotes, 0, sideBuy), sideBuy), limit)
 }
 
 // flowRows lists the stocks moving most on either side, for the combined
