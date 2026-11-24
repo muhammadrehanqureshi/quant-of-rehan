@@ -1641,6 +1641,24 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.4.8, versionCode 141.**
+
+Owner order 2026-11-24, four changes on one build:
+
+- The SEARCH and ORDER FLOW menus keep the CUSTOM SCRIPS OF VOL. box's own
+  drop down law: a keystroke or a tap on the box opens the list, the options
+  are the volume menu's own rows, its own divider and its top and bottom air,
+  and a pick closes it again. No caret on either tile: the box is the whole
+  control.
+- The SEARCH box re-opens the menu on a tap with the typed text still in it,
+  exactly the volume box's roll-up and pull-down.
+- QUANT STATUS reads the relay's clock to the second, in the owner's date
+  shape: "Karachi: 24 Nov 2026 18:03:02 PKT". The relay stamps `karachi_now`
+  with seconds (`hhmmss` in cloud/worker.js) and the phone only rearranges
+  those digits; it never reads its own clock for this line.
+- The KSE100 leaders put the money group in front of the scrip:
+  "PKR 7.68 \u25B2 2.35%   1. TELE", then the volumes and NET DELTA under it.
+
 **Version 4.4.7, versionCode 140.**
 
   Owner order 2026-11-23, after the SEARCH and ORDER FLOW tiles printed their

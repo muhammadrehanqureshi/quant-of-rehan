@@ -2394,8 +2394,13 @@ class VersionTest(unittest.TestCase):
         # versionCode 136.
         # Owner order 2026-11-23: an empty SEARCH or ORDER FLOW box lists
         # nothing, and a search option is the volume tile's own scrip.
-        self.assertIn('android:versionName="4.4.7"', manifest)
-        self.assertIn('android:versionCode="140"', manifest)
+        # Owner order 2026-11-24: the SEARCH and ORDER FLOW menus wear the
+        # volume drop down's own law with no caret, the QUANT STATUS clock
+        # carries seconds and the date as "24 Nov 2026", and the KSE100
+        # leaders put the price and its percentage in front of the scrip.
+        # They ship as 4.4.8, versionCode 141.
+        self.assertIn('android:versionName="4.4.8"', manifest)
+        self.assertIn('android:versionCode="141"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
@@ -2789,7 +2794,11 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn('android:background="@null"', box)
         main = MAIN.read_text(encoding="utf-8")
         self.assertIn('TextView row = menuRow("");', main)
-        self.assertIn("searchResults.addView(tightDivider());", main)
+        # Owner order 2026-11-24: the search options are the volume menu's
+        # own rows and its own divider now, not the tighter list line.
+        self.assertIn("searchResults.addView(menuDivider());", main)
+        self.assertIn("searchResults.setVisibility(visible.isEmpty() || !searchListOpen",
+                      main, "a pick closes the menu, the dropdown's own law")
         self.assertIn("searchFieldGroup.setBackground(fieldPlate(index));", main)
 
     def test_the_tapped_symbol_stays_pinned_across_ticks(self):

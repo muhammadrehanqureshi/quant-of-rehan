@@ -619,6 +619,38 @@ public final class Watcher {
      * so a fast round still keeps the pill, the sentence and the market state
      * true without touching the exchange-backed card.
      */
+    /** The twelve month labels the owner's date shape uses. */
+    private static final String[] CLOCK_MONTHS = {
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+    /**
+     * The relay's own clock in the owner's own shape (owner order
+     * 2026-11-24: "include seconds as well after minutes. Have the date in
+     * this format, 24 Nov 2026"): "2026-11-24 18:03:02 PKT" reads back as
+     * "24 Nov 2026 18:03:02 PKT". Nothing is derived from the phone's own
+     * clock and no second is invented: a stamp this shape does not match is
+     * returned word for word, the same law the rest of the card keeps (SO-3).
+     */
+    static String clockLine(String stamp) {
+        if (stamp == null) {
+            return "";
+        }
+        java.util.regex.Matcher shape = java.util.regex.Pattern
+                .compile("^(\\d{4})-(\\d{2})-(\\d{2})[ T]"
+                        + "(\\d{2}:\\d{2}(?::\\d{2})?)(.*)$")
+                .matcher(stamp.trim());
+        if (!shape.matches()) {
+            return stamp;
+        }
+        int month = Integer.parseInt(shape.group(2));
+        if (month < 1 || month > CLOCK_MONTHS.length) {
+            return stamp;
+        }
+        return shape.group(3) + " " + CLOCK_MONTHS[month - 1] + " "
+                + shape.group(1) + " " + shape.group(4) + shape.group(5);
+    }
+
     private static Head fetchHead(Context c, String base) throws Exception {
         Head head = new Head();
         JSONObject health = healthWithRetry(c, base);
@@ -636,7 +668,14 @@ public final class Watcher {
         if (!head.reachable) {
             head.detail = "The relay answered but reported a fault.";
         } else {
-            StringBuilder d = new StringBuilder("Karachi: ").append(karachi);
+            // Owner order 2026-11-24: the status clock now reads the owner's
+            // own shape, "24 Nov 2026 18:03:02 PKT": seconds after the
+            // minutes, and the day written as a date instead of a stamp. The
+            // relay's own clock still decides every number here; this only
+            // rearranges what it sent, and a stamp it does not recognize is
+            // printed exactly as it arrived.
+            StringBuilder d = new StringBuilder("Karachi: ")
+                    .append(clockLine(karachi));
             String line = phaseLine(c, head.phase);
             if (!line.isEmpty()) {
                 d.append('\n').append(line);

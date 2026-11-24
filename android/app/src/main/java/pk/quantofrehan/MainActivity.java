@@ -369,6 +369,12 @@ public class MainActivity extends Activity {
     /** Owner order 2026-11-22: the ORDER FLOW list's own open state. A pick
      *  closes it, a tap on the box or a keystroke opens it again. */
     private boolean flowListOpen = true;
+    /** Owner order 2026-11-24: the SEARCH list keeps the same dropdown law as
+     *  the CUSTOM SCRIPS OF VOL. box. A pick closes the menu and the box goes
+     *  on standing alone, a tap on the box opens it again, and a keystroke
+     *  opens it onto its own matches. There is no caret on this tile by the
+     *  owner's own order: the box is the whole control. */
+    private boolean searchListOpen = true;
     /** True while the tick restamps a tapped scrip, so the reopen of the
      *  list by his own tap is never undone by the refresh. */
     private boolean flowKeepList;
@@ -761,8 +767,19 @@ public class MainActivity extends Activity {
             @Override public void beforeTextChanged(CharSequence t, int a, int b, int c) { }
             @Override public void onTextChanged(CharSequence t, int a, int b, int c) { }
             @Override public void afterTextChanged(Editable e) {
+                // Owner order 2026-11-24: a keystroke OPENS the menu, the
+                // ORDER FLOW box's own law, so the list is the box's pulled
+                // down face and never a panel that stays down on its own.
+                searchListOpen = true;
                 renderSearchResults(e == null ? "" : e.toString());
             }
+        });
+        // Owner order 2026-11-24: a tap on the box opens the menu again with
+        // the text he typed still in it - the CUSTOM SCRIPS OF VOL. box's
+        // roll-up and pull-down, without a caret to tap instead.
+        searchInput.setOnClickListener(v -> {
+            searchListOpen = true;
+            renderSearchResults(searchInput.getText().toString());
         });
 
         // Owner order 2026-10-16: the console's tiles, the rules between them
@@ -3645,11 +3662,14 @@ public class MainActivity extends Activity {
             if (!visible.isEmpty()) {
                 orderFlowResults.addView(flowTableHeader());
             }
-            for (Watcher.FlowRow row : visible) {
-                // The list's own line between two scrips, the search
-                // list's own tighter air, one law for both lists.
-                if (orderFlowResults.getChildCount() > 1) {
-                    orderFlowResults.addView(tightDivider());
+                            padMenu(orderFlowResults);
+                for (Watcher.FlowRow row : visible) {
+                    // Owner order 2026-11-24: the scrips are the CUSTOM SCRIPS
+                    // OF VOL. menu's own options now - the open menu's
+                    // divider, the menu's top and bottom air - so the two
+                    // searches read as the dropdown every other box opens.
+                    if (orderFlowResults.getChildCount() > 1) {
+                    orderFlowResults.addView(menuDivider());
                 }
                 orderFlowResults.addView(flowTableRow(row, query));
             }
@@ -4648,12 +4668,16 @@ public class MainActivity extends Activity {
         // panel's gap law needs the empty views gone but the populated panel
         // needs them seen. A GONE view's margin never opens a gap, and a
         // VISIBLE view shows what arrived.
-        searchResults.setVisibility(visible.isEmpty() ? View.GONE : View.VISIBLE);
+        searchResults.setVisibility(visible.isEmpty() || !searchListOpen
+                ? View.GONE : View.VISIBLE);
         boolean rebuild = !q.equals(renderedQuery)
                 || !visible.equals(new java.util.ArrayList<>(searchRows.keySet()));
         if (rebuild) {
             searchResults.removeAllViews();
             searchRows.clear();
+            // Owner order 2026-11-24: the menu's own top and bottom air, the
+            // CUSTOM SCRIPS OF VOL. box's one law.
+            padMenu(searchResults);
             // Owner order 2026-10-20 (second note): every result carries the
             // stock's own price and percentage, both in the colour of its move,
             // so the list answers "which one" before a tap does. A symbol with
@@ -4662,7 +4686,7 @@ public class MainActivity extends Activity {
                 // Owner order 2026-11-21: one option of the app's own
                 // dropdown, divided like every other menu row.
                 if (!searchRows.isEmpty()) {
-                    searchResults.addView(tightDivider());
+                    searchResults.addView(menuDivider());
                 }
                 TextView row = menuRow("");
                 styleSearchRow(row, symbol, q);
@@ -4858,6 +4882,17 @@ public class MainActivity extends Activity {
     /** One symbol's B, S and T, asked of the relay's own split law. */
     private void selectSymbol(String symbol) {
         selectedSymbol = symbol;
+        if (symbol != null) {
+            // Owner order 2026-11-24: a pick closes the dropdown menu, the
+            // CUSTOM SCRIPS OF VOL. box's own law, and leaves the picked
+            // scrip's answer under the box. A tap on the box brings the menu
+            // back with the text he typed still in it.
+            searchListOpen = false;
+            if (searchResults != null) {
+                searchResults.setVisibility(View.GONE);
+            }
+            fitSearchWindow();
+        }
         if (symbol == null) {
             // Clearing always discards the pinned symbol's stale detail line
             // with it, so a restored view can never print B/S of another
@@ -5366,6 +5401,34 @@ public class MainActivity extends Activity {
             if (i > 0) {
                 sb.append('\n');
             }
+            // Owner order 2026-11-24: "move the current price and
+            // percentage in front of the scrip, right now they are below net
+            // delta." The money group now LEADS the row, so a leader reads
+            // price first and its volumes after it: the day's price is the
+            // first thing the eye lands on, and NET DELTA closes the block.
+            if (row.price != null) {
+                int priceFrom = sb.length();
+                sb.append(String.format(Locale.US, "PKR %,.2f", row.price));
+                if (row.changePct != null) {
+                    spans.add(new int[]{priceFrom, sb.length(),
+                            row.changePct >= 0 ? R.color.green : R.color.red});
+                }
+            }
+            if (row.changePct != null) {
+                if (row.price != null) {
+                    sb.append(' ');
+                }
+                int from = sb.length();
+                sb.append(String.format(Locale.US, "%s %.2f%%",
+                        row.changePct >= 0 ? "\u25B2" : "\u25BC",
+                        Math.abs(row.changePct)));
+                spans.add(new int[]{from, sb.length(), row.changePct >= 0
+                        ? R.color.green : R.color.red});
+                glyphs.add(new int[]{from, from + 1});
+            }
+            if (row.price != null || row.changePct != null) {
+                sb.append("   ");
+            }
             sb.append(String.format(Locale.US, "%d. %s", i + 1, row.symbol));
             if (row.hasSplit()) {
                 // Owner order 2026-11-06: B, S and U share the first line;
@@ -5428,32 +5491,8 @@ public class MainActivity extends Activity {
                     spans.add(new int[]{totalFrom, sb.length(), R.color.blue});
                 }
             }
-            // The money line: opened whenever there is a price or a move to
-            // show, so even a price-less row puts its change on its own line
-            // instead of hanging it off the volumes.
-            if (row.price != null || row.changePct != null) {
-                sb.append('\n');
-            }
-            if (row.price != null) {
-                int priceFrom = sb.length();
-                sb.append(String.format(Locale.US, "PKR %,.2f", row.price));
-                if (row.changePct != null) {
-                    spans.add(new int[]{priceFrom, sb.length(),
-                            row.changePct >= 0 ? R.color.green : R.color.red});
-                }
-            }
-            if (row.changePct != null) {
-                if (row.price != null) {
-                    sb.append(' ');
-                }
-                int from = sb.length();
-                sb.append(String.format(Locale.US, "%s %.2f%%",
-                        row.changePct >= 0 ? "\u25B2" : "\u25BC",
-                        Math.abs(row.changePct)));
-                spans.add(new int[]{from, sb.length(), row.changePct >= 0
-                        ? R.color.green : R.color.red});
-                glyphs.add(new int[]{from, from + 1});
-            }
+            // Owner order 2026-11-24: the money line is gone from this
+            // station - it opens the row now, in front of the scrip.
         }
         SpannableString sp = new SpannableString(sb.toString());
         for (int[] span : spans) {

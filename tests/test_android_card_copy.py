@@ -202,15 +202,32 @@ class LeaderLineTest(unittest.TestCase):
         self.assertIn("row.unclassified", self.main)
         self.assertIn("quote.unclassified", self.main)
 
-    def test_the_money_line_opens_after_the_volumes(self):
-        # v2.3.7 (owner 2026-10-26, ninth pass): the volume reveal prints
-        # the leaders card's own money line too, so the order probe reads
-        # the card builder it guards, not the whole console file.
+    def test_the_money_line_leads_the_scrip(self):
+        # Owner order 2026-11-24: "move the current price and percentage in
+        # front of the scrip, right now they are below net delta." The money
+        # group opens the leader row, right in front of the numbered ticker,
+        # and the volumes with NET DELTA close it. This supersedes the
+        # v2.3.7 order that put the money line under the volumes.
         leaders = self.main[
             self.main.index("private SpannableString leadersText("):]
-        volumes = leaders.index('append("T=");')
         money = leaders.index('"PKR %,.2f"')
-        self.assertLess(volumes, money)
+        volumes = leaders.index('append("T=");')
+        self.assertLess(money, volumes)
+
+    def test_the_status_clock_carries_seconds_and_the_owners_date(self):
+        # Owner order 2026-11-24: "include seconds as well after minutes. Have
+        # the date in this format, 24 Nov 2026." The relay reports its own
+        # clock to the second and the phone rearranges it; no second is
+        # invented from the phone's clock.
+        watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
+                   / "pk" / "quantofrehan" / "Watcher.java").read_text(
+            encoding="utf-8")
+        self.assertIn("static String clockLine(String stamp)", watcher)
+        self.assertIn('"Jan", "Feb", "Mar", "Apr", "May", "Jun"', watcher)
+        self.assertIn(".append(clockLine(karachi))", watcher)
+        worker = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
+        self.assertIn("function hhmmss(d)", worker)
+        self.assertIn("${dayStamp(k)} ${hhmmss(k)} PKT", worker)
 
     def test_a_price_less_row_still_opens_the_money_line(self):
         # The edge case the layout must not lose: the relay can report a
