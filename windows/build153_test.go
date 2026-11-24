@@ -94,32 +94,34 @@ func TestBuild153SymbolToPriceGapIsTwoCellsTighter(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-21: CUSTOM SCRIPS OF VOLUME right aligns its NET DELTA, so
-// 4.8M and 3M end with the M on the same cell, the field's own last cell.
-func TestBuild153CustomScripsNetDeltaEndsOnOneCell(t *testing.T) {
+// Owner order 2026-11-24 (later): CUSTOM SCRIPS OF VOLUME left aligns its NET
+// DELTA, so 4.8M and 3M start on the same cell, the field's own first cell.
+// That is the owner's own sentence: 2.8M and 8.51k must start where 268.31k
+// starts.
+func TestBuild153CustomScripsNetDeltaStartsOnOneCell(t *testing.T) {
 	a := demoApp(t, 158, 41)
 	c := NewCanvas(60, 2, a.th.Panel)
-	a.shareBarNetRight(c, 0, 0, shareBarWidth, 5_000_000, 200_000) // 4.8M
-	a.shareBarNetRight(c, 0, 1, shareBarWidth, 3_200_000, 200_000) // 3M
+	a.shareBarNetLeft(c, 0, 0, shareBarWidth, shareNetW, 5_000_000, 200_000) // 4.8M
+	a.shareBarNetLeft(c, 0, 1, shareBarWidth, shareNetW, 3_200_000, 200_000) // 3M
 	rows := c.PlainRows()
-	// The bar's block is three bytes, so the unit's cell is its rune index.
-	at := func(row string) int {
+	// The bar's block is three bytes, so a cell is its rune index.
+	at := func(row string, ch rune) int {
 		for i, r := range []rune(row) {
-			if r == 'M' {
+			if r == ch {
 				return i
 			}
 		}
 		return -1
 	}
-	one, two := at(rows[0]), at(rows[1])
+	one, two := at(rows[0], '4'), at(rows[1], '3')
 	if one < 0 || two < 0 {
-		t.Fatalf("a NET DELTA unit is missing:\n%q\n%q", rows[0], rows[1])
+		t.Fatalf("a NET DELTA figure is missing:\n%q\n%q", rows[0], rows[1])
 	}
 	if one != two {
-		t.Fatalf("the M ends on cell %d and %d, want one cell:\n%q\n%q", one, two, rows[0], rows[1])
+		t.Fatalf("the figures start on cell %d and %d, want one cell:\n%q\n%q", one, two, rows[0], rows[1])
 	}
-	if want := shareBarWidth - 1; one != want {
-		t.Fatalf("the M ends on cell %d, want the field's last cell %d", one, want)
+	if want := shareBarSpan + shareBarGap; one != want {
+		t.Fatalf("the figure starts on cell %d, want the field's first cell %d", one, want)
 	}
 }
 

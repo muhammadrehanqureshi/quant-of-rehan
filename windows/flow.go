@@ -44,7 +44,8 @@ type flowEvt struct {
 	t    time.Time
 	dv   int64
 	px   float64
-	side int8 // +1 bought, -1 sold, 0 unclassified
+	side int8     // +1 bought, -1 sold, 0 unclassified
+	chg  *float64 // the change the quote carried when this step printed
 }
 
 // sideBuy and sideSell index the per side alert memory.
@@ -216,11 +217,11 @@ func (f *Flow) Observe(now time.Time, q *Quotes, trading bool) []Flag {
 				// frame. A heavy sell at the bid therefore moves S even when the
 				// last price did not move between the two frames.
 				if db > 0 {
-					sf.evts = append(sf.evts, flowEvt{now, db, lq.Price, 1})
+					sf.evts = append(sf.evts, flowEvt{t: now, dv: db, px: lq.Price, side: 1, chg: lq.ChangePct})
 					sf.side = 1
 				}
 				if ds > 0 {
-					sf.evts = append(sf.evts, flowEvt{now, ds, lq.Price, -1})
+					sf.evts = append(sf.evts, flowEvt{t: now, dv: ds, px: lq.Price, side: -1, chg: lq.ChangePct})
 					sf.side = -1
 				}
 				sf.buy, sf.sell = b, sl
@@ -240,7 +241,7 @@ func (f *Flow) Observe(now time.Time, q *Quotes, trading bool) []Flag {
 			}
 			sf.side = side
 			if dv > 0 {
-				sf.evts = append(sf.evts, flowEvt{now, dv, lq.Price, side})
+				sf.evts = append(sf.evts, flowEvt{t: now, dv: dv, px: lq.Price, side: side, chg: lq.ChangePct})
 			}
 		}
 		cut := now.Add(-f.cfg.Window - 5*time.Second)
@@ -434,7 +435,10 @@ func sessionMinutes(now time.Time) float64 {
 // What one row is: the relay's wire carries cumulative counters, so the smallest
 // step anything here can see is what one poll advanced. Two prints inside the
 // same second arrive as one step, and nothing below that exists to be split.
-func (f *Flow) Increments(now time.Time, q *Quotes, floor int64, limit, side int) []FlowStat {
+// The price and the percentage a row carries are the ones the quote held when
+// that step printed, never the live quote: a row is a record of a transaction
+// that already happened, so it must not move as the price moves.
+func (f *Flow) Increments(now time.Time, floor int64, limit, side int) []FlowStat {
 	want, word := int8(1), "BUY"
 	if side == sideSell {
 		want, word = -1, "SELL"
@@ -445,21 +449,11 @@ func (f *Flow) Increments(now time.Time, q *Quotes, floor int64, limit, side int
 		if sf == nil || !sf.have {
 			continue
 		}
-		px := sf.px
-		var chg *float64
-		if q != nil {
-			if lq, ok := q.Items[sym]; ok {
-				if lq.Price > 0 {
-					px = lq.Price
-				}
-				chg = lq.ChangePct
-			}
-		}
 		for _, e := range sf.evts {
 			if e.side != want || e.t.Before(from) || e.dv < floor {
 				continue
 			}
-			st := FlowStat{Side: word, Symbol: sym, Price: px, ChangePct: chg,
+			st := FlowStat{Side: word, Symbol: sym, Price: e.px, ChangePct: e.chg,
 				Flagged: e.dv >= f.cfg.MinShares}
 			if side == sideSell {
 				st.SellShares = e.dv

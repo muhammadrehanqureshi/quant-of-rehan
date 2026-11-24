@@ -196,6 +196,11 @@ const appVersion = "4.0.21"
 // 3.8.34, the gate drawn as one of the build's own tiles with its blinking box
 // cursor, and the KSE100 leaders' U= and & T= back on shared columns.
 //
+// Build 168 is 4.3.0, the same day's next order: CUSTOM SCRIPS OF VOLUME starts
+// every NET DELTA figure on the one cell the widest figure starts on, the WATCH
+// LIST drops the MY ORDER chip and reads its seven ORDER FLOW orders, and both
+// ALERTS boards keep the price and the percentage each transaction printed at.
+//
 // Build 167 is 4.2.10, the same day's next order: the WATCH LIST's footer
 // sentence is one ink, the word del included.
 //
@@ -232,7 +237,7 @@ const appVersion = "4.0.21"
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.2.10"
+const hudBuild = "4.3.0"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

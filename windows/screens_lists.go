@@ -470,7 +470,7 @@ func (a *App) drawScanQuote(c *Canvas, row, end, left int, atT bool, q Quote, px
 		fieldW := shareBarSpan + shareBarGap + netW
 		if q.Buy != nil && q.Sell != nil && barStart+fieldW <= end+1 {
 			if total := *q.Buy + *q.Sell; total > 0 {
-				a.shareBarNetField(c, barStart, row, fieldW, netW, *q.Buy, *q.Sell)
+				a.shareBarNetLeft(c, barStart, row, fieldW, netW, *q.Buy, *q.Sell)
 			}
 		}
 		return
@@ -488,7 +488,7 @@ func (a *App) drawScanQuote(c *Canvas, row, end, left int, atT bool, q Quote, px
 	a.drawQuote(c, pkrX, row, pxW, px, q.ChangePct, pxKey)
 	if barStart > 0 && q.Buy != nil && q.Sell != nil {
 		if total := *q.Buy + *q.Sell; total > 0 {
-			a.shareBarNetField(c, barStart, row, fieldW, netW, *q.Buy, *q.Sell)
+			a.shareBarNetLeft(c, barStart, row, fieldW, netW, *q.Buy, *q.Sell)
 		}
 	}
 }
@@ -1304,11 +1304,17 @@ func (a *App) shareBarNetRight(c *Canvas, x, y, w int, buy, sell int64) {
 }
 
 // shareBarNetField is the bar with its NET DELTA right aligned in a field of
-// exactly netW cells, the widest figure the caller's list carries. Owner order
-// 2026-11-21 (second pass): CUSTOM SCRIPS asks for this, so a short value keeps
-// its unit aligned with the long ones and still stands beside the bar.
+// exactly netW cells, the widest figure the caller's list carries.
 func (a *App) shareBarNetField(c *Canvas, x, y, w, netW int, buy, sell int64) {
 	a.drawShareBar(c, x, y, w, buy, sell, true, netW)
+}
+
+// shareBarNetLeft is the bar with its NET DELTA left aligned in a field of
+// exactly netW cells. Owner order 2026-11-24 (later): CUSTOM SCRIPS OF VOLUME
+// asks for this, so 2.8M, 8.51k and 268.31k all start on the cell the widest
+// figure starts on instead of each ending on the tile's own last cell.
+func (a *App) shareBarNetLeft(c *Canvas, x, y, w, netW int, buy, sell int64) {
+	a.drawShareBar(c, x, y, w, buy, sell, true, -netW)
 }
 
 // shareBarOnly draws the same bar with no NET DELTA after it, for the leaders
@@ -1335,11 +1341,14 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buy, sell int64, label bool, 
 		return 0
 	}
 	// netW is the cells the NET DELTA is written in. Zero keeps the column the
-	// table's own width: a left aligned figure in shareNetW cells. A caller
-	// that passes a width gets that narrower field, right aligned.
+	// table's own width: a left aligned figure in shareNetW cells. A positive
+	// width is that narrower field, right aligned; a negative one is the same
+	// field, left aligned, which is what CUSTOM SCRIPS asks for.
 	fieldW := shareNetW
 	if netW > 0 {
 		fieldW = netW
+	} else if netW < 0 {
+		fieldW = -netW
 	}
 	// The bar is 16 cells; a caller with less room (the ALERTS boards pass the
 	// ten cells of a compact bar) gets a bar of exactly the room it has.

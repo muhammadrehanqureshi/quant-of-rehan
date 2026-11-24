@@ -18,7 +18,7 @@ func TestBuild165TheBoardsListEachIncrementItsOwnRow(t *testing.T) {
 	now := flowT0.Add(2 * time.Second)
 	f.Observe(now, feedOf(map[string]LiveQuote{"GCIL": lq(20.2, 1_210_000)}), true)
 
-	rows := f.Increments(now, nil, boardFloorShares, 0, sideBuy)
+	rows := f.Increments(now, boardFloorShares, 0, sideBuy)
 	if len(rows) != 2 {
 		t.Fatalf("the board carries %d rows, want one per transaction: %+v", len(rows), rows)
 	}
@@ -39,7 +39,7 @@ func TestBuild165TheBoardsListEachIncrementItsOwnRow(t *testing.T) {
 	small := NewFlow(defaultFlowCfg(alertFloorShares))
 	small.Observe(flowT0, feedOf(map[string]LiveQuote{"PPL": lq(9, 500_000)}), true)
 	small.Observe(flowT0.Add(time.Second), feedOf(map[string]LiveQuote{"PPL": lq(9.1, 540_000)}), true)
-	if got := small.Increments(flowT0.Add(time.Second), nil, boardFloorShares, 0, sideBuy); len(got) != 0 {
+	if got := small.Increments(flowT0.Add(time.Second), boardFloorShares, 0, sideBuy); len(got) != 0 {
 		t.Fatalf("a 40k step reached the board: %+v", got)
 	}
 }
@@ -62,7 +62,7 @@ func TestBuild165TheWatchBoxKeepsOneBlankLine(t *testing.T) {
 	}
 	chips := -1
 	for i := box + 1; i < len(rows); i++ {
-		if strings.Contains(rows[i], "MY ORDER") {
+		if strings.Contains(rows[i], "TOTAL VOLUME") {
 			chips = i
 			break
 		}

@@ -94,26 +94,27 @@ func TestBuild164TheWatchRowsAreNumberedNotDiamond(t *testing.T) {
 func TestBuild164TheWatchPageCarriesTheOrderLine(t *testing.T) {
 	a := demoApp(t, 158, 41)
 	a.screen = scrWatch
-	if a.watchSort != 0 {
-		t.Fatalf("the page opens in order %d, want the owner's own at 0", a.watchSort)
+	// Owner order 2026-11-24 (later): MY ORDER is gone, so the page opens in the
+	// order ORDER FLOW opens in.
+	if a.watchSort != flowSortTotalVolume {
+		t.Fatalf("the page opens in order %d, want TOTAL VOLUME at %d", a.watchSort, flowSortTotalVolume)
 	}
 	text := screenOf(a)
-	if !strings.Contains(text, "ORDER") || !strings.Contains(text, "◆ MY ORDER") {
-		t.Fatalf("the ORDER line carries no chip for the owner's own order:\n%s", text)
+	if strings.Contains(text, "MY ORDER") {
+		t.Fatalf("the WATCH LIST still carries the MY ORDER chip:\n%s", text)
 	}
-	if !strings.Contains(text, "TOTAL VOLUME") {
-		t.Fatalf("the ORDER line lost the ORDER FLOW page's chips:\n%s", text)
+	if !strings.Contains(text, "ORDER") || !strings.Contains(text, "◆ TOTAL VOLUME") {
+		t.Fatalf("the ORDER line does not mark TOTAL VOLUME as the open order:\n%s", text)
 	}
 	of := a.ofSort
 	a.keyWatch(Key{Kind: KRight})
-	if a.watchSort != 1 {
-		t.Fatalf("RIGHT left the watch order at %d, want 1", a.watchSort)
+	if a.watchSort != flowSortUnclear {
+		t.Fatalf("RIGHT left the watch order at %d, want the chip after TOTAL VOLUME", a.watchSort)
 	}
 	if a.ofSort != of {
 		t.Fatalf("the watch page moved ORDER FLOW's order from %d to %d", of, a.ofSort)
 	}
-	// Owner order 2026-11-24 (later): the second chip is CHANGE.
-	if next := screenOf(a); !strings.Contains(next, "◆ CHANGE") {
+	if next := screenOf(a); !strings.Contains(next, "◆ UNCLEAR") {
 		t.Fatalf("the chosen chip wears no diamond:\n%s", next)
 	}
 }
