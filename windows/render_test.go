@@ -328,8 +328,9 @@ func TestFriendlyNextShowsTheScanStart(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-07: the tab numbers and TAB are green, D and R are green,
-// ESC is yellow, Q and CTRL+C are red, and every coloured key is bold.
+// Owner order 2026-11-07: the tab numbers and TAB are green, R is green, Q is
+// red, and every coloured key is bold. Owner order 2026-11-24: the footer
+// carries TAB, R and Q and nothing else, on every page.
 func TestFooterKeysAreColoured(t *testing.T) {
 	a := demoApp(t, 122, 30)
 	a.screen = scrScanner
@@ -351,8 +352,11 @@ func TestFooterKeysAreColoured(t *testing.T) {
 	}
 	check(c, "1 HOME", a.th.Good, false)
 	check(c, "TAB", a.th.Good, false)
-	check(c, "ESC", a.th.Warn, false)
-	check(c, "CTRL+C", a.th.Bad, false)
+	for _, gone := range []string{"ESC", "CTRL+C", "A PRICE ALERT", "D DETAILS", "D RAW"} {
+		if row := c.PlainRows()[c.H-1]; strings.Contains(row, gone) {
+			t.Errorf("the footer still carries %q: %q", gone, row)
+		}
+	}
 	a.screen = scrHome
 	c = a.render()
 	check(c, "1 HOME", a.th.Good, false)
@@ -364,7 +368,8 @@ func TestFooterKeysAreColoured(t *testing.T) {
 	check(c, "Q QUIT", a.th.Bad, false)
 	a.screen = scrAlerts
 	c = a.render()
-	check(c, "A PRICE ALERT", a.th.Good, false)
+	check(c, "R REFRESH", a.th.Good, false)
+	check(c, "Q QUIT", a.th.Bad, false)
 }
 
 func TestAlertLogDetailIsWrappedNotCut(t *testing.T) {

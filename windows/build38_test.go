@@ -13,6 +13,7 @@ func TestKSE100VolumesKeepNineDigits(t *testing.T) {
 	a := busyApp(t, 158, 41, 3)
 	rows := rowsOf(a)
 	inside := false
+	left := -1
 	field := regexp.MustCompile(`(?:B|S|U|T)=([\d,]+)`)
 	var sAt, uAt, tAt []int
 	checked := 0
@@ -20,11 +21,20 @@ func TestKSE100VolumesKeepNineDigits(t *testing.T) {
 		switch {
 		case strings.Contains(row, "KSE100 INDEX & THE TOP 3 SCRIPS OF VOLUME"):
 			inside = true
+			// Owner order 2026-11-24: the signal tile is taller, so the KSE100
+			// tile's rows can share a screen row with the telemetry panel's own
+			// FLOW line, which carries its own B=, S= and U=. The tile's rows are
+			// read from its own left edge, never from the whole screen row.
+			left = strings.Index(row, "KSE100 INDEX &") - len("┏─◆─")
 			continue
 		case strings.Contains(row, "BUYING NOW"):
 			inside = false
 		}
-		if !inside || !strings.Contains(row, "B=") || !strings.Contains(row, "&  T=") {
+		if !inside || left < 0 || left >= len(row) {
+			continue
+		}
+		row = row[left:]
+		if !strings.Contains(row, "B=") || !strings.Contains(row, "&  T=") {
 			continue
 		}
 		matches := field.FindAllStringSubmatch(row, -1)
