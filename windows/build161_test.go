@@ -28,8 +28,10 @@ func TestBuild161BoardsCarryTheNetDeltaFigureAfterTheBar(t *testing.T) {
 			if strings.Contains(row, "NET DELTA") {
 				t.Fatalf("side %d: the board still writes NET DELTA: %q", side, row)
 			}
+			// The board's own frame closes the row, so it and the blanks before
+			// it are dropped before the row's last ink is measured.
 			r := []rune(strings.TrimRight(row, " "))
-			for len(r) > 0 && r[len(r)-1] == '│' {
+			for len(r) > 0 && (r[len(r)-1] == '│' || r[len(r)-1] == ' ') {
 				r = r[:len(r)-1]
 			}
 			from := -1
@@ -59,7 +61,7 @@ func TestBuild161BoardsCarryTheNetDeltaFigureAfterTheBar(t *testing.T) {
 				t.Fatalf("side %d: the figure stands %d cells after the bar, want 1: %q",
 					side, start-to-1, row)
 			}
-			fig := string(r[start:])
+			fig := strings.TrimSpace(string(r[start:]))
 			if fig == "" || strings.Contains(fig, " ") {
 				t.Fatalf("side %d: the row carries no single NET DELTA figure: %q", side, row)
 			}
