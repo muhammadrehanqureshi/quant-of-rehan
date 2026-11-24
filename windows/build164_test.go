@@ -64,8 +64,8 @@ func TestBuild164TheWatchRowsAreNumberedNotDiamond(t *testing.T) {
 	cell := regexp.MustCompile(`^\d+\.$`)
 	seen := 0
 	for _, row := range rows[head+1:] {
-		if strings.Contains(row, "┗") {
-			break // the panel's bottom rule closes the table
+		if strings.Contains(row, "┗") || strings.Contains(row, watchFooter) {
+			break // the page's own footer line and the panel's rule close the table
 		}
 		r := []rune(row)
 		if at < 0 || at+flowNumW > len(r) {

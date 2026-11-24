@@ -29,9 +29,12 @@ func TestBuild161BoardsCarryTheNetDeltaFigureAfterTheBar(t *testing.T) {
 				t.Fatalf("side %d: the board still writes NET DELTA: %q", side, row)
 			}
 			// The board's own frame closes the row, so it and the blanks before
-			// it are dropped before the row's last ink is measured.
+			// it are dropped before the row's last ink is measured. Owner order
+			// 2026-11-24 (later): a board of transactions scrolls, so the
+			// scrollbar's own cell stands in the margin and is dropped the same
+			// way the frame is.
 			r := []rune(strings.TrimRight(row, " "))
-			for len(r) > 0 && (r[len(r)-1] == '│' || r[len(r)-1] == ' ') {
+			for len(r) > 0 && (r[len(r)-1] == '│' || r[len(r)-1] == '┃' || r[len(r)-1] == ' ') {
 				r = r[:len(r)-1]
 			}
 			from := -1
