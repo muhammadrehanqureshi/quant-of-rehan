@@ -33,9 +33,9 @@ func rollVersion(v string) string {
 }
 
 func TestBuild162TheVersionNeverReadsAboveTen(t *testing.T) {
-	// Owner order 2026-11-24: the HUD ships as 4.2.6, and the ten law stands.
-	if hudBuild != "4.2.6" {
-		t.Fatalf("hudBuild is %q, want 4.2.6", hudBuild)
+	// Owner order 2026-11-24: the HUD ships as 4.2.7, and the ten law stands.
+	if hudBuild != "4.2.7" {
+		t.Fatalf("hudBuild is %q, want 4.2.7", hudBuild)
 	}
 	for i, p := range strings.Split(hudBuild, ".") {
 		n, err := strconv.Atoi(p)

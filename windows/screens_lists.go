@@ -1260,6 +1260,12 @@ const barBlock = '━'
 // span itself, and the bar's height, do not move.
 const shareBarBoxes = 10
 
+// shareBarMinBoxes is how far the bar gives way before either NET DELTA column
+// steps out of a narrow window. Owner order 2026-11-24 (later): SCRIP keeps its
+// blank cell on every width, and the bar is what loses the cell at the tightest
+// one, so both NET DELTA columns stay on the page.
+const shareBarMinBoxes = shareBarBoxes - 1
+
 // shareBarSpan is the cells the ten boxes cover. Owner order 2026-11-11
 // (second pass): the patch 30 look is undone and the patch 29 bar is back, so
 // the bar is 16 cells again, exactly as long as it was, and the ten boxes
@@ -1338,7 +1344,7 @@ func (a *App) drawShareBar(c *Canvas, x, y, w int, buy, sell int64, label bool, 
 	// The bar is 16 cells; a caller with less room (the ALERTS boards pass the
 	// ten cells of a compact bar) gets a bar of exactly the room it has.
 	span := shareBarSpan
-	if label && w > 0 && w-fieldW-shareBarGap >= shareBarBoxes && w-fieldW-shareBarGap < shareBarSpan {
+	if label && w > 0 && w-fieldW-shareBarGap >= shareBarMinBoxes && w-fieldW-shareBarGap < shareBarSpan {
 		// A narrower ORDER FLOW table gives cells to the NET DELTA % column.
 		// The bar and its heading then shorten together, and the NET DELTA still
 		// starts on the cell its heading starts on.

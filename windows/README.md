@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 163
+# Quant of Rehan for Windows (console edition), build 164
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 164
+
+* **Build 164 (version 4.2.7).** The WATCH LIST page's box asks for a KMIALL scrip and nothing is written under it, the page's one instruction now stands in its footer, `Select a scrip and press "del" to remove that.`, and the rows carry ORDER FLOW's own numbers with a full stop instead of a diamond under the `#`. The ORDER line of chips comes to the page, its first chip being your own order, so the list reads as you built it until you sort it. The bar column is headed `BAR` everywhere, and `SCRIP` keeps one blank cell before `PRICE` on ORDER FLOW and WATCH LIST alike. The executable's file version is `4.2.7.0`.
 
 ## What is new in build 163
 
