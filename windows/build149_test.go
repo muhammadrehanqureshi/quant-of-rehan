@@ -82,8 +82,8 @@ func TestBuild149BoardsHoldThePkrColumn(t *testing.T) {
 	// the one cell, every percentage ends on the one cell, and the quote group is
 	// at least as wide as the six cell price field it always reserved.
 	if pctAt-pkrAt < quoteLabelW+6 {
-		t.Errorf("PKR stands on %d and the arrow on %d, want a price field of at least six cells",
-			pkrAt, arrowAt)
+		t.Errorf("PKR stands on %d and the percentage ends on %d, want a price field of at least six cells",
+			pkrAt, pctAt)
 	}
 }
 
