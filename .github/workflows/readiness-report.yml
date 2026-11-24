@@ -153,24 +153,31 @@ jobs:
           print(f"AUDIT DAY     {audit_day} PKT session "
                 f"(the Karachi date now is {day})")
 
-          raw = subprocess.run(
-              ["gh", "run", "list", "--limit", "100", "--json",
-               "workflowName,createdAt,startedAt,updatedAt,conclusion,status"],
-              capture_output=True, text=True, check=True).stdout
-          loops = {"KMIALL session scan loop", "KMIALL intraday momentum scan"}
+          # Each loop workflow is listed on its own. A repository-wide list of
+          # 100 runs does not reach back to yesterday morning on a push-heavy
+          # day (the 08:55 band of 2026-11-23 fell off the list and the first
+          # audit read it as MISSING while the run existed). Owner order
+          # 2026-11-24.
           runs = []
-          for run in json.loads(raw):
-              if run.get("workflowName") not in loops:
-                  continue
-              at = datetime.fromisoformat(
-                  run["createdAt"].replace("Z", "+00:00")).astimezone(PKT)
-              print(f"RUN           {at:%Y-%m-%d %H:%M} PKT  "
-                    f"{run['workflowName']:<32} {run.get('status')} "
-                    f"{run.get('conclusion') or ''}")
-              ended = run.get("updatedAt") or run.get("startedAt")
-              end = (datetime.fromisoformat(ended.replace("Z", "+00:00"))
-                     .astimezone(PKT) if ended else None)
-              runs.append((at, end, run["workflowName"]))
+          for workflow in ("intraday-session.yml", "intraday-capture.yml"):
+              raw = subprocess.run(
+                  ["gh", "run", "list", "--workflow", workflow,
+                   "--limit", "40", "--json",
+                   "workflowName,createdAt,startedAt,updatedAt,conclusion,status"],
+                  capture_output=True, text=True, check=True).stdout
+              for run in json.loads(raw):
+                  at = datetime.fromisoformat(
+                      run["createdAt"].replace("Z", "+00:00")).astimezone(PKT)
+                  if at.date() < audit_day:
+                      continue
+                  print(f"RUN           {at:%Y-%m-%d %H:%M} PKT  "
+                        f"{run['workflowName']:<32} {run.get('status')} "
+                        f"{run.get('conclusion') or ''}")
+                  ended = run.get("updatedAt") or run.get("startedAt")
+                  end = (datetime.fromisoformat(ended.replace("Z", "+00:00"))
+                         .astimezone(PKT) if ended else None)
+                  runs.append((at, end, run["workflowName"]))
+          runs.sort(key=lambda row: row[0], reverse=True)
 
           bands = session_bands(audit_day)
           # Owner audit 2026-11-23: run 44800521311 was the Friday 16:52 fire,
