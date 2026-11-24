@@ -1533,13 +1533,10 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	// Owner order 2026-11-15: clicking an ALERTS tile no longer highlights its
 	// frame. The hit still moves the page's keyboard focus.
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, title, hint)
-	// Owner order 2026-11-07: the buying heading is green and the selling
-	// heading is red, even when the focused panel would otherwise be hot.
-	// Owner order 2026-11-19: the diamond is the panel's own hot mark, the same
-	// glyph in the same cell every other tile carries; only the words are
-	// green or red.
-	titleInk := good
-	c.Text(x+4, y, w-8, fit(title, w-12), titleInk, true)
+	// Owner order 2026-11-24 (later): both boards wear the heading ink every
+	// other tile wears, the panel's own accent (hot while it holds the keys),
+	// so neither board reads as a warning because its words were green or red.
+	// The panel drew that title above; only its hint and frame are added here.
 	a.addHit(x, y, w, h, func() { a.alertFocus = focus })
 	if !on {
 		for i, ln := range wrap("The flag is off. Press "+flagKey+" or use Settings to turn it on.", iw) {
@@ -1631,7 +1628,9 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		// the old "sh" suffix is withdrawn from both tiles.
 		qtyTxt := compactNum(float64(qty))
 		if lay.chgFits && b.ChangePct != nil {
-			a.flashText(c, lay.chgX, ry, padRight(changeText(*b.ChangePct), lay.chgW), a.dirColor(*b.ChangePct), true, pxKey)
+			// Owner order 2026-11-24 (later): the percentage is right aligned in
+			// its field, so every board row's percent ends on one cell.
+			a.flashText(c, lay.chgX, ry, padLeft(changeText(*b.ChangePct), lay.chgW), a.dirColor(*b.ChangePct), true, pxKey)
 		}
 		rightAlign(c, lay.qtyX, ry, lay.qtyW, []Span{{qtyTxt, good, true}})
 		// Owner order 2026-11-12 (latest): both boards draw the one bar, so a
@@ -1807,6 +1806,16 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 	a.lvLog.set(len(log), (lih-2)/per)
 	row := listY
 	lw := contentW(&a.lvLog, liw)
+	// The quantity and the scrip fields are measured over the whole log, so a
+	// short figure or a short scrip leaves blanks at its field's end instead of
+	// pushing the words after it onto cells of their own.
+	qtyW, symW := 1, 1
+	for _, f := range log {
+		if f.Kind == "order" && f.Shares > 0 && f.Symbol != "" {
+			qtyW = max(qtyW, runeLen(compactNum(float64(f.Shares))))
+			symW = max(symW, runeLen(f.Symbol))
+		}
+	}
 	for n := 0; n < a.lvLog.view; n++ {
 		i := a.lvLog.off + n
 		if i >= len(log) {
@@ -1868,14 +1877,43 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 			groupX = lx + lw - quoteWidth(priceW)
 			leadW = max(1, groupX-lx-1)
 		}
-		sp := []Span{{f.Time.In(pkt).Format("15:04:05") + "  ", th.Soft, false},
-			{padRight(f.Side+" "+kind, 11), sc, true}, {text, th.Hot, true}}
-		c.Spans(lx, row, leadW, sp)
+		// Owner order 2026-11-24 (later): every order row reads in columns. The
+		// quantity holds its own right aligned field, the scrip holds a further
+		// one on the left, and the two words that follow are the one width, so
+		// shares, of, the scrip, were bought and were sold all start on one cell
+		// down the whole log and lead into the price and percentage columns.
+		lead := []Span{{f.Time.In(pkt).Format("15:04:05") + "  ", th.Soft, false},
+			{padRight(f.Side+" "+kind, 11), sc, true}}
+		if f.Kind == "order" && f.Shares > 0 && f.Symbol != "" {
+			verb := "were bought"
+			if f.Side == "SELL" {
+				verb = "were sold"
+			}
+			body := padLeft(compactNum(float64(f.Shares)), qtyW) + " shares of " +
+				padRight(f.Symbol, symW) + " " + verb
+			if showGroup {
+				body += " at"
+			} else {
+				body += "."
+			}
+			lead = append(lead, Span{body, th.Hot, true})
+		} else {
+			lead = append(lead, Span{text, th.Hot, true})
+		}
+		c.Spans(lx, row, leadW, lead)
 		if showGroup {
 			if f.Price > 0 {
 				// Owner order 2026-11-20: the log's figures are written once, so
 				// they carry no live flash key.
-				a.drawQuote(c, groupX, row, priceW, commaFloat(f.Price, 2), pct, "")
+				a.drawQuote(c, groupX, row, priceW, commaFloat(f.Price, 2), nil, "")
+				if pct != nil {
+					// Owner order 2026-11-24 (later): the whole move,
+					// arrow, gap and figure, is right aligned in the eight
+					// cells the group reserves, so 5.56% ends on the cell
+					// 10.01% ends on and the price keeps its own column.
+					c.Text(groupX+quoteLabelW+priceW+quoteGap, row, quotePctW+2,
+						padLeft(changeText(*pct), quotePctW+2), a.dirColor(*pct), true)
+				}
 			} else if pct != nil {
 				a.drawQuotePct(c, groupX+quoteLabelW+priceW+quoteGap, row, *pct)
 			}
