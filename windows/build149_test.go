@@ -171,15 +171,15 @@ func gapBefore(row []rune, end int) int {
 	return n
 }
 
-// Owner order 2026-11-20 (latest): PRICE, CHANGE, HIGH, LOW, BID and ASK end on
-// their column's right edge, so PRICE to CHANGE, HIGH to LOW, LOW to BID, BID to
-// ASK and ASK to BUYING stand one cell apart instead of three.
-func TestBuild149OrderFlowPriceColumnsEndOnTheirEdge(t *testing.T) {
+// Owner order 2026-11-24: every value starts on its heading's first cell, so
+// the figures stand under the columns from where the columns start instead of
+// being pushed to the right edge of their fields.
+func TestBuild149OrderFlowPriceColumnsStartUnderTheirHeadings(t *testing.T) {
 	a := orderFlowApp(t, 200, 50, flowSample149)
 	rows := rowsOf(a)
 	head := -1
 	for i, row := range rows {
-		if strings.Contains(row, "SYMBOL") && strings.Contains(row, "HIGH") && strings.Contains(row, "ASK") {
+		if strings.Contains(row, "SCRIP") && strings.Contains(row, "HIGH") && strings.Contains(row, "ASK") {
 			head = i
 			break
 		}
@@ -187,13 +187,13 @@ func TestBuild149OrderFlowPriceColumnsEndOnTheirEdge(t *testing.T) {
 	if head < 0 {
 		t.Fatalf("the ORDER FLOW heading carries no HIGH and ASK columns:\n%s", strings.Join(rows, "\n"))
 	}
-	ends := map[string]int{}
+	starts := map[string]int{}
 	for _, hd := range []string{"PRICE", "CHANGE", "HIGH", "LOW", "BID", "ASK"} {
 		at := col(rows[head], hd)
 		if at < 0 {
 			t.Fatalf("the heading lost %q: %q", hd, rows[head])
 		}
-		ends[hd] = at + len([]rune(hd)) - 1
+		starts[hd] = at
 	}
 	seen := 0
 	for _, row := range rows[head+1:] {
@@ -201,32 +201,19 @@ func TestBuild149OrderFlowPriceColumnsEndOnTheirEdge(t *testing.T) {
 			continue
 		}
 		body := []rune(row)
-		for _, hd := range []string{"PRICE", "CHANGE", "HIGH", "LOW", "BID", "ASK"} {
-			if end := ends[hd]; end >= len(body) || body[end] == ' ' {
-				t.Errorf("%s does not end on its column's edge %d: %q", hd, end, row)
+		for _, hd := range []string{"PRICE", "HIGH", "LOW", "BID", "ASK"} {
+			if at := starts[hd]; at >= len(body) || body[at] == ' ' {
+				t.Errorf("%s does not start on its heading's cell %d: %q", hd, at, row)
 			}
 		}
-		// PRICE to CHANGE: the arrow is the change's first cell, so it stands
-		// two cells after the price ends, one blank between them.
+		// CHANGE's first cell is its arrow, and the arrow stands on the cell
+		// the CHANGE heading starts on.
 		arrow := strings.IndexAny(row, "▲▼")
 		if arrow < 0 {
 			t.Fatalf("an ORDER FLOW row carries no change: %q", row)
 		}
-		if got := utf8.RuneCountInString(row[:arrow]) - ends["PRICE"] - 1; got != 1 {
-			t.Errorf("PRICE to CHANGE keeps %d cells, want 1: %q", got, row)
-		}
-		// The widest row fills every column, so there the gutter is the whole
-		// gap; a shorter row keeps only its own column's left pad.
-		full := strings.Contains(row, "1,234.56")
-		for _, pair := range [][2]string{{"HIGH", "LOW"}, {"LOW", "BID"}, {"BID", "ASK"}} {
-			if got := gapBefore(body, ends[pair[1]]); got < 1 || (full && got != 1) {
-				t.Errorf("%s to %s keeps %d cells, want 1: %q", pair[0], pair[1], got, row)
-			}
-		}
-		// ASK to BUYING: the one gutter cell, then the buying figure on its
-		// column's first cell.
-		if k := ends["ASK"]; k+2 >= len(body) || body[k+1] != ' ' || body[k+2] == ' ' {
-			t.Errorf("ASK to BUYING does not stand one cell apart: %q", row)
+		if got := utf8.RuneCountInString(row[:arrow]); got != starts["CHANGE"] {
+			t.Errorf("CHANGE starts on %d, want its heading's cell %d: %q", got, starts["CHANGE"], row)
 		}
 		seen++
 	}

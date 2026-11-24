@@ -64,7 +64,7 @@ func TestBuild147OrderFlowKeepsTheNetDeltaColumns(t *testing.T) {
 	rows := rowsOf(a)
 	head := -1
 	for i, row := range rows {
-		if strings.Contains(row, "SYMBOL") && strings.Contains(row, "NET DELTA %") {
+		if strings.Contains(row, "SCRIP") && strings.Contains(row, "NET DELTA %") {
 			head = i
 			break
 		}

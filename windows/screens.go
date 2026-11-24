@@ -116,6 +116,8 @@ func (a *App) render() *Canvas {
 		a.drawOrderFlow(c, rx, top, rw, rows)
 	case scrScanner:
 		a.drawScanner(c, rx, top, rw, rows)
+	case scrWatch:
+		a.drawWatch(c, rx, top, rw, rows)
 	case scrSettings:
 		a.drawSettings(c, rx, top, rw, rows)
 	}

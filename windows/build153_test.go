@@ -13,7 +13,7 @@ func TestBuild153OrderFlowStartsWithTheNumbering(t *testing.T) {
 	rows := rowsOf(a)
 	head := -1
 	for i, row := range rows {
-		if strings.Contains(row, "SYMBOL") && strings.Contains(row, "BUYING (B)") {
+		if strings.Contains(row, "SCRIP") && strings.Contains(row, "BUYING (B)") {
 			head = i
 			break
 		}
@@ -25,14 +25,15 @@ func TestBuild153OrderFlowStartsWithTheNumbering(t *testing.T) {
 	// before its inner rectangle, so the table starts on rune 3.
 	const ix = 3
 	h := []rune(rows[head])
-	if len(h) < ix+flowNumW+flowGutter+len("SYMBOL") {
+	if len(h) < ix+flowNumW+flowGutter+len("SCRIP") {
 		t.Fatalf("the heading row is too short to carry the table: %q", rows[head])
 	}
 	if got := string(h[ix : ix+flowNumW]); got != "#  " {
 		t.Errorf("the first column reads %q, want the # heading on its first cell: %q", got, rows[head])
 	}
-	if got := string(h[ix+flowNumW+flowGutter : ix+flowNumW+flowGutter+len("SYMBOL")]); got != "SYMBOL" {
-		t.Errorf("SYMBOL does not follow the # column: %q", rows[head])
+	// Owner order 2026-11-24: the column is headed SCRIP.
+	if got := string(h[ix+flowNumW+flowGutter : ix+flowNumW+flowGutter+len("SCRIP")]); got != "SCRIP" {
+		t.Errorf("SCRIP does not follow the # column: %q", rows[head])
 	}
 	var serials []string
 	for _, row := range rows[head+1:] {
@@ -69,8 +70,8 @@ func TestBuild153SymbolToPriceGapIsTwoCellsTighter(t *testing.T) {
 	rows := []FlowRow{{Symbol: "AAA", Price: 10, Buy: i64(60), Sell: i64(40),
 		Volume: i64(100), Method: methodMeasured}}
 	cols, _ := flowColumns(rows)
-	if flowSymW != len("SYMBOL") {
-		t.Fatalf("the SYMBOL field is %d cells, want the heading's %d", flowSymW, len("SYMBOL"))
+	if flowSymW != 6 {
+		t.Fatalf("the SCRIP field is %d cells, want the six a ticker wears", flowSymW)
 	}
 	if flowSymDrawW < len("PAKQATAR") {
 		t.Fatalf("a long ticker would be cut at %d cells, want at least %d", flowSymDrawW, len("PAKQATAR"))

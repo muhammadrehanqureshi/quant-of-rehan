@@ -2401,6 +2401,11 @@ class VersionTest(unittest.TestCase):
         # They ship as 4.4.8, versionCode 141.
         self.assertIn('android:versionName="4.4.8"', manifest)
         self.assertIn('android:versionCode="141"', manifest)
+        # Owner order 2026-11-24: no part of either build's version reads above
+        # ten, so 3.10.10 is followed by 4.0.0 and .11 never exists.
+        shipped = manifest.split('android:versionName="', 1)[1].split('"', 1)[0]
+        for part in shipped.split("."):
+            self.assertLessEqual(int(part), 10, shipped)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="4.0.14"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)

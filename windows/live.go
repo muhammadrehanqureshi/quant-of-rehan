@@ -303,6 +303,8 @@ func (a *App) wheel(d int) {
 		}
 	case scrOrderFlow:
 		a.lvOF.scroll(d * 3)
+	case scrWatch:
+		a.lvWatch.scroll(d * 3)
 	case scrSettings:
 		a.setCursor = min(max(0, a.setCursor+d), settingsRows-1)
 	}
