@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 166
+# Quant of Rehan for Windows (console edition), build 167
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 167
+
+* **Build 167 (version 4.2.10).** The WATCH LIST's footer sentence is written in one ink, so the word `del` no longer stands out in yellow: `Select a scrip and press "del" to remove that.` The executable's file version is `4.2.10.0`.
 
 ## What is new in build 166
 
