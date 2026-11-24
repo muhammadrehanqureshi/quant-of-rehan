@@ -3,7 +3,18 @@ package main
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
+
+// runeAt is the cell a piece of text starts on. The screen carries the ring's
+// braille glyphs, so a byte offset is not a cell offset.
+func runeAt(row, text string) int {
+	i := strings.Index(row, text)
+	if i < 0 {
+		return -1
+	}
+	return utf8.RuneCountInString(row[:i])
+}
 
 // Owner order 2026-11-24: every page's footer carries the three keys that move
 // the whole build and nothing else. TAB goes to the next tab, R refreshes and Q
@@ -56,9 +67,9 @@ func TestBuild163ACallIsItsOwnLabelledBlock(t *testing.T) {
 		}
 	}
 	// Every value stands in the one column the longest label leaves.
-	valueCol := strings.Index(rows[at+6], "75.3")
+	valueCol := runeAt(rows[at+6], "75.3")
 	for i, want := range []string{"PRL", "90/100", "10:20:05", "89.1", "113.2", "75.3"} {
-		if got := strings.Index(rows[at+1+i], want); got != valueCol {
+		if got := runeAt(rows[at+1+i], want); got != valueCol {
 			t.Fatalf("the value of line %d starts on %d, want the one column %d:\n%s",
 				i+1, got, valueCol, strings.Join(rows[at:], "\n"))
 		}

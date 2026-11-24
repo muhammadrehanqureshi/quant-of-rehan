@@ -816,9 +816,11 @@ func (a *App) drawHome(c *Canvas, x, y, w, h int) {
 	sigH := 10
 	const marketFull = 14 // two rows of index, a spacer, three leaders, buying, a gap and the note
 	if mh := y + h - (gy + sigH + gap); mh < marketFull && w >= 60 {
-		sigH = 8
+		// A window without the room keeps the six rows it always had, and the
+		// one card in two columns, so the market tile never loses a leader.
+		sigH = 6
 	}
-	a.drawSignal(c, x, gy, w, sigH, sigH == 8)
+	a.drawSignal(c, x, gy, w, sigH, sigH == 6)
 	my := gy + sigH + gap
 	if mh := y + h - my; mh >= 6 {
 		a.drawMarket(c, x, my, w, mh)
