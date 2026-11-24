@@ -1637,8 +1637,9 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 				ink, bold = th.Bad, true
 			}
 			// Owner order 2026-11-24: the words NET DELTA leave both boards. Only
-			// its value stands after the bar, right aligned on the row's last cell.
-			c.Text(lay.netX, ry, lay.netW, padLeft(signedCompact(net), lay.netW), ink, bold)
+			// its value stands after the bar, on the block's first cell, so the
+			// figure sits one cell after the bar instead of at the row's end.
+			c.Text(lay.netX, ry, lay.netW, signedCompact(net), ink, bold)
 		}
 	}
 	a.scrollbar(c, x+w-2, iy, ih, lv)
