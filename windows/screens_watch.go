@@ -139,10 +139,10 @@ func (a *App) drawWatchFoot(c *Canvas, ix, y, iw int) {
 		return
 	}
 	th := a.th
+	// Owner order 2026-11-24 (later): the whole sentence is one ink, the word
+	// del included, so nothing in it stands out in colour.
 	c.Spans(ix, y, iw, []Span{
-		{"Select a scrip and press ", th.Soft, false},
-		{"\"del\"", th.Warn, true},
-		{" to remove that.", th.Soft, false},
+		{"Select a scrip and press \"del\" to remove that.", th.Soft, false},
 	})
 }
 
