@@ -423,6 +423,70 @@ func sessionMinutes(now time.Time) float64 {
 	return 0
 }
 
+// Increments lists the single observed volume steps on one side, each one its
+// own row, the largest first. Owner order 2026-11-24 (later): the ALERTS boards
+// name transactions, not a stock's running minute total, so a 60k buy and a
+// later 90k buy of the same scrip stand as two rows with their own quantities,
+// and a row leaves the board when its own step ages out of the window. A row is
+// marked when its step is at or above the ALERTS LOG floor, so the star on the
+// board is exactly the print the log announced.
+//
+// What one row is: the relay's wire carries cumulative counters, so the smallest
+// step anything here can see is what one poll advanced. Two prints inside the
+// same second arrive as one step, and nothing below that exists to be split.
+func (f *Flow) Increments(now time.Time, q *Quotes, floor int64, limit, side int) []FlowStat {
+	want, word := int8(1), "BUY"
+	if side == sideSell {
+		want, word = -1, "SELL"
+	}
+	from := now.Add(-f.cfg.Window)
+	var out []FlowStat
+	for sym, sf := range f.sym {
+		if sf == nil || !sf.have {
+			continue
+		}
+		px := sf.px
+		var chg *float64
+		if q != nil {
+			if lq, ok := q.Items[sym]; ok {
+				if lq.Price > 0 {
+					px = lq.Price
+				}
+				chg = lq.ChangePct
+			}
+		}
+		for _, e := range sf.evts {
+			if e.side != want || e.t.Before(from) || e.dv < floor {
+				continue
+			}
+			st := FlowStat{Side: word, Symbol: sym, Price: px, ChangePct: chg,
+				Flagged: e.dv >= f.cfg.MinShares}
+			if side == sideSell {
+				st.SellShares = e.dv
+			} else {
+				st.BuyShares = e.dv
+			}
+			out = append(out, st)
+		}
+	}
+	val := func(s FlowStat) int64 {
+		if side == sideSell {
+			return s.SellShares
+		}
+		return s.BuyShares
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if val(out[i]) != val(out[j]) {
+			return val(out[i]) > val(out[j])
+		}
+		return out[i].Symbol < out[j].Symbol
+	})
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out
+}
+
 // Board lists the stocks with the most buying inside the window, strongest
 // first, for the live board and the scanner sort.
 func (f *Flow) Board(now time.Time, q *Quotes, limit int) []FlowStat {

@@ -1499,8 +1499,8 @@ func (a *App) drawAlerts(c *Canvas, x, y, w, h int) {
 	a.drawAlertLog(c, x, ly, w, lh)
 }
 
-// drawBoardPanel draws one side's board: who is being bought (or sold) hardest
-// over the last minute.
+// drawBoardPanel draws one side's board: the transactions at or above the 50k
+// floor, each one its own row, the largest first.
 func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 	th := a.th
 	title, on := "BIG BUYING NOW", a.cfg.BigBuy

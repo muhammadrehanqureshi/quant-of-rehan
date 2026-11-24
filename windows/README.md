@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 164
+# Quant of Rehan for Windows (console edition), build 165
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 165
+
+* **Build 165 (version 4.2.8).** BIG BUYING NOW and BIG SELLING NOW now name transactions: every observed volume step at or above 50k is its own row with its own quantity, largest first, and a row leaves the board when its own step ages out. The same scrip can therefore stand twice, at 60k and at 150k, instead of one row whose figure climbs as more trades land in the minute. A row wears the diamond when its step is at or above the ALERTS LOG floor of 100k, which is exactly the print the log announced. The relay's wire carries cumulative counters, so the smallest step anything can see is what one poll advanced; two prints inside one second arrive as one step. The WATCH LIST keeps one blank line between its search box and the ORDER line, its instruction now stands on the panel's own last row, and the tab bar carries `TAB NEXT  R REFRESH  Q QUIT` on that page again. The executable's file version is `4.2.8.0`.
 
 ## What is new in build 164
 

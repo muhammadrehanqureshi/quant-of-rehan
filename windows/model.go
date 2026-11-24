@@ -196,6 +196,12 @@ const appVersion = "4.0.21"
 // 3.8.34, the gate drawn as one of the build's own tiles with its blinking box
 // cursor, and the KSE100 leaders' U= and & T= back on shared columns.
 //
+// Build 165 is 4.2.8, the same day's next order: BIG BUYING NOW and BIG SELLING
+// NOW name each observed transaction at or above 50k as its own row instead of a
+// stock's running minute total, the WATCH LIST keeps one blank line under its
+// box, its instruction stands on the panel's own last row, and the tab bar
+// carries TAB, R and Q on that page again.
+//
 // Build 164 is 4.2.7, the same day's next order: the WATCH LIST's box asks for
 // a KMIALL scrip and its footer carries the one sentence that says how to take
 // a scrip out, its rows are numbered as ORDER FLOW numbers its own with no
@@ -218,7 +224,7 @@ const appVersion = "4.0.21"
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.2.7"
+const hudBuild = "4.2.8"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

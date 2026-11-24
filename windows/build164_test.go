@@ -20,14 +20,25 @@ func TestBuild164TheWatchBoxAsksForAKMIALLScrip(t *testing.T) {
 			t.Errorf("the page still writes %q under the box:\n%s", gone, text)
 		}
 	}
+	// Owner order 2026-11-24 (later): the sentence stands inside the page, and
+	// the tab bar carries TAB, R and Q again.
 	rows := rowsOf(a)
-	foot := rows[len(rows)-1]
-	if !strings.Contains(foot, watchFooter) {
-		t.Fatalf("the footer reads %q, want the one line %q", strings.TrimSpace(foot), watchFooter)
+	page := false
+	for _, row := range rows[:len(rows)-1] {
+		if strings.Contains(row, watchFooter) {
+			page = true
+		}
 	}
-	for _, gone := range []string{"TAB NEXT", "R REFRESH", "Q QUIT"} {
-		if strings.Contains(foot, gone) {
-			t.Errorf("the WATCH LIST footer still carries %q: %q", gone, foot)
+	if !page {
+		t.Fatalf("the page does not carry %q on a row of its own:\n%s", watchFooter, strings.Join(rows, "\n"))
+	}
+	foot := rows[len(rows)-1]
+	if strings.Contains(foot, watchFooter) {
+		t.Fatalf("the sentence still stands in the tab bar: %q", foot)
+	}
+	for _, want := range []string{"TAB NEXT", "R REFRESH", "Q QUIT"} {
+		if !strings.Contains(foot, want) {
+			t.Errorf("the tab bar lost %q on the WATCH LIST: %q", want, foot)
 		}
 	}
 }
