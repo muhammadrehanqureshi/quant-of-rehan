@@ -55,7 +55,7 @@ func TestBuild154OrderFlowNumbersLineUpUnderTheHash(t *testing.T) {
 	rows := rowsOf(a)
 	head, first, tenth := -1, "", ""
 	for i, row := range rows {
-		if strings.Contains(row, "SYMBOL") && strings.Contains(row, "BUYING (B)") {
+		if strings.Contains(row, "SCRIP") && strings.Contains(row, "BUYING (B)") {
 			head = i
 		}
 		if strings.Contains(row, "S00") {

@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 161
+# Quant of Rehan for Windows (console edition), build 162
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 162
+
+* **Build 162 (version 4.2.5).** The ORDER FLOW page names its first column **SCRIP** instead of SYMBOL, and every value on the table starts on the cell its heading starts on, so the figures stand under the columns from where the columns begin instead of being pushed to their right edge. The five price fields are one cell narrower, so SCRIP to PRICE, CHANGE to HIGH, HIGH to LOW, LOW to BID and BID to ASK each stand one space closer; a wide figure loses only its thousands separator, never a digit. The ALERTS LOG's own edge reads `QTY 100k and above. Press "/" to search`. BIG BUYING NOW and BIG SELLING NOW drop the words NET DELTA and keep only its figure, which stands one cell after the bar with the percentage and the bar each one space tighter. The sign-in tile is headed **SIGN IN**. The new **WATCH LIST** page stands before SETTINGS: type a scrip and press ENTER to add it, pick a row and press DEL to take it out, and every watched scrip is drawn with the ORDER FLOW page's own columns, SCRIP, PRICE, CHANGE, HIGH, LOW, BID, ASK, BUYING, SELLING, UNCLEAR, TOTAL, BARS, NET DELTA and NET DELTA %, from the relay's own frames. The list is kept in the settings file and survives a restart. The version numbering now never reads a part above ten: 3.10.10 is followed by 4.0.0. The executable's file version is `4.2.5.0`.
 
 ## What is new in build 161
 

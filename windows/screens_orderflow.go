@@ -327,11 +327,10 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			// figure used to leave behind come out of PRICE and CHANGE, HIGH and
 			// LOW, LOW and BID, BID and ASK, and ASK and BUYING, and the heading
 			// still stands over the figure it names.
-			lab := hd
-			if k <= 5 {
-				lab = padLeft(hd, cols[k].w)
-			}
-			c.Text(ix+cols[k].x, row, cols[k].w, lab, th.Soft, false)
+			// Owner order 2026-11-24: every heading starts on its column's first
+			// cell, the same cell its value starts on, so a value stands under the
+			// first letter of the heading that names it.
+			c.Text(ix+cols[k].x, row, cols[k].w, hd, th.Soft, false)
 		}
 		if iw-barX >= barFieldW {
 			// Owner order 2026-11-12 (latest): the bar's own column, then a NET
@@ -426,24 +425,20 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 			// up, so an eight letter ticker is never cut. The price field is right
 			// aligned, so a short quote leaves those cells blank.
 			c.Text(ix+flowSymX, row, flowSymDrawW, r.Symbol, symCol, true)
-			// Owner order 2026-11-10 (latest): every value starts on its column's
-			// first cell, under its own heading.
-			// Owner order 2026-11-11: every value starts on its column's first
-			// cell too, BID and ASK included, so no column floats right.
-			// Owner order 2026-11-20 (latest): PRICE, CHANGE, HIGH, LOW, BID and
-			// ASK end on their column's right edge, so the gap that follows each of
-			// them is the one cell of the gutter instead of three, and the two cells
-			// a short figure leaves behind no longer widen the column.
-			a.flashRight(c, ix+cols[0].x+cols[0].w, row, flowPrice(px), th.Text, true, pxKey)
-			a.flashRight(c, ix+cols[1].x+cols[1].w, row, chg, chgCol, true, pxKey)
+			// Owner order 2026-11-24: every value starts on the LEFT, on the very
+			// cell its heading starts on, instead of being pushed to the right
+			// edge of its column. That is the owner's own sentence: the values
+			// stand below the headings from where the headings start.
+			a.flashText(c, ix+cols[0].x, row, flowPrice(px), th.Text, true, pxKey)
+			a.flashText(c, ix+cols[1].x, row, chg, chgCol, true, pxKey)
 			if !flowDropHL {
 				// Owner order 2026-11-22: every value on the table is drawn in
 				// the thick cut, so no column reads lighter than its neighbour.
-				c.Text(ix+cols[2].x, row, cols[2].w, padLeft(bidAsk(r.High), cols[2].w), th.Good, true)
-				c.Text(ix+cols[3].x, row, cols[3].w, padLeft(bidAsk(r.Low), cols[3].w), th.Bad, true)
+				c.Text(ix+cols[2].x, row, cols[2].w, bidAsk(r.High), th.Good, true)
+				c.Text(ix+cols[3].x, row, cols[3].w, bidAsk(r.Low), th.Bad, true)
 			}
-			c.Text(ix+cols[4].x, row, cols[4].w, padLeft(bidAsk(r.Bid), cols[4].w), th.Text, true)
-			c.Text(ix+cols[5].x, row, cols[5].w, padLeft(bidAsk(r.Ask), cols[5].w), th.Text, true)
+			c.Text(ix+cols[4].x, row, cols[4].w, bidAsk(r.Bid), th.Text, true)
+			c.Text(ix+cols[5].x, row, cols[5].w, bidAsk(r.Ask), th.Text, true)
 			a.drawFlowCols(c, ix, row, r, cols, volKey)
 			if iw-barX >= barFieldW && r.Measured() && *r.Buy+*r.Sell > 0 {
 				// Owner order 2026-11-10 (latest): the bar is back on ORDER FLOW,
@@ -550,9 +545,9 @@ const (
 	flowNumX, flowNumW = 0, 3
 	flowNumHeading     = "#"
 	flowSymX           = flowNumX + flowNumW + flowGutter
-	flowSymW           = 6 // the cells between SYMBOL and PRICE
+	flowSymW           = 6 // the cells between SCRIP and PRICE
 	flowSymDrawW       = 8 // the cells a long ticker may use without being cut
-	flowSymHeading     = "SYMBOL"
+	flowSymHeading     = "SCRIP"
 )
 
 // flowPriceW is the widest figure an ORDER FLOW price field carries before its
@@ -560,7 +555,11 @@ const (
 // the five price columns are measured on this field, so the widest quote in the
 // answer holds them at eight cells instead of nine and SYMBOL to PRICE, CHANGE
 // to HIGH, HIGH to LOW, LOW to BID and BID to ASK each stand one cell closer.
-const flowPriceW = 8
+// Owner order 2026-11-24: the five price fields are one cell narrower again, so
+// SCRIP to PRICE, CHANGE to HIGH, HIGH to LOW, LOW to BID and BID to ASK each
+// stand one cell closer than build 161 had them. A figure wider than the field
+// still loses only its thousands separator, never a digit.
+const flowPriceW = 7
 
 // flowPrice is one price as the relay sent it, two decimals with its thousands
 // separator, and without the separator only when that form is wider than the

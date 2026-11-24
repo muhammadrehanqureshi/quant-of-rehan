@@ -1636,9 +1636,9 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 			case net < 0:
 				ink, bold = th.Bad, true
 			}
-			c.Text(lay.netX, ry, netLabelEq, "NET DELTA=", th.Soft, false)
-			c.Text(lay.netX+netLabelEq, ry, lay.netW-netLabelEq,
-				padLeft(signedCompact(net), lay.netW-netLabelEq), ink, bold)
+			// Owner order 2026-11-24: the words NET DELTA leave both boards. Only
+			// its value stands after the bar, right aligned on the row's last cell.
+			c.Text(lay.netX, ry, lay.netW, padLeft(signedCompact(net), lay.netW), ink, bold)
 		}
 	}
 	a.scrollbar(c, x+w-2, iy, ih, lv)
@@ -1667,16 +1667,21 @@ func boardRowLayout(ix, cw, pxW, qtyW, vW int) boardGeom {
 	// The row's number, its flagged mark and its symbol keep the first fourteen
 	// cells, so the quote group may never step left of ix+14.
 	left := ix + 14
-	netW := netLabelEq + vW
+	// Owner order 2026-11-24: the block holds the figure alone now, so it is
+	// exactly as wide as the widest figure and it stands right after the bar.
+	netW := max(1, vW)
 	for _, withChange := range []bool{true, false} {
-		w, gap := chgW, 1
+		// Owner order 2026-11-24: the percentage and the quantity stand one
+		// cell closer than build 161 had them, and the quantity and the bar do
+		// too, so each of those two gaps is one space tighter.
+		w, gap := chgW, 0
 		if !withChange {
 			w, gap = 0, 0
 		}
 		for barW := shareBarSpan; barW >= 6; barW-- {
 			netX := right - netW + 1
 			barX := netX - 1 - barW
-			qtyX := barX - 2 - qtyW
+			qtyX := barX - 1 - qtyW
 			chgX := qtyX - gap - w
 			priceX := chgX - 1 - (quoteLabelW + pxW)
 			if priceX >= left {
@@ -1691,7 +1696,7 @@ func boardRowLayout(ix, cw, pxW, qtyW, vW int) boardGeom {
 	barW := min(shareBarSpan, cw)
 	barX := ix + cw - barW
 	qtyW = 10
-	qtyX := barX - 2 - qtyW
+	qtyX := barX - 1 - qtyW
 	if qtyX < ix+25 {
 		qtyX = ix + 25
 		qtyW = max(1, barX-2-qtyX)
@@ -1767,7 +1772,10 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 		title = "ALERTS LOG (" + strconv.Itoa(len(log)) + " of " + strconv.Itoa(len(all)) + ")"
 	}
 	// Owner order 2026-11-15: the ALERTS LOG frame does not highlight on a click.
-	lx, liy, liw, lih := a.panel(c, x, y, w, h, title, pressSearchHint)
+	// Owner order 2026-11-24: the tile's own edge names the quantity the log
+	// keeps and the key that gives its box the keys.
+	hint := "QTY " + compactNum(float64(alertFloorShares)) + " and above. " + pressSearchHint
+	lx, liy, liw, lih := a.panel(c, x, y, w, h, title, hint)
 	a.addHit(x, y, w, h, func() { a.alertFocus, a.alertLogSearch = 2, false })
 	searchY := liy
 	bw := a.searchBox(c, lx, searchY, min(liw, 40), a.alertQuery, scripSearchHint, a.alertLogSearch)

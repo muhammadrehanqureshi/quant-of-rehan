@@ -54,7 +54,8 @@ func TestTheGateIsOneOfTheBuildsOwnTiles(t *testing.T) {
 			frame = row
 		}
 	}
-	if frame == "" || !strings.Contains(frame, "QUANT OF REHAN") {
+	// Owner order 2026-11-24: the gate's tile is headed SIGN IN.
+	if frame == "" || !strings.Contains(frame, "SIGN IN") {
 		t.Fatalf("the gate has no diamond title on its frame:\n%s", rows)
 	}
 	if !strings.Contains(frame, "┏") || !strings.Contains(frame, "┓") || !strings.Contains(frame, "━") {

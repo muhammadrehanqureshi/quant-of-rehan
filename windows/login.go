@@ -108,7 +108,8 @@ func (a *App) drawLogin(c *Canvas) {
 	pw := min(60, w)
 	ph := min(9, h)
 	px, py := (w-pw)/2, (h-ph)/2
-	ix, iy, iw, _ := a.panel(c, px, py, pw, ph, "QUANT OF REHAN", "")
+	// Owner order 2026-11-24: the gate's tile is headed SIGN IN, not the brand.
+	ix, iy, iw, _ := a.panel(c, px, py, pw, ph, "SIGN IN", "")
 
 	// The input box, exactly as inputRow draws one: the same fill, the same
 	// placeholder ink and the same block cursor.

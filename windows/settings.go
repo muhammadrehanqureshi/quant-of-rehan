@@ -29,7 +29,14 @@ type Settings struct {
 	// Owner order 2026-11-13: the three PRICE ALERT slots live here, so they
 	// survive a restart. They are the owner's own numbers, never a secret.
 	PriceAlerts [priceAlertSlots]PriceAlert `json:"price_alerts"`
+	// Owner order 2026-11-24: the WATCH LIST is the owner's own scrips, in his
+	// own order, written here so they survive a restart.
+	Watch []string `json:"watch"`
 }
+
+// watchMax is how many scrips the WATCH LIST keeps. It is more than any screen
+// holds at once and small enough that the page always reads.
+const watchMax = 40
 
 // settingsVer is bumped when a stored default must be replaced. Version 2 is
 // the first with one second polling and the big buying flag. Version 3 adds the
@@ -114,6 +121,22 @@ func loadSettings(path string) Settings {
 	if s.PollMS > 60000 {
 		s.PollMS = 60000
 	}
+	// Owner order 2026-11-24: every watched scrip is read back as an upper case
+	// ticker, one of each, in the order the owner put them in.
+	seen := map[string]bool{}
+	kept := s.Watch[:0]
+	for _, sym := range s.Watch {
+		sym = strings.ToUpper(strings.TrimSpace(sym))
+		if sym == "" || seen[sym] || runeLen(sym) > 12 {
+			continue
+		}
+		if len(kept) >= watchMax {
+			break
+		}
+		seen[sym] = true
+		kept = append(kept, sym)
+	}
+	s.Watch = kept
 	for i := range s.PriceAlerts {
 		p := &s.PriceAlerts[i]
 		p.Symbol = strings.ToUpper(strings.TrimSpace(p.Symbol))

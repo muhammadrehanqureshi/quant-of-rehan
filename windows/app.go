@@ -10,18 +10,20 @@ import (
 type screenID int
 
 // The tabs, in the owner's order: Home, Alerts, Order Flow and Scanner (which
-// carries the search tile on top), then Settings. Owner order 2026-11-08:
-// CHARTS is removed from this build; charts belong to the Charts of Rehan
-// project now.
+// carries the search tile on top), then the WATCH LIST and Settings. Owner
+// order 2026-11-08: CHARTS is removed from this build; charts belong to the
+// Charts of Rehan project now. Owner order 2026-11-24: WATCH LIST stands
+// before SETTINGS and is the owner's own list of scrips.
 const (
 	scrHome screenID = iota
 	scrAlerts
 	scrOrderFlow
 	scrScanner
+	scrWatch
 	scrSettings
 )
 
-var screenNames = []string{"HOME", "ALERTS", "ORDER FLOW", "SCANNER", "SETTINGS"}
+var screenNames = []string{"HOME", "ALERTS", "ORDER FLOW", "SCANNER", "WATCH LIST", "SETTINGS"}
 
 // Messages posted from fetch goroutines to the single UI goroutine.
 type (
@@ -144,6 +146,11 @@ type App struct {
 	sectorOpen   bool       // a tapped sector is open with its KMIALLSHR scrips
 	lvSectorStk  listView   // the open sector's scrip list
 	lvOF        listView   // the ORDER FLOW list
+	lvWatch     listView   // the WATCH LIST's own list
+	watchQuery  string     // the WATCH LIST's add box, upper case
+	watchSearch bool       // the WATCH LIST's add box has the keys
+	watchPick   int        // the WATCH LIST row the DEL key takes out
+	watchMsg    string     // what the last add or remove did
 	bannerSell  bool       // the banner on show is a big selling flag
 	lvScan      listView   // the scanner's list
 	lvBoard     listView   // the Alerts screen's big buying list
@@ -1098,6 +1105,9 @@ func (a *App) save() {
 	if a.alertsTouched {
 		out.PriceAlerts = a.cfg.PriceAlerts
 	}
+	// Owner order 2026-11-24: the WATCH LIST is the owner's own list, so it is
+	// written every time it changes.
+	out.Watch = a.cfg.Watch
 	_ = saveSettings(a.cfgPath, out)
 	a.persist = out
 	a.dirty = false
@@ -1197,6 +1207,9 @@ func (a *App) setScreen(s screenID) {
 		a.next["sectors"] = time.Time{} // and the sector groups
 	case scrOrderFlow:
 		a.next["orderflow"] = time.Time{}
+	case scrWatch:
+		a.next["orderflow"] = time.Time{}
+		a.lvWatch.top()
 	}
 }
 
@@ -1245,11 +1258,16 @@ func (a *App) onKey(k Key) {
 		a.setScreen(scrScanner)
 		return
 	case KF5:
-		a.setScreen(scrSettings)
+		a.setScreen(scrWatch)
 		return
 	case KF6:
+		// Owner order 2026-11-24: the tabs are numbered 1 to 6, so F6 is the
+		// sixth tab, SETTINGS. The scanner keeps its PRICE DIFFERENCE form on
+		// F6 while that page is up.
 		if a.screen == scrScanner {
 			a.openPct()
+		} else {
+			a.setScreen(scrSettings)
 		}
 		return
 	case KMouse:
@@ -1286,12 +1304,19 @@ func (a *App) onKey(k Key) {
 			}
 			a.alertFocus = 2
 			a.lvLog.top()
+		} else if a.screen == scrWatch && (a.watchSearch || a.watchQuery != "") {
+			a.watchQuery, a.watchSearch = "", false
+			a.lvWatch.top()
 		} else {
 			a.setScreen(scrHome)
 		}
 	case KRune:
 		if a.screen == scrOrderFlow && a.ofSearch {
 			a.keyOrderFlow(k)
+			return
+		}
+		if a.screen == scrWatch && a.watchSearch {
+			a.keyWatch(k)
 			return
 		}
 		if a.screen == scrAlerts && (a.alertLogSearch || a.alertFocus == 4) {
@@ -1308,11 +1333,16 @@ func (a *App) onKey(k Key) {
 		case '4':
 			a.setScreen(scrScanner)
 		case '5':
+			a.setScreen(scrWatch)
+		case '6':
 			a.setScreen(scrSettings)
 		case '/':
 			if a.screen == scrOrderFlow {
 				a.ofSearch = true
 				a.lvOF.top()
+			} else if a.screen == scrWatch {
+				a.watchSearch = true
+				a.lvWatch.top()
 			} else if a.screen == scrAlerts {
 				// Owner order 2026-11-18: the ALERTS LOG keeps its own box again,
 				// so the slash gives that box the keys.
@@ -1355,6 +1385,8 @@ func (a *App) onKey(k Key) {
 			a.keyAlerts(k)
 		case scrOrderFlow:
 			a.keyOrderFlow(k)
+		case scrWatch:
+			a.keyWatch(k)
 		case scrSettings:
 			a.keySettings(k)
 		}
@@ -1809,6 +1841,129 @@ func (a *App) keyOrderFlow(k Key) {
 		a.lvOF.top()
 	case KEnd:
 		a.lvOF.bottom()
+	}
+}
+
+// keyWatch owns the WATCH LIST page. Letters and digits build the ticker in its
+// box, ENTER puts that ticker in the list, and BACKSPACE or DEL takes the picked
+// scrip out once the box is empty. UP and DOWN move the pick, the arrows order
+// the rows with the same chips ORDER FLOW carries, and ESC clears the box.
+func (a *App) keyWatch(k Key) {
+	switch k.Kind {
+	case KEsc:
+		a.watchQuery, a.watchSearch = "", false
+		a.lvWatch.top()
+	case KEnter:
+		a.addWatch()
+	case KDel, KBackspace:
+		if r := []rune(a.watchQuery); len(r) > 0 {
+			a.watchQuery = string(r[:len(r)-1])
+		} else {
+			a.watchSearch = false
+			a.removeWatch()
+		}
+		a.lvWatch.top()
+	case KRune:
+		r := k.R
+		if r >= 'a' && r <= 'z' {
+			r -= 'a' - 'A'
+		}
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '-' || r == '_' {
+			if runeLen(a.watchQuery) < 12 {
+				a.watchQuery += string(r)
+			}
+			a.watchSearch = true
+			a.watchMsg = ""
+			a.lvWatch.top()
+		}
+	case KLeft:
+		a.stepFlowSort(-1)
+	case KRight:
+		a.stepFlowSort(1)
+	case KUp:
+		a.pickWatch(-1)
+	case KDown:
+		a.pickWatch(1)
+	case KPgUp:
+		a.lvWatch.page(-1)
+	case KPgDn:
+		a.lvWatch.page(1)
+	case KHome:
+		a.watchPick = 0
+		a.lvWatch.top()
+	case KEnd:
+		a.watchPick = max(0, len(a.cfg.Watch)-1)
+		a.lvWatch.bottom()
+	}
+}
+
+// isWatched says whether a ticker is already on the owner's list.
+func (a *App) isWatched(sym string) bool {
+	for _, s := range a.cfg.Watch {
+		if s == sym {
+			return true
+		}
+	}
+	return false
+}
+
+// addWatch puts the ticker in the box on the owner's list. Nothing is invented:
+// the ticker is written exactly as he typed it, in upper case, and the page
+// reads its numbers from the ORDER FLOW answer, so a scrip the relay has not
+// sent yet stands on the list with no numbers until it does.
+func (a *App) addWatch() {
+	sym := strings.ToUpper(strings.TrimSpace(a.watchQuery))
+	if sym == "" {
+		a.watchMsg = "Type a scrip first."
+		return
+	}
+	if a.isWatched(sym) {
+		a.watchMsg = sym + " is already on the list."
+		a.watchQuery, a.watchSearch = "", false
+		a.lvWatch.top()
+		return
+	}
+	if len(a.cfg.Watch) >= watchMax {
+		a.watchMsg = fmt.Sprintf("The list keeps %d scrips. Take one out first.", watchMax)
+		return
+	}
+	a.cfg.Watch = append(a.cfg.Watch, sym)
+	a.watchQuery, a.watchSearch = "", false
+	a.watchPick = len(a.cfg.Watch) - 1
+	a.watchMsg = sym + " added."
+	a.save()
+}
+
+// removeWatch takes the picked scrip out of the owner's list.
+func (a *App) removeWatch() {
+	if len(a.cfg.Watch) == 0 {
+		a.watchMsg = "The list is empty. Type a scrip and press ENTER to add one."
+		return
+	}
+	if a.watchPick < 0 || a.watchPick >= len(a.cfg.Watch) {
+		a.watchPick = 0
+	}
+	sym := a.cfg.Watch[a.watchPick]
+	a.cfg.Watch = append(a.cfg.Watch[:a.watchPick], a.cfg.Watch[a.watchPick+1:]...)
+	if a.watchPick >= len(a.cfg.Watch) {
+		a.watchPick = max(0, len(a.cfg.Watch)-1)
+	}
+	a.watchMsg = sym + " taken out."
+	a.save()
+}
+
+// pickWatch moves the WATCH LIST's pick and walks the list with it.
+func (a *App) pickWatch(d int) {
+	n := len(a.cfg.Watch)
+	if n == 0 {
+		return
+	}
+	a.watchPick = min(max(0, a.watchPick+d), n-1)
+	if a.watchPick < a.lvWatch.off {
+		a.lvWatch.off = a.watchPick
+	}
+	if a.watchPick >= a.lvWatch.off+a.lvWatch.view {
+		a.lvWatch.off = a.watchPick - a.lvWatch.view + 1
 	}
 }
 
