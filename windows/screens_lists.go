@@ -1641,7 +1641,7 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 			// start on the cells the two digit move already starts on, so a one
 			// digit move no longer stands one cell to its right and every board
 			// row's percentage reads on one column.
-			a.flashText(c, lay.chgX, ry, lay.chgW, changeText(*b.ChangePct), a.dirColor(*b.ChangePct), true, pxKey)
+			a.flashText(c, lay.chgX, ry, changeText(*b.ChangePct), a.dirColor(*b.ChangePct), true, pxKey)
 		}
 		rightAlign(c, lay.qtyX, ry, lay.qtyW, []Span{{qtyTxt, good, true}})
 		// Owner order 2026-11-12 (latest): both boards draw the one bar, so a
