@@ -118,13 +118,15 @@ class PinnedLineSpaceTest(unittest.TestCase):
     def setUp(self):
         self.main = MAIN.read_text(encoding="utf-8")
 
-    def test_the_search_row_price_starts_its_own_line(self):
-        """Owner order 2026-11-23: a search option is the volume tile's own
-        scrip, so its price begins a line of its own instead of trailing the
-        ticker behind one space."""
+    def test_the_price_follows_the_scrip_on_its_own_line(self):
+        """Owner order 2026-11-25 (latest): "have the scrip first then have
+        the current price and then the percentage." The scrip opens the line
+        and the money follows it, on the volume tile and on the KSE100
+        leaders alike, in one order for the whole app."""
         self.assertIn(
             'sb.append(String.format(Locale.US, "PKR %,.2f", quote.price));',
             self.main)
+        self.assertIn('sb.append("  ");', self.main)
         self.assertNotIn('"   PKR %,.2f"', self.main)
 
     def test_both_tail_formatters_agree_on_the_single_space(self):
@@ -202,16 +204,18 @@ class LeaderLineTest(unittest.TestCase):
         self.assertIn("row.unclassified", self.main)
         self.assertIn("quote.unclassified", self.main)
 
-    def test_the_money_line_leads_the_scrip(self):
-        # Owner order 2026-11-24: "move the current price and percentage in
-        # front of the scrip, right now they are below net delta." The money
-        # group opens the leader row, right in front of the numbered ticker,
-        # and the volumes with NET DELTA close it. This supersedes the
-        # v2.3.7 order that put the money line under the volumes.
+    def test_the_scrip_leads_then_the_money(self):
+        # Owner order 2026-11-25 (latest): "have the scrip first then have
+        # the current price and then the percentage." The numbered ticker
+        # OPENS the leader row, the money follows it on the same line, and
+        # the volumes with NET DELTA close it. This supersedes the
+        # 2026-11-24 order that put the money in front of the scrip.
         leaders = self.main[
             self.main.index("private SpannableString leadersText("):]
+        ticker = leaders.index('"%d. %s", i + 1, row.symbol')
         money = leaders.index('"PKR %,.2f"')
         volumes = leaders.index('append("T=");')
+        self.assertLess(ticker, money)
         self.assertLess(money, volumes)
 
     def test_the_status_clock_carries_seconds_and_the_owners_date(self):

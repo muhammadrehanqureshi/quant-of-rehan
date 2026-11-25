@@ -624,10 +624,19 @@
      STATUS clock carries seconds and the date as "24 Nov 2026", and the
      KSE100 leaders put the price and its percentage in front of the scrip.
      Ships as 4.4.8, versionCode 141. -->
+<!-- Owner order 2026-11-25 (latest): "have the scrip first then have the
+     current price and then the percentage", on the KSE100 tile and in the
+     same exact way on CUSTOM SCRIPS OF VOLUME; the SECTORS tile prints its
+     percentages the first time it is opened instead of only after a round
+     trip; and the SEARCH and ORDER FLOW instant searches list the scrip
+     alone, no drop down icon, so a scrip's details arrive when he picks it
+     and never while he is still typing. This supersedes the 2026-11-23
+     option that carried a scrip's quote lines in the SEARCH list.
+     Ships as 4.4.9, versionCode 142. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="141"
-    android:versionName="4.4.8">
+    android:versionCode="142"
+    android:versionName="4.4.9">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

@@ -1641,6 +1641,28 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.4.9, versionCode 142.**
+
+Owner order 2026-11-25, three changes on one build:
+
+- The scrip leads, then its current price, then its percentage, on the KSE100
+  leaders and in the same exact way in CUSTOM SCRIPS OF VOLUME: "1. TELE
+  PKR 7.68 \u25B2 2.35%", with the B, S, U and T block and NET DELTA under it.
+  This supersedes the 2026-11-24 order that put the money in front of the
+  scrip, and the volume tile's price line that closed its block.
+- The SECTORS menu prints the sector percentages on the first price tick.
+  The list used to be built when the sector answer landed, which could be
+  before the first quote, and nothing repainted it: the percentages only
+  appeared after he left the page and came back. Every price read now stamps
+  the rows, and the first read that carries a move re-sorts them.
+- The SEARCH and ORDER FLOW instant searches list the scrip alone while he
+  types, one option a row, no drop down icon, the CUSTOM SCRIPS OF VOL. menu's
+  own rows and dividers. A scrip's price, move, book and B/S/U/T split arrive
+  when he picks it, never while he is still searching. The four-column ORDER
+  FLOW header and its quote cells are retired with that law.
+
+The version bump is versionCode 142 / versionName 4.4.9.
+
 **Version 4.4.8, versionCode 141.**
 
 Owner order 2026-11-24, four changes on one build:
