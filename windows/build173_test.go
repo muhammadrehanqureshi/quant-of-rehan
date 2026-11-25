@@ -92,7 +92,8 @@ func TestBuild173TheMoveIsNotRightAligned(t *testing.T) {
 				pct, txt)
 		}
 	}
-	if strings.HasPrefix(padLeft(changeText(9.99), 8), "  ") == false {
-		t.Fatal("the padded form no longer differs from the plain one")
+	if runeLen(changeText(9.99)) != runeLen(changeText(10.53))-1 {
+		t.Fatalf("the two moves read %q and %q: the wider one must be one cell wider",
+			changeText(9.99), changeText(10.53))
 	}
 }

@@ -139,7 +139,15 @@ func TestBuild169TheAlertLogHoldsItsColumns(t *testing.T) {
 			t.Fatalf("%s carries no order row:\n%s", sym, strings.Join(rows, "\n"))
 		}
 		sh, were := at(row, "shares of"), at(row, "were ")
-		pkr, pct := at(row, "PKR"), at(row, "%")
+		pkr := at(row, "PKR")
+		// Owner order 2026-11-25 (build 173): the move starts on one cell for
+		// every row, so the arrow is the column's cell and the figure follows
+		// it. A two digit move ends one cell later than a one digit move, which
+		// is the point of the alignment.
+		pct := at(row, "▲")
+		if pct < 0 {
+			pct = at(row, "▼")
+		}
 		if sh < 0 || were < 0 || pkr < 0 || pct < 0 {
 			t.Fatalf("%s's row is missing a column: %q", sym, row)
 		}
@@ -156,7 +164,7 @@ func TestBuild169TheAlertLogHoldsItsColumns(t *testing.T) {
 				t.Errorf("%s starts PKR on cell %d, want %d: %q", sym, pkr, pkrAt, row)
 			}
 			if pct != pctAt {
-				t.Errorf("%s ends its percentage on cell %d, want %d: %q", sym, pct, pctAt, row)
+				t.Errorf("%s starts its percentage on cell %d, want %d: %q", sym, pct, pctAt, row)
 			}
 		}
 		seen++
