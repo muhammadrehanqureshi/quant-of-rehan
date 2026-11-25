@@ -139,13 +139,14 @@ func TestBuild172PriceAlertsWearTheBoardShades(t *testing.T) {
 	rows := c.PlainRows()
 	var slots []int
 	for y, row := range rows {
-		if strings.HasPrefix(strings.TrimSpace(row), "1.") ||
-			strings.HasPrefix(strings.TrimSpace(row), "2.") ||
-			strings.HasPrefix(strings.TrimSpace(row), "3.") {
-			// The frame's own column precedes the slot number.
-			if strings.Contains(row, "│") {
-				slots = append(slots, y)
-			}
+		body := row
+		if at := strings.IndexRune(body, '│'); at >= 0 {
+			body = body[at+1:]
+		}
+		body = strings.TrimSpace(body)
+		if strings.HasPrefix(body, "1.") || strings.HasPrefix(body, "2.") ||
+			strings.HasPrefix(body, "3.") {
+			slots = append(slots, y)
 		}
 	}
 	if len(slots) < 3 {
@@ -202,9 +203,11 @@ func TestBuild172OpenedSectorHasABlankLineAndIndentedScrips(t *testing.T) {
 	if digit < 0 {
 		t.Fatalf("the scrip row carries no number: %q", first)
 	}
-	if digit != frame+5 {
+	// The number stood five cells after the frame before this build and stands
+	// six now, the one cell the scrips moved right.
+	if digit != frame+6 {
 		t.Fatalf("the scrip number starts on cell %d, want %d (frame %d plus "+
-			"the one cell the scrips moved right): %q", digit, frame+5, frame, first)
+			"the one cell the scrips moved right): %q", digit, frame+6, frame, first)
 	}
 }
 
