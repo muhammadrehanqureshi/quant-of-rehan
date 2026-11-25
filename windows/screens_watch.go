@@ -78,6 +78,18 @@ func (a *App) watchSorted() []FlowRow {
 	return rows
 }
 
+// watchColumns is the ORDER FLOW table with the one extra cell the WATCH LIST
+// keeps between its CHANGE column and HIGH. Owner order 2026-11-25 (build 173):
+// a change of 10% and above is one cell wider than the rest, so that gap is
+// what keeps it from running into the high beside it.
+func watchColumns(rows []FlowRow) ([10]flowCell, int) {
+	cols, barX := flowColumns(rows)
+	for k := 2; k < len(cols); k++ {
+		cols[k].x++
+	}
+	return cols, barX + 1
+}
+
 // watchNum is one price the page prints, N/A when the relay has not sent it.
 func watchNum(p *float64) string {
 	if p == nil {
@@ -184,7 +196,7 @@ func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 		per = 2
 	}
 	flowDropHL = false
-	cols, barX := flowColumns(rows)
+	cols, barX := watchColumns(rows)
 	barFieldW, pctX, showNetPct := flowTail(iw, barX)
 	if wide {
 		c.Text(ix+flowNumX, row, flowNumW, flowNumHeading, th.Soft, false)
