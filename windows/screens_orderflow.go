@@ -150,7 +150,7 @@ func (a *App) putBSUT(c *Canvas, x, y int, r FlowRow, keys ...string) int {
 		if r.Volume != nil {
 			put(leaderVolumeField(*r.Volume), totalBlue, true)
 		} else {
-			put("n/a", totalBlue, true)
+			put("N/A", totalBlue, true)
 		}
 	}
 	return vx - x
@@ -398,7 +398,7 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		}
 		bidAsk := func(p *float64) string {
 			if p == nil {
-				return "n/a"
+				return "N/A"
 			}
 			return flowPrice(*p)
 		}
@@ -607,14 +607,14 @@ func flowColumns(rows []FlowRow) ([10]flowCell, int) {
 	}
 	num := func(p *int64) string {
 		if p == nil {
-			return "n/a"
+			return "N/A"
 		}
 		return commaInt(*p)
 	}
 	set := func(i int, s string) { w[i] = max(w[i], runeLen(s)) }
 	flt := func(i int, p *float64) {
 		if p == nil {
-			set(i, "n/a")
+			set(i, "N/A")
 			return
 		}
 		set(i, flowPrice(*p))
@@ -624,7 +624,7 @@ func flowColumns(rows []FlowRow) ([10]flowCell, int) {
 		if r.ChangePct != nil {
 			set(1, changeText(*r.ChangePct))
 		} else {
-			set(1, "n/a")
+			set(1, "N/A")
 		}
 		flt(2, r.High)
 		flt(3, r.Low)
@@ -669,7 +669,7 @@ func flowColumns(rows []FlowRow) ([10]flowCell, int) {
 func (a *App) drawFlowCols(c *Canvas, ix, y int, r FlowRow, cols [10]flowCell, volKey string) {
 	th := a.th
 	cell := func(k int, p *int64, fg RGB, bold bool, prefix string) {
-		s := "n/a"
+		s := "N/A"
 		if p != nil {
 			s = commaInt(*p)
 		}

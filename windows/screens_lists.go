@@ -1614,7 +1614,11 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		// Owner order 2026-11-20 (latest): PKR stands on one column and the price
 		// is right aligned in its own field, so the three rows read as one quote
 		// group and the label no longer floats with the number of digits.
-		a.drawQuoteStart(c, lay.priceX, ry, lay.pxW, commaFloat(b.Price, 2), pxKey)
+		// Owner order 2026-11-25: only the PKR label steps one cell left on both
+		// boards; its figure keeps the field it holds, so one blank cell opens
+		// between the label and the value and the value never moves.
+		c.Text(lay.priceX-1, ry, 3, "PKR", th.Soft, false)
+		a.flashText(c, lay.priceX+quoteLabelW, ry, padLeft(commaFloat(b.Price, 2), lay.pxW), th.Text, true, pxKey)
 		// Owner order 2026-11-16: both boards carry the side's share quantity and
 		// its bar. The quantity is this side's own: bought shares on the buying
 		// board, sold shares on the selling board. Owner order 2026-11-23
@@ -1630,7 +1634,10 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		if lay.chgFits && b.ChangePct != nil {
 			// Owner order 2026-11-24 (later): the percentage is right aligned in
 			// its field, so every board row's percent ends on one cell.
-			a.flashText(c, lay.chgX, ry, padLeft(changeText(*b.ChangePct), lay.chgW), a.dirColor(*b.ChangePct), true, pxKey)
+			// Owner order 2026-11-25: the field steps one cell left on both
+			// boards, so one blank cell stands between the percentage and the
+			// quantity that follows it.
+			a.flashText(c, lay.chgX-1, ry, padLeft(changeText(*b.ChangePct), lay.chgW), a.dirColor(*b.ChangePct), true, pxKey)
 		}
 		rightAlign(c, lay.qtyX, ry, lay.qtyW, []Span{{qtyTxt, good, true}})
 		// Owner order 2026-11-12 (latest): both boards draw the one bar, so a
@@ -1699,7 +1706,9 @@ func boardRowLayout(ix, cw, pxW, qtyW, vW int) boardGeom {
 			qtyX := barX - 1 - qtyW
 			chgX := qtyX - gap - w
 			priceX := chgX - 1 - (quoteLabelW + pxW)
-			if priceX >= left {
+			// Owner order 2026-11-25: the PKR label stands one cell left of the
+			// field it names, so the group's own left edge is that cell.
+			if priceX-1 >= left {
 				return boardGeom{pxW: pxW, priceX: priceX, chgX: chgX, chgW: w,
 					chgFits: withChange, qtyX: qtyX, qtyW: qtyW,
 					barX: barX, barW: barW, netX: netX, netW: netW}
@@ -1889,12 +1898,16 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 			if f.Side == "SELL" {
 				verb = "were sold"
 			}
+			// Owner order 2026-11-25: one more space stands between the scrip and
+			// the verb, and the verb holds one width whatever the side, so the
+			// word at that leads into the price starts on one cell down the log
+			// for were bought and were sold alike.
 			body := padLeft(compactNum(float64(f.Shares)), qtyW) + " shares of " +
-				padRight(f.Symbol, symW) + " " + verb
+				padRight(f.Symbol, symW) + "  " + padRight(verb, len("were bought"))
 			if showGroup {
 				body += " at"
 			} else {
-				body += "."
+				body = strings.TrimRight(body, " ") + "."
 			}
 			lead = append(lead, Span{body, th.Hot, true})
 		} else {
