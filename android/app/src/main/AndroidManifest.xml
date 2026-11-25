@@ -633,10 +633,20 @@
      and never while he is still typing. This supersedes the 2026-11-23
      option that carried a scrip's quote lines in the SEARCH list.
      Ships as 4.4.9, versionCode 142. -->
+<!-- Owner order 2026-11-25 (evening): "the seconds are not moving in real
+     time like seconds actually move" on QUANT STATUS, so the relay's own
+     Karachi stamp now advances once per second between health answers and
+     re-anchors on every new one; and the SEARCH and ORDER FLOW tiles wear
+     the CUSTOM SCRIPS OF VOL. search and drop down exactly - one plate, the
+     centred face, the caret at its trailing edge, the options as the volume
+     menu's own divided rows with no pill and no diamond track - replacing
+     the tall rounded lists he struck out. This supersedes the 2026-11-24
+     note that the two searches carry no drop down icon.
+     Ships as 4.4.10, versionCode 143. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="142"
-    android:versionName="4.4.9">
+    android:versionCode="143"
+    android:versionName="4.4.10">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

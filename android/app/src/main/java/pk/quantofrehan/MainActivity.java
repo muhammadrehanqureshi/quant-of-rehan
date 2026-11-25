@@ -350,8 +350,10 @@ public class MainActivity extends Activity {
     private View ruleBetweenFlow;
     private EditText orderFlowInput;
     private View orderFlowFieldGroup;
-    private ScrollView orderFlowScroll;
-    private OrnamentScroller orderFlowScroller;
+    /** Owner order 2026-11-25: the ORDER FLOW box's own caret, the CUSTOM
+     *  SCRIPS OF VOL. box's trailing triangle. The tall scrolled list and
+     *  its diamond track left the tile with the owner's strike-through. */
+    private ImageView orderFlowArrow;
     private LinearLayout orderFlowResults;
     private TextView orderFlowSelected;
     /** Owner order 2026-11-07: the two-column BID | ASK book and the
@@ -438,8 +440,9 @@ public class MainActivity extends Activity {
     /** Owner order 2026-11-21: the search box and its results are ONE field
      *  plate, the same group the app's dropdowns expand from. */
     private View searchFieldGroup;
-    private ScrollView searchScroll;
-    private OrnamentScroller searchScroller;
+    /** Owner order 2026-11-25: the SEARCH box's own caret, the CUSTOM
+     *  SCRIPS OF VOL. box's trailing triangle. */
+    private ImageView searchArrow;
     private EditText searchInput;
     private LinearLayout searchResults;
     private TextView searchStatus;
@@ -602,18 +605,8 @@ public class MainActivity extends Activity {
         searchFieldGroup = findViewById(R.id.search_field_group);
         searchInput = findViewById(R.id.search_input);
         searchResults = findViewById(R.id.search_results);
-        searchScroll = findViewById(R.id.search_scroll);
-        searchScroller = findViewById(R.id.search_scroller);
+        searchArrow = findViewById(R.id.search_arrow);
         searchStatus = findViewById(R.id.search_status);
-        if (searchScroll != null) {
-            searchScroll.setOnTouchListener((v, event) -> {
-                v.getParent().requestDisallowInterceptTouchEvent(true);
-                return false;
-            });
-            searchScroll.setOnScrollChangeListener(
-                    (v, sx, sy, ox, oy) -> updateMenuScroller(searchScroll,
-                            searchScroller));
-        }
 
         // Owner order 2026-11-21: the box and its results wear ONE plate,
         // the group's own, exactly as the volume, theme and sectors
@@ -635,8 +628,7 @@ public class MainActivity extends Activity {
         ruleBetweenFlow = findViewById(R.id.rule_between_flow);
         orderFlowInput = findViewById(R.id.order_flow_input);
         orderFlowFieldGroup = findViewById(R.id.order_flow_field_group);
-        orderFlowScroll = findViewById(R.id.order_flow_scroll);
-        orderFlowScroller = findViewById(R.id.order_flow_scroller);
+        orderFlowArrow = findViewById(R.id.order_flow_arrow);
         orderFlowResults = findViewById(R.id.order_flow_results);
         orderFlowSelected = findViewById(R.id.order_flow_selected);
         orderFlowBook = findViewById(R.id.order_flow_book);
@@ -644,14 +636,13 @@ public class MainActivity extends Activity {
         // Owner order 2026-11-22: the box and its list are one plate, the
         // search box's own law, so the group carries the face and the box
         // itself wears nothing.
-        if (orderFlowScroll != null) {
-            orderFlowScroll.setOnTouchListener((v, event) -> {
-                v.getParent().requestDisallowInterceptTouchEvent(true);
-                return false;
-            });
-            orderFlowScroll.setOnScrollChangeListener(
-                    (v, sx, sy, ox, oy) -> updateMenuScroller(orderFlowScroll,
-                            orderFlowScroller));
+        // Owner order 2026-11-25: the caret is the box's own roll-up and
+        // pull-down tap, the CUSTOM SCRIPS OF VOL. box's one law.
+        if (orderFlowArrow != null) {
+            orderFlowArrow.setOnClickListener(v -> toggleFlowList());
+        }
+        if (searchArrow != null) {
+            searchArrow.setOnClickListener(v -> toggleSearchList());
         }
         bigPrintsPanel = findViewById(R.id.big_prints_panel);
         bigPrintsList = findViewById(R.id.big_prints_list);
@@ -778,10 +769,7 @@ public class MainActivity extends Activity {
         // Owner order 2026-11-24: a tap on the box opens the menu again with
         // the text he typed still in it - the CUSTOM SCRIPS OF VOL. box's
         // roll-up and pull-down, without a caret to tap instead.
-        searchInput.setOnClickListener(v -> {
-            searchListOpen = true;
-            renderSearchResults(searchInput.getText().toString());
-        });
+        searchInput.setOnClickListener(v -> showSearchList(true));
 
         // Owner order 2026-10-16: the console's tiles, the rules between them
         // and the cadence sentence, gathered ONCE so the exclusive-settings
@@ -1031,6 +1019,14 @@ public class MainActivity extends Activity {
 	            themeArrow.setImageTintList(
 	                    ColorStateList.valueOf(themeAccentInk));
 	        }
+        if (searchArrow != null) {
+            searchArrow.setImageTintList(
+                    ColorStateList.valueOf(themeAccentInk));
+        }
+        if (orderFlowArrow != null) {
+            orderFlowArrow.setImageTintList(
+                    ColorStateList.valueOf(themeAccentInk));
+        }
 	    }
 
     /** Owner order 2026-11-01: every diamond rule wears the theme's
@@ -1527,12 +1523,7 @@ public class MainActivity extends Activity {
 	        if (sectorsScroller != null) {
 	            sectorsScroller.setInk(themeAccentInk);
         }
-        if (searchScroller != null) {
-            searchScroller.setInk(themeAccentInk);
-        }
-        if (orderFlowScroller != null) {
-            orderFlowScroller.setInk(themeAccentInk);
-	        }
+        
 	        repaintDropdownArrows();
 	        pinNavTile();
     }
@@ -2304,16 +2295,6 @@ public class MainActivity extends Activity {
         bar.setVisibility(range > 0 ? View.VISIBLE : View.GONE);
     }
 
-    /** The ORDER FLOW list's own six-row window. */
-    private void fitFlowWindow() {
-        fitMenuWindow(orderFlowScroll, orderFlowResults, orderFlowScroller,
-                FLOW_ROWS);
-    }
-
-    /** The SEARCH list's own six-row window. */
-    private void fitSearchWindow() {
-        fitMenuWindow(searchScroll, searchResults, searchScroller, SEARCH_ROWS);
-    }
 
     // Owner order 2026-11-16: the first and last options no longer carry
     // their own taller padding. The menu's top and bottom air carries the
@@ -2522,6 +2503,8 @@ public class MainActivity extends Activity {
         centerDropdownCaret(volumeSplitArrow, volumeSplitSpinner,
                 volumeSplitMenu);
         centerDropdownCaret(themeArrow, themeSpinner, themeMenu);
+        centerDropdownCaret(searchArrow, searchInput, null);
+        centerDropdownCaret(orderFlowArrow, orderFlowInput, null);
     }
 
     /**
@@ -3138,8 +3121,11 @@ public class MainActivity extends Activity {
             statusDetail.setText(getString(R.string.checking));
         } else {
             // Keep the relay's own session detail only; a local UI refresh
-            // timestamp is not evidence of broker-data freshness.
-            statusDetail.setText(clockSpans(actualDetail));
+            // timestamp is not evidence of broker-data freshness. Owner
+            // order 2026-11-25: the Karachi seconds advance once per second
+            // from the relay's own last stamp, so the clock reads like a
+            // clock instead of jumping whenever a new health answer lands.
+            statusDetail.setText(clockSpans(advanceRelayClock(actualDetail)));
         }
 
         if (actualSignals.isEmpty()) {
@@ -3622,7 +3608,6 @@ public class MainActivity extends Activity {
             if (orderFlowSelected != null) {
                 orderFlowSelected.setVisibility(View.GONE);
             }
-            fitFlowWindow();
             return;
         }
         // Owner order 2026-11-23: an empty box asks for the scrip and lists
@@ -3636,7 +3621,6 @@ public class MainActivity extends Activity {
             if (orderFlowSelected != null) {
                 orderFlowSelected.setVisibility(View.GONE);
             }
-            fitFlowWindow();
             return;
         }
         for (Watcher.FlowRow row : flowRows) {
@@ -3678,7 +3662,6 @@ public class MainActivity extends Activity {
             }
             flowRenderedQuery = query;
             flowRenderedCount = visible.size();
-            orderFlowResults.post(this::fitFlowWindow);
         }
         orderFlowResults.setVisibility(
                 visible.isEmpty() || !flowListOpen ? View.GONE : View.VISIBLE);
@@ -3687,10 +3670,9 @@ public class MainActivity extends Activity {
             orderFlowSelected.setVisibility(View.VISIBLE);
         }
         refreshFlowSelection();
-        fitFlowWindow();
-        if (!query.isEmpty() && orderFlowScroll != null) {
-            orderFlowScroll.scrollTo(0, 0);
-        }
+        rotateDropdownArrow(orderFlowArrow,
+                orderFlowResults.getVisibility() == View.VISIBLE);
+        centerDropdownCaret(orderFlowArrow, orderFlowInput, null);
     }
 
     /**
@@ -3704,9 +3686,9 @@ public class MainActivity extends Activity {
     private View flowTableRow(Watcher.FlowRow row, String query) {
         TextView line = menuRow(row.symbol);
         line.setOnClickListener(v -> pickFlow(row.symbol));
-        if (query != null && !query.isEmpty() && row.symbol.startsWith(query)) {
-            line.setBackground(highlightPlate(row.symbol.length() == query.length()));
-        }
+        // Owner order 2026-11-25: the option wears nothing of its own, the
+        // CUSTOM SCRIPS OF VOL. menu's own row. The grey pills are gone.
+        line.setBackground(null);
         return line;
     }
 
@@ -3717,24 +3699,52 @@ public class MainActivity extends Activity {
         if (orderFlowResults != null) {
             orderFlowResults.setVisibility(View.GONE);
         }
-        fitFlowWindow();
+        rotateDropdownArrow(orderFlowArrow, false);
     }
 
     /** A tap on the box opens the list again, its current text and all. */
     private void showFlowList(boolean open) {
+        flowListOpen = open;
         if (open) {
-            flowListOpen = true;
             if (orderFlowInput != null) {
                 renderFlowResults(orderFlowInput.getText().toString().trim()
                         .toUpperCase(Locale.US));
             }
-            return;
-        }
-        flowListOpen = false;
-        if (orderFlowResults != null) {
+        } else if (orderFlowResults != null) {
             orderFlowResults.setVisibility(View.GONE);
         }
-        fitFlowWindow();
+        // The caret turns only onto a menu that is actually showing: an
+        // empty box lists nothing, so its caret stays down (2026-11-23).
+        rotateDropdownArrow(orderFlowArrow, open
+                && orderFlowResults != null
+                && orderFlowResults.getVisibility() == View.VISIBLE);
+        centerDropdownCaret(orderFlowArrow, orderFlowInput, null);
+    }
+
+    /** The ORDER FLOW caret's own pull, the volume box's one tap. */
+    private void toggleFlowList() {
+        showFlowList(!flowListOpen);
+    }
+
+    /** The SEARCH box's caret and its own pull-down, the volume box's law. */
+    private void showSearchList(boolean open) {
+        searchListOpen = open;
+        if (open) {
+            if (searchInput != null) {
+                renderSearchResults(searchInput.getText().toString());
+            }
+        } else if (searchResults != null) {
+            searchResults.setVisibility(View.GONE);
+        }
+        rotateDropdownArrow(searchArrow, open
+                && searchResults != null
+                && searchResults.getVisibility() == View.VISIBLE);
+        centerDropdownCaret(searchArrow, searchInput, null);
+    }
+
+    /** The SEARCH caret's own pull, the volume box's one tap. */
+    private void toggleSearchList() {
+        showSearchList(!searchListOpen);
     }
 
     /**
@@ -3890,9 +3900,6 @@ public class MainActivity extends Activity {
             flowBookNumbers = key;
         }
         fillFlowPrints(symbol);
-        if (!flowKeepList) {
-            fitFlowWindow();
-        }
     }
 
     /** Clear the two-column book and the fills below it. */
@@ -4590,7 +4597,6 @@ public class MainActivity extends Activity {
             }
             searchStatus.setText("");
             searchStatus.setVisibility(View.GONE);
-            fitSearchWindow();
             return;
         }
         // The rows carry a state (a tapped symbol stays pinned), so they are
@@ -4603,7 +4609,6 @@ public class MainActivity extends Activity {
             renderedQuery = q;
             selectSymbol(null);
             searchResults.setVisibility(View.GONE);
-            fitSearchWindow();
             searchStatus.setText(getString(R.string.search_waiting));
             return;
         }
@@ -4674,13 +4679,12 @@ public class MainActivity extends Activity {
             // and the rows are the whole answer.
             searchStatus.setText("");
         }
-        // Owner order 2026-11-22: the list is a fixed six-row window with
-        // the diamond beside it, so a long answer is a scroll, never a
-        // taller tile.
-        fitSearchWindow();
-        if (!q.isEmpty() && searchScroll != null) {
-            searchScroll.scrollTo(0, 0);
-        }
+        // Owner order 2026-11-25 (evening): the options stand inside the
+        // box's own plate, the CUSTOM SCRIPS OF VOL. menu's law, and the
+        // caret turns up while that menu is showing.
+        rotateDropdownArrow(searchArrow,
+                searchResults.getVisibility() == View.VISIBLE);
+        centerDropdownCaret(searchArrow, searchInput, null);
     }
 
     /** Colour one search row from its own live quote and its typed match. */
@@ -4723,13 +4727,10 @@ public class MainActivity extends Activity {
         // The matched symbol keeps the body's ink. The highlight is a
         // fact of the QUERY, never of the selection: a row lights because
         // it matches, whether or not it has been tapped.
-        if (q == null || q.isEmpty() || !symbol.startsWith(q)) {
-            row.setBackground(null);
-            return;
-        }
-        boolean exactMatch = symbol.length() == q.length();
-
-        row.setBackground(highlightPlate(exactMatch));
+        // Owner order 2026-11-25: the option is the CUSTOM SCRIPS OF VOL.
+        // menu's own row, plain text in the plate. The lift, the hairline
+        // and the grey pill around a matched ticker are all gone.
+        row.setBackground(null);
     }
 
     /** One highlight plate, v2.3.9 then v2.3.13: the row lights in a LIFT
@@ -4810,7 +4811,7 @@ public class MainActivity extends Activity {
             if (searchResults != null) {
                 searchResults.setVisibility(View.GONE);
             }
-            fitSearchWindow();
+            rotateDropdownArrow(searchArrow, false);
         }
         if (symbol == null) {
             // Clearing always discards the pinned symbol's stale detail line
@@ -5125,6 +5126,62 @@ public class MainActivity extends Activity {
      * face rule of 2026-10-13 stands untouched: the emphasis is colour
      * alone, the LEMON MILK Light line does not move.
      */
+    /** The relay clock's last stamp and when the phone received it, so the
+     *  QUANT STATUS face can advance between relay answers (2026-11-25). */
+    private String relayClockStamp = "";
+    private long relayClockMillis;
+    private long relayClockAt;
+
+    /**
+     * The QUANT STATUS clock, moving once per second.
+     *
+     * Owner order 2026-11-25: "the seconds are not moving in real time like
+     * seconds actually move". The relay's Karachi stamp lands with each
+     * health answer and its cached head repeats that same string for the
+     * seconds between answers, so the face used to stand still and then
+     * jump. The relay's reading is still the only anchor (SO-3): this holds
+     * it and adds the time the phone has carried it, re-anchoring on every
+     * new stamp the relay sends. A stamp the app cannot read is printed
+     * exactly as it arrived, never guessed.
+     */
+    private String advanceRelayClock(String detail) {
+        int k = detail.indexOf("Karachi: ");
+        if (k < 0) {
+            return detail;
+        }
+        int start = k + "Karachi: ".length();
+        int end = start;
+        while (end < detail.length() && detail.charAt(end) != '\n') {
+            end++;
+        }
+        String stamp = detail.substring(start, end).trim();
+        String body = stamp.endsWith(" PKT")
+                ? stamp.substring(0, stamp.length() - " PKT".length())
+                : stamp;
+        java.text.SimpleDateFormat face = new java.text.SimpleDateFormat(
+                "dd MMM yyyy HH:mm:ss", Locale.US);
+        face.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Karachi"));
+        java.util.Date parsed = null;
+        try {
+            parsed = face.parse(body);
+        } catch (java.text.ParseException e) {
+            return detail;
+        }
+        if (parsed == null) {
+            return detail;
+        }
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (!stamp.equals(relayClockStamp)) {
+            relayClockStamp = stamp;
+            relayClockMillis = parsed.getTime();
+            relayClockAt = now;
+        }
+        String shown = face.format(
+                new java.util.Date(relayClockMillis + (now - relayClockAt)));
+        return detail.substring(0, start) + shown + " PKT"
+                + detail.substring(end);
+    }
+
     private SpannableString clockSpans(String d) {
         SpannableString sp = new SpannableString(d);
         int k = d.indexOf("Karachi: ");

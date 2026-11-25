@@ -1817,7 +1817,17 @@ class StatusPulseTest(unittest.TestCase):
         self.assertNotIn("live polling", strings.lower())
         render = self.main[self.main.index("private void render(boolean online"):]
         render = render[:render.index("private String latestSignalDisplay(")]
-        self.assertIn("statusDetail.setText(clockSpans(actualDetail));", render)
+        # Owner order 2026-11-25: the Karachi seconds advance once per
+        # second from the relay's own last stamp, so the face reads like a
+        # clock between health answers instead of jumping every five.
+        self.assertIn("statusDetail.setText("
+                      "clockSpans(advanceRelayClock(actualDetail)));", render)
+        clock = self.main[self.main.index("private String advanceRelayClock("):]
+        clock = clock[:clock.index("private SpannableString clockSpans(")]
+        self.assertIn("SystemClock.elapsedRealtime()", clock)
+        self.assertIn("relayClockMillis + (now - relayClockAt)", clock)
+        self.assertIn('"Asia/Karachi"', clock)
+        self.assertIn('"dd MMM yyyy HH:mm:ss"', clock)
         self.assertNotIn("liveLine()", render)
         self.assertNotIn("Watcher.FAST_POLL_MS", render)
         # The status sentence remains the relay's session-clock response.
@@ -2408,10 +2418,15 @@ class VersionTest(unittest.TestCase):
         # on CUSTOM SCRIPS OF VOLUME; the SECTORS menu prints its
         # percentages on the first price tick instead of only after a page
         # round trip; and the SEARCH and ORDER FLOW instant searches list
-        # the scrip alone, no caret, with the details waiting on a pick.
-        # They ship as 4.4.9, versionCode 142.
-        self.assertIn('android:versionName="4.4.9"', manifest)
-        self.assertIn('android:versionCode="142"', manifest)
+        # the scrip alone, with the details waiting on a pick.
+        # Owner order 2026-11-25 (evening): the SEARCH and ORDER FLOW boxes
+        # are the CUSTOM SCRIPS OF VOL. box itself - one plate, the centred
+        # face, the caret at its trailing edge, the options as the volume
+        # menu's own rows without a pill or a track - and the QUANT STATUS
+        # seconds advance every second between relay answers.
+        # They ship as 4.4.10, versionCode 143.
+        self.assertIn('android:versionName="4.4.10"', manifest)
+        self.assertIn('android:versionCode="143"', manifest)
         # Owner order 2026-11-24: no part of either build's version reads above
         # ten, so 3.10.10 is followed by 4.0.0 and .11 never exists.
         shipped = manifest.split('android:versionName="', 1)[1].split('"', 1)[0]
@@ -2652,9 +2667,11 @@ class VersionTest(unittest.TestCase):
         # front of the scrip. Owner order 2026-11-25: the scrip leads then
         # the money on both tiles, the SECTORS menu stamps its percentages on
         # the first tick, and the instant searches list the scrip alone until
-        # a pick. They ship as 4.4.9, versionCode 142.
-        self.assertIn('android:versionCode="142"', manifest)
-        self.assertIn('android:versionName="4.4.9"', manifest)
+        # a pick. Owner order 2026-11-25 (evening): the two searches wear the
+        # CUSTOM SCRIPS OF VOL. box and its caret, and the QUANT STATUS clock
+        # moves every second. They ship as 4.4.10, versionCode 143.
+        self.assertIn('android:versionCode="143"', manifest)
+        self.assertIn('android:versionName="4.4.10"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
@@ -2777,13 +2794,19 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertNotIn("if (query.isEmpty() || row.symbol.startsWith(query)) {",
                          flow)
         self.assertIn("row.symbol.startsWith(query)", flow)
-        self.assertIn("private void fitSearchWindow() {", main)
-        self.assertIn("fitMenuWindow(searchScroll, searchResults, "
-                      "searchScroller, SEARCH_ROWS)", main)
+        # Owner order 2026-11-25 (evening): the box and its own caret are the
+        # CUSTOM SCRIPS OF VOL. box's, and the tall six-row window with its
+        # diamond track left the tile with the list he struck out.
+        self.assertNotIn("fitSearchWindow", main)
+        self.assertNotIn("fitFlowWindow", main)
+        self.assertNotIn("searchScroll.scrollTo", main)
         layout = LAYOUT.read_text(encoding="utf-8")
-        self.assertIn("@+id/search_scroll", layout)
-        self.assertIn("@+id/search_scroller", layout)
-        self.assertNotIn("@+id/search_arrow", layout)
+        self.assertIn("@+id/search_arrow", layout)
+        self.assertIn("@+id/order_flow_arrow", layout)
+        self.assertNotIn("@+id/search_scroll", layout)
+        self.assertNotIn("@+id/search_scroller", layout)
+        self.assertNotIn("@+id/order_flow_scroll", layout)
+        self.assertNotIn("@+id/order_flow_scroller", layout)
 
     def test_a_search_option_is_the_scrip_alone(self):
         """Owner order 2026-11-25 (latest): "I don't want to see the details
@@ -2819,6 +2842,14 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn('android:orientation="vertical"', group)
         box = element(layout, 'android:id="@+id/search_input"')
         self.assertIn('android:background="@null"', box)
+        # Owner order 2026-11-25 (evening): the face centres in its plate and
+        # the caret stands at its trailing edge, the volume box's own law.
+        self.assertIn('android:gravity="center"', box)
+        arrow = element(layout, 'android:id="@+id/search_arrow"')
+        self.assertIn('@drawable/dropdown_arrow', arrow)
+        self.assertIn('android:layout_gravity="end|top"', arrow)
+        flow_box = element(layout, 'android:id="@+id/order_flow_input"')
+        self.assertIn('android:gravity="center"', flow_box)
         main = MAIN.read_text(encoding="utf-8")
         self.assertIn('TextView row = menuRow("");', main)
         # Owner order 2026-11-24: the search options are the volume menu's
@@ -3092,7 +3123,9 @@ class SearchBoxGapTest(unittest.TestCase):
         self.box = find_view(self.root, "@+id/search_input")
 
     def test_the_box_centres_its_one_line(self):
-        self.assertEqual(self.box.get(f"{ANDROID_NS}gravity"), "center_vertical")
+        # Owner order 2026-11-25 (evening): the SEARCH box is the CUSTOM
+        # SCRIPS OF VOL. box's face, whose one line centres both ways.
+        self.assertEqual(self.box.get(f"{ANDROID_NS}gravity"), "center")
 
     def test_the_font_padding_is_out_of_the_box_height(self):
         self.assertEqual(self.box.get(f"{ANDROID_NS}includeFontPadding"), "false")
@@ -3429,18 +3462,22 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("showVolumeMenu(!volumeMenuOpen)", self.main)
         self.assertIn("showThemeMenu(!themeMenuOpen)", self.main)
 
-    def test_both_dropdown_carets_wear_the_themes_second_colour(self):
+    def test_every_dropdown_caret_wears_the_themes_second_colour(self):
         """Owner order 2026-11-01: the dropdown's colour follows the
         theme's second colour. Purple and yellow and green and yellow
         keep the brand gold; black and white, navy and white and orange
-        and white wear white. Both carets re-ink in the theme pass."""
+        and white wear white. Every caret re-inks in the theme pass, and
+        since owner order 2026-11-25 (evening) the SEARCH and ORDER FLOW
+        carets stand beside the volume and theme ones."""
         start = self.main.index("private void repaintDropdownArrows() {")
-        block = self.main[start:start + 800]
+        block = self.main[start:start + 1200]
         self.assertEqual(
-            block.count("ColorStateList.valueOf(themeAccentInk)"), 2)
+            block.count("ColorStateList.valueOf(themeAccentInk)"), 4)
         self.assertIn("volumeSplitArrow.setImageTintList", block)
         self.assertNotIn("sectorsArrow", block)
         self.assertIn("themeArrow.setImageTintList", block)
+        self.assertIn("searchArrow.setImageTintList", block)
+        self.assertIn("orderFlowArrow.setImageTintList", block)
         theme_pass = self.main[self.main.index(
             "private void applyTheme(int index) {"):]
         theme_pass = theme_pass[:theme_pass.index(
@@ -4069,18 +4106,27 @@ class SearchHighlightTest(unittest.TestCase):
         self.assertIn("styleSearchRow(row, symbol, q);", main)
         self.assertIn("styleSearchRow(entry.getValue(), entry.getKey(), q);", main)
 
-    def test_a_prefix_match_lights_and_an_exact_match_lights_hardest(self):
+    def test_an_option_wears_nothing_of_its_own(self):
+        """Owner order 2026-11-25 (evening): the SEARCH and ORDER FLOW options
+        are the CUSTOM SCRIPS OF VOL. menu's own rows. The matched row's lift,
+        its hairline and the grey pill around a ticker are all struck out with
+        the tall list he circled: an option is plain text inside the one field
+        plate, divided like every other menu row."""
         main = MAIN.read_text(encoding="utf-8")
         block = main[main.index("private void styleSearchRow") :]
-        block = block[:block.index("/** One symbol's B, S and T")]
-        self.assertIn("boolean exactMatch = symbol.length() == q.length();", block)
-        self.assertIn("symbol.startsWith(q)", block)
-        # The brand gold, back on the matched rows (owner order above):
-        # the plate carries the family, and the gold hairline only on the
-        # exact match.
-        self.assertIn("row.setBackground(highlightPlate(exactMatch));", block)
-        self.assertIn("private GradientDrawable highlightPlate(boolean exact)", block)
+        block = block[:block.index("/** One highlight plate")]
         self.assertIn("row.setBackground(null);", block)
+        self.assertNotIn("highlightPlate(", block)
+        flow = main[main.index("private View flowTableRow("):
+                    main.index("private void pickFlow(")]
+        self.assertIn("line.setBackground(null);", flow)
+        self.assertNotIn("highlightPlate(", flow)
+        layout = LAYOUT.read_text(encoding="utf-8")
+        for tile_id in ("@+id/search_results", "@+id/order_flow_results"):
+            menu = element(layout, 'android:id="%s"' % tile_id)
+            self.assertIn('android:orientation="vertical"', menu)
+            self.assertNotIn("ScrollView", menu)
+            self.assertNotIn("OrnamentScroller", menu)
 
     def test_the_highlight_plates_are_the_brand_gold_again(self):
         main = MAIN.read_text(encoding="utf-8")
@@ -4722,11 +4768,10 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                 self.assertIn(f'android:paddingLeft="{left}"', box)
                 self.assertIn('android:paddingRight="10dp"', box)
                 # Owner order 2026-11-17: every closed dropdown face centres
-                # its own line, not only vertically. The search field keeps
-                # its leading text because it is typed into, not chosen.
-                expected = ("center_vertical" if view_id == "search_input"
-                            else "center")
-                self.assertIn(f'android:gravity="{expected}"', box)
+                # its own line, not only vertically. Owner order 2026-11-25
+                # (evening) puts the search box on that same face, so the
+                # typed ticker centres exactly like the volume caption.
+                self.assertIn('android:gravity="center"', box)
                 self.assertIn('android:includeFontPadding="false"', box)
 
     def test_v2_3_16_the_dropdown_menu_opens_from_the_box_itself(self):
