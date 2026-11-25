@@ -190,13 +190,6 @@ public class MainActivity extends Activity {
     private static final long BREATH_MS = 2200L;
     /** How many filled orders the tapped scrip's own board lists. */
     private static final int FLOW_RESULTS_SHOWN = 8;
-    /** Owner order 2026-11-22 ("it's showing so much info without me even
-     *  tapping on a particular stock"): the ORDER FLOW list is the scrip and
-     *  its quote alone. The book's BID and ASK columns, their sizes and the
-     *  B/S/U/T split are the tapped scrip's own answer, never the list's. */
-    private static final String[] FLOW_COLUMNS = {
-            "SYMBOL", "LAST", "CHG%", "VOL"};
-    private static final float[] FLOW_WEIGHTS = {1.12f, 0.88f, 0.92f, 1.0f};
     /** Owner order 2026-11-22: the ORDER FLOW list shows six scrips in its
      *  window, the rest a scroll away, the SECTORS tile's own law. */
     private static final int FLOW_ROWS = 6;
@@ -383,9 +376,17 @@ public class MainActivity extends Activity {
     /** The SECTORS window's range as its rows state it, so the diamond
      *  stands on the first drawn frame instead of after a layout. */
     private int sectorRange;
-    private String flowBookNumbers;
-    private final java.util.Map<String, TextView[]> flowRowCells =
+    /** Owner report 2026-11-25: the SECTORS tile opened without its
+     *  percentages and grew them only after a round trip to another page.
+     *  The list is built when the sector answer lands, which can be before
+     *  the first quote, and nothing repainted it afterwards. These hold the
+     *  menu's own rows by name, in their drawn order, so every price tick
+     *  restamps each percentage in place. */
+    private final java.util.Map<String, TextView> sectorRowViews =
             new java.util.LinkedHashMap<>();
+    private final java.util.List<String> sectorRowOrder = new ArrayList<>();
+    private int sectorQuotedRows;
+    private String flowBookNumbers;
     private View bigPrintsPanel;
     private TextView bigPrintsList;
     private ScrollView bigPrintsScroll;
@@ -2022,14 +2023,35 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * One scrip's quote lines, in the exact shape CUSTOM SCRIPS OF VOLUME
-     * prints them: the B, S, U and T line with its NET DELTA, then the price
-     * with the move's own arrow. Owner order 2026-11-23: the SEARCH page's
-     * options draw a scrip through this same builder, so a scrip reads the
-     * same in every list and the app has one scrip style, never a second.
+     * One scrip's lines, in the exact shape CUSTOM SCRIPS OF VOLUME prints
+     * them: the caller's numbered scrip, then the current price, then the
+     * percentage, then the B, S, U and T block with its NET DELTA. Owner
+     * order 2026-11-25 (latest) put the money on the scrip's own line; the
+     * KSE100 leaders print the same order, so the app has one scrip style.
      */
     private void appendScripQuote(SpannableStringBuilder sb,
                                   Watcher.Quote quote) {
+            // Owner order 2026-11-25 (latest): the scrip is already on the
+            // line the caller opened, so its current price and then its
+            // percentage follow it there. The quantities start the lines
+            // below, the way they always have.
+            sb.append("  ");
+            int priceFrom = sb.length();
+            sb.append(String.format(Locale.US, "PKR %,.2f", quote.price));
+            if (quote.changePct != null) {
+                sb.setSpan(new ForegroundColorSpan(getColor(
+                                quote.changePct >= 0 ? R.color.green : R.color.red)),
+                        priceFrom, sb.length(), 0);
+                sb.append(' ');
+                int from = sb.length();
+                sb.append(String.format(Locale.US, "%s %.2f%%",
+                        quote.changePct >= 0 ? "\u25B2" : "\u25BC",
+                        Math.abs(quote.changePct)));
+                sb.setSpan(new ForegroundColorSpan(getColor(
+                                quote.changePct >= 0 ? R.color.green : R.color.red)),
+                        from, sb.length(), 0);
+                sb.setSpan(new TypefaceSpan(ARROW_FACE), from, from + 1, 0);
+            }
             if (quote.buy != null && quote.sell != null) {
                 // Owner order 2026-11-06: B, S and U share the first line;
                 // the venue's total T starts the next one. U is shown
@@ -2073,26 +2095,6 @@ public class MainActivity extends Activity {
                     sb.append("T=");
                     colorTotal(sb, quote.volume);
                 }
-            }
-            // The map only ever carries a live price (Watcher's law), so
-            // the symbol's presence in the menu is the price's presence on
-            // the card; changePct stays boxed, its null a real "no move".
-            sb.append('\n');
-            int priceFrom = sb.length();
-            sb.append(String.format(Locale.US, "PKR %,.2f", quote.price));
-            if (quote.changePct != null) {
-                sb.setSpan(new ForegroundColorSpan(getColor(
-                                quote.changePct >= 0 ? R.color.green : R.color.red)),
-                        priceFrom, sb.length(), 0);
-                sb.append(' ');
-                int from = sb.length();
-                sb.append(String.format(Locale.US, "%s %.2f%%",
-                        quote.changePct >= 0 ? "\u25B2" : "\u25BC",
-                        Math.abs(quote.changePct)));
-                sb.setSpan(new ForegroundColorSpan(getColor(
-                                quote.changePct >= 0 ? R.color.green : R.color.red)),
-                        from, sb.length(), 0);
-                sb.setSpan(new TypefaceSpan(ARROW_FACE), from, from + 1, 0);
             }
     }
 
@@ -3016,8 +3018,11 @@ public class MainActivity extends Activity {
             if (searchOpen || scannerOpen) {
                 renderVolumeSpinners();
             }
-            // The chosen sector's numbers ride the same tick as the rows.
+            // The chosen sector's numbers ride the same tick as the rows,
+            // and the sector list's own percentages do too (owner report
+            // 2026-11-25: they only appeared after a page round trip).
             if (searchOpen) {
+                repaintSectorMenu();
                 renderSectorReveal();
             }
         }));
@@ -3611,7 +3616,6 @@ public class MainActivity extends Activity {
         if (flowRows.isEmpty()) {
             // No answer yet: the tile shows its box and nothing else.
             orderFlowResults.removeAllViews();
-            flowRowCells.clear();
             flowRenderedQuery = "";
             flowRenderedCount = -1;
             orderFlowResults.setVisibility(View.GONE);
@@ -3626,7 +3630,6 @@ public class MainActivity extends Activity {
         // tile opened, which is a directory, not a search.
         if (query.isEmpty()) {
             orderFlowResults.removeAllViews();
-            flowRowCells.clear();
             flowRenderedQuery = "";
             flowRenderedCount = -1;
             orderFlowResults.setVisibility(View.GONE);
@@ -3658,28 +3661,24 @@ public class MainActivity extends Activity {
                 || visible.size() != flowRenderedCount;
         if (rebuild) {
             orderFlowResults.removeAllViews();
-            flowRowCells.clear();
-            if (!visible.isEmpty()) {
-                orderFlowResults.addView(flowTableHeader());
-            }
-                            padMenu(orderFlowResults);
-                for (Watcher.FlowRow row : visible) {
-                    // Owner order 2026-11-24: the scrips are the CUSTOM SCRIPS
-                    // OF VOL. menu's own options now - the open menu's
-                    // divider, the menu's top and bottom air - so the two
-                    // searches read as the dropdown every other box opens.
-                    if (orderFlowResults.getChildCount() > 1) {
+            padMenu(orderFlowResults);
+            // Owner order 2026-11-24: the scrips are the CUSTOM SCRIPS OF
+            // VOL. menu's own options - the open menu's divider, the menu's
+            // top and bottom air - so the two searches read as the dropdown
+            // every other box opens. Owner order 2026-11-25 (latest): an
+            // option is the scrip alone until he picks one, so the rows are
+            // static text and a tick no longer restyles them.
+            boolean firstRow = true;
+            for (Watcher.FlowRow row : visible) {
+                if (!firstRow) {
                     orderFlowResults.addView(menuDivider());
                 }
+                firstRow = false;
                 orderFlowResults.addView(flowTableRow(row, query));
             }
             flowRenderedQuery = query;
             flowRenderedCount = visible.size();
             orderFlowResults.post(this::fitFlowWindow);
-        } else {
-            for (Watcher.FlowRow row : visible) {
-                paintFlowRow(flowRowCells.get(row.symbol), row);
-            }
         }
         orderFlowResults.setVisibility(
                 visible.isEmpty() || !flowListOpen ? View.GONE : View.VISIBLE);
@@ -3694,91 +3693,21 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** The header for the four-column ORDER FLOW list. */
-    private View flowTableHeader() {
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT));
-        header.setPadding(dp(10), dp(2), dp(10), dp(2));
-        for (int i = 0; i < FLOW_COLUMNS.length; i++) {
-            TextView cell = flowCell(FLOW_COLUMNS[i], FLOW_WEIGHTS[i],
-                    themeBodyInk, 8f, android.view.Gravity.CENTER, true);
-            cell.setAlpha(0.62f);
-            header.addView(cell);
-        }
-        return header;
-    }
-
     /**
-     * Owner order 2026-11-22 ("it's showing so much info without me even
-     * tapping on a particular stock"): the list row is the scrip and its
-     * quote alone, four columns, so nothing is truncated and every row reads
-     * the same shape. Its bid, ask, sizes and the B/S/U/T split print only
-     * once he taps the scrip.
+     * Owner order 2026-11-25 (latest): "when i will select a particular scrip
+     * from that instant search then i will have all the details. I don't want
+     * to see the details while I'm still searching." The row is the scrip
+     * alone, the CUSTOM SCRIPS OF VOL. menu's own option; its book, its
+     * bid/ask and its B/S/U/T split print only once he taps it. The
+     * four-column header went with the quote columns it named.
      */
     private View flowTableRow(Watcher.FlowRow row, String query) {
-        LinearLayout wrap = new LinearLayout(this);
-        wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT));
-        wrap.setPadding(0, dp(2), 0, dp(2));
-        wrap.setOnClickListener(v -> pickFlow(row.symbol));
+        TextView line = menuRow(row.symbol);
+        line.setOnClickListener(v -> pickFlow(row.symbol));
         if (query != null && !query.isEmpty() && row.symbol.startsWith(query)) {
-            wrap.setBackground(highlightPlate(row.symbol.length() == query.length()));
+            line.setBackground(highlightPlate(row.symbol.length() == query.length()));
         }
-        LinearLayout columns = new LinearLayout(this);
-        columns.setOrientation(LinearLayout.HORIZONTAL);
-        columns.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT));
-        columns.setPadding(dp(10), dp(2), dp(10), dp(2));
-        TextView symbol = flowCell(row.symbol, FLOW_WEIGHTS[0], themeBodyInk,
-                9f, android.view.Gravity.LEFT, true);
-        TextView last = flowCell("", FLOW_WEIGHTS[1], themeBodyInk, 9f,
-                android.view.Gravity.RIGHT, false);
-        TextView move = flowCell("", FLOW_WEIGHTS[2], themeBodyInk, 9f,
-                android.view.Gravity.RIGHT, false);
-        TextView volume = flowCell("", FLOW_WEIGHTS[3], themeBodyInk, 9f,
-                android.view.Gravity.RIGHT, false);
-        columns.addView(symbol);
-        columns.addView(last);
-        columns.addView(move);
-        columns.addView(volume);
-        wrap.addView(columns);
-        TextView[] cells = new TextView[]{last, move, volume};
-        flowRowCells.put(row.symbol, cells);
-        paintFlowRow(cells, row);
-        return wrap;
-    }
-
-    /** One list row's quote, restamped in place on every tick. */
-    private void paintFlowRow(TextView[] cells, Watcher.FlowRow row) {
-        if (cells == null || cells.length < 3) {
-            return;
-        }
-        int priceColor = row.changePct == null ? themeBodyInk
-                : getColor(row.changePct >= 0 ? R.color.green : R.color.red);
-        String last = row.price != null
-                ? String.format(Locale.US, "%,.2f", row.price) : "n/a";
-        String move = row.changePct != null
-                ? String.format(Locale.US, "%s%.2f%%",
-                row.changePct >= 0 ? "▲" : "▼",
-                Math.abs(row.changePct)) : "n/a";
-        String volume = flowCount(row.volume);
-        if (!cells[0].getText().toString().equals(last)) {
-            cells[0].setText(last);
-        }
-        if (!cells[1].getText().toString().equals(move)) {
-            cells[1].setText(move);
-        }
-        if (!cells[2].getText().toString().equals(volume)) {
-            cells[2].setText(volume);
-        }
-        cells[0].setTextColor(priceColor);
-        cells[1].setTextColor(priceColor);
+        return line;
     }
 
     /** The tapped scrip, its own answer, and the list closing behind it. */
@@ -3827,25 +3756,6 @@ public class MainActivity extends Activity {
     private String flowBookKey(Watcher.FlowRow row) {
         return row.symbol + "|" + row.bid + "|" + row.ask + "|"
                 + row.bidSize + "|" + row.askSize;
-    }
-
-    private TextView flowCell(String text, float weight, int color,
-                              float sizeSp, int gravity, boolean bold) {
-        TextView cell = new TextView(this);
-        cell.setLayoutParams(new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, weight));
-        cell.setText(text);
-        cell.setTextColor(color);
-        cell.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, sizeSp);
-        cell.setGravity(gravity | android.view.Gravity.CENTER_VERTICAL);
-        cell.setSingleLine(true);
-        cell.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        cell.setIncludeFontPadding(false);
-        if (bold) {
-            cell.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        }
-        cell.setPadding(dp(1), dp(1), dp(1), dp(1));
-        return cell;
     }
 
     private String flowCount(Long value) {
@@ -4247,6 +4157,9 @@ public class MainActivity extends Activity {
             return null;
         }
         sectorsMenu.removeAllViews();
+        sectorRowViews.clear();
+        sectorRowOrder.clear();
+        sectorQuotedRows = 0;
         padMenu(sectorsMenu);
         java.util.Map<String, Watcher.Quote> quotes = Watcher.quotes();
         java.util.Map<String, Double> performance = new java.util.HashMap<>();
@@ -4296,9 +4209,52 @@ public class MainActivity extends Activity {
             row.setPadding(dp(10), dp(3), dp(10), dp(3));
             row.setOnClickListener(v -> chooseSector(name));
             sectorsMenu.addView(row);
+            sectorRowOrder.add(name);
+            sectorRowViews.put(name, row);
+            if (performance.get(name) != null) {
+                sectorQuotedRows++;
+            }
         }
         sectorsMenu.post(this::fitSectorWindow);
         return names.isEmpty() ? null : names.get(0);
+    }
+
+    /**
+     * Owner report 2026-11-25: the SECTORS tile showed no percentage the
+     * first time he opened it, and the percentages appeared only after he
+     * left the page and came back. The list is built when the sector answer
+     * lands, which can be before the first quote of the tick, so every
+     * price read now restamps the rows in place. The first read that
+     * actually carries a move rebuilds the menu once, so the best
+     * percentage still leads it (owner order 2026-11-13) instead of an
+     * alphabetical first frame standing there all day. A sector whose
+     * scrips have no move still prints no invented percentage (SO-3).
+     */
+    private void repaintSectorMenu() {
+        if (sectorsMenu == null || sectorRowOrder.isEmpty()) {
+            return;
+        }
+        java.util.Map<String, Watcher.Quote> quotes = Watcher.quotes();
+        int quoted = 0;
+        for (int i = 0; i < sectorRowOrder.size(); i++) {
+            String name = sectorRowOrder.get(i);
+            Double move = sectorPerformance(name, quotes);
+            if (move != null) {
+                quoted++;
+            }
+            TextView row = sectorRowViews.get(name);
+            if (row != null) {
+                row.setText(sectorMenuLabel(i + 1, name, move));
+            }
+        }
+        if (sectorQuotedRows == 0 && quoted > 0) {
+            // The first real moves: fill again so the ranking is the day's
+            // and not the order the empty frame happened to leave behind.
+            fillSectorMenu();
+            fitSectorWindow();
+            return;
+        }
+        sectorQuotedRows = quoted;
     }
 
     /** The equal-weight day move of one sector's quoted scrips. */
@@ -4729,46 +4685,12 @@ public class MainActivity extends Activity {
 
     /** Colour one search row from its own live quote and its typed match. */
     private void styleSearchRow(TextView row, String symbol, String q) {
-        Watcher.Quote quote = Watcher.quote(symbol);
-        if (quote != null) {
-            // A move the relay did not report prints no percentage and
-            // takes no colour: only a real sign may turn a row green or
-            // red (SO-3). A price without a move is neutral ink.
-            //
-            // v2.3.19 (owner order 2026-10-28, "there should be up or
-            // down sign for percentage for search box, right now I see
-            // + & - signs"): the move carries the UP and DOWN arrows the
-            // leaders card and the volume reveal carry, never a + or a -
-            // sign: the glyph face holds the arrow, its colour is the
-            // move's own, and the percentage is the move's magnitude -
-            // the arrow IS the sign.
-            // Owner order 2026-11-23: the option is the scrip exactly as
-            // CUSTOM SCRIPS OF VOLUME prints it, drawn by that tile's own
-            // builder, so the list has one scrip style and not a second one
-            // of its own. The day's high and low close the price line, the
-            // high green and the low red (owner order 2026-11-07).
-            SpannableStringBuilder built = new SpannableStringBuilder(symbol);
-            appendScripQuote(built, quote);
-            if (quote.high != null) {
-                built.append(" H=");
-                int highFrom = built.length();
-                built.append(String.format(Locale.US, "%,.2f", quote.high));
-                built.setSpan(new ForegroundColorSpan(getColor(R.color.green_hi)),
-                        highFrom, built.length(), 0);
-            }
-            if (quote.low != null) {
-                // Owner order 2026-11-19: the search row reads H & L, the
-                // ampersand standing between the day's two sides.
-                built.append(" & L=");
-                int lowFrom = built.length();
-                built.append(String.format(Locale.US, "%,.2f", quote.low));
-                built.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
-                        lowFrom, built.length(), 0);
-            }
-            row.setText(built);
-        } else {
-            row.setText(symbol);
-        }
+        // Owner order 2026-11-25 (latest): "I don't want to see the details
+        // while I'm still searching and haven't selected any scrip." The
+        // option is the scrip alone, the CUSTOM SCRIPS OF VOL. menu's own
+        // one-line row; its price, move, day range and volumes are the
+        // picked scrip's answer, never the list's.
+        row.setText(symbol);
         // Owner order 2026-10-21 (15:15): a result row is body text, so it
         // carries the same 13sp as every other non-heading line, the size the
         // signal tile's own sentence uses. Its tracking is its own, a list of
@@ -4780,10 +4702,9 @@ public class MainActivity extends Activity {
         row.setTextSize(13f);
         row.setTextColor(themeBodyInk);
         row.setGravity(Gravity.CENTER);
-        // Owner order 2026-11-23: an option is a scrip block of up to three
-        // lines, so it takes the volume tile's own line spacing, keeps the
-        // menu row's 14dp column and 5dp air, and carries no fixed floor: the
-        // lines decide the height.
+        // Owner order 2026-11-25 (latest): an option is ONE line, the scrip
+        // alone, so it keeps the menu row's 14dp column and 5dp air and
+        // carries no fixed floor of its own.
         row.setLineSpacing(dp(3), 1f);
         row.setMinHeight(0);
         // The row keeps menuRow's 14dp column, because the dividing lines
@@ -4799,11 +4720,9 @@ public class MainActivity extends Activity {
         // of the theme's own panel colour - violet on the purple theme,
         // green on the green theme - and the exact match lifts it
         // hardest with a closing hairline in the theme's heading ink.
-        // The matched symbol keeps the body's ink; the green/red price
-        // tail is the quote's own, set in the spans above, and survives
-        // all of this untouched. The highlight is a fact of the QUERY,
-        // never of the selection: a row lights because it matches,
-        // whether or not it has been tapped.
+        // The matched symbol keeps the body's ink. The highlight is a
+        // fact of the QUERY, never of the selection: a row lights because
+        // it matches, whether or not it has been tapped.
         if (q == null || q.isEmpty() || !symbol.startsWith(q)) {
             row.setBackground(null);
             return;
@@ -5401,11 +5320,16 @@ public class MainActivity extends Activity {
             if (i > 0) {
                 sb.append('\n');
             }
-            // Owner order 2026-11-24: "move the current price and
-            // percentage in front of the scrip, right now they are below net
-            // delta." The money group now LEADS the row, so a leader reads
-            // price first and its volumes after it: the day's price is the
-            // first thing the eye lands on, and NET DELTA closes the block.
+            // Owner order 2026-11-25 (latest, "have the scrip first then
+            // have the current price and then the percentage"): the
+            // numbered scrip OPENS the row, its money follows on the same
+            // line, and the volumes with NET DELTA close it. This is the
+            // exact order CUSTOM SCRIPS OF VOLUME prints now, so one scrip
+            // reads the same way on both tiles.
+            sb.append(String.format(Locale.US, "%d. %s", i + 1, row.symbol));
+            if (row.price != null || row.changePct != null) {
+                sb.append("  ");
+            }
             if (row.price != null) {
                 int priceFrom = sb.length();
                 sb.append(String.format(Locale.US, "PKR %,.2f", row.price));
@@ -5426,10 +5350,6 @@ public class MainActivity extends Activity {
                         ? R.color.green : R.color.red});
                 glyphs.add(new int[]{from, from + 1});
             }
-            if (row.price != null || row.changePct != null) {
-                sb.append("   ");
-            }
-            sb.append(String.format(Locale.US, "%d. %s", i + 1, row.symbol));
             if (row.hasSplit()) {
                 // Owner order 2026-11-06: B, S and U share the first line;
                 // the venue's total T starts the next one. U is shown
@@ -5491,8 +5411,6 @@ public class MainActivity extends Activity {
                     spans.add(new int[]{totalFrom, sb.length(), R.color.blue});
                 }
             }
-            // Owner order 2026-11-24: the money line is gone from this
-            // station - it opens the row now, in front of the scrip.
         }
         SpannableString sp = new SpannableString(sb.toString());
         for (int[] span : spans) {

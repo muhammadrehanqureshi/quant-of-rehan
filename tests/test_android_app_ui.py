@@ -559,28 +559,27 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("Owner order 2026-11-05: EVERY print the relay holds",
                       self.main)
 
-    def test_a_search_row_carries_the_live_book(self):
-        """Owner order 2026-11-05 ("you just got the SEARCH function there,
-        I should be able to see current bid/ask/volume for each stock that
-        I search"): the ORDER FLOW result row IS the live two-way book -
-        bid, ask and total volume beside the ticker - from the same
-        /orderflow answer the page already reads, and a tap adds the
-        scrip's own four part answer.
+    def test_an_order_flow_row_is_the_scrip_alone(self):
+        """Owner order 2026-11-25 (latest): "I don't want to see the details
+        while I'm still searching and haven't selected any scrip." The ORDER
+        FLOW list row is the scrip alone, the CUSTOM SCRIPS OF VOL. menu's own
+        option, and a tap opens that scrip's own answer from the same
+        /orderflow read the page already holds. The four-column quote row and
+        its header are retired with it.
         """
         self.assertIn("orderFlowResults.addView(flowTableRow(row, query));",
                       self.main)
         self.assertIn("private View flowTableRow(", self.main)
-        self.assertIn("private TextView flowCell(", self.main)
-        self.assertIn("private View flowTableHeader()", self.main)
-        # Owner order 2026-11-22 ("it's showing so much info without me even
-        # tapping on a particular stock"): the list is four columns, and the
-        # B/S/U/T split belongs to the scrip he taps.
-        for label in ("SYMBOL", "LAST", "CHG%", "VOL"):
-            with self.subTest(column=label):
-                self.assertIn('"' + label + '"', self.main)
-        self.assertNotIn('"BID QTY", "BID", "ASK"', self.main)
+        row = self.main[self.main.index("private View flowTableRow("):]
+        row = row[:row.index("private void pickFlow(")]
+        self.assertIn("TextView line = menuRow(row.symbol);", row)
+        self.assertIn("line.setOnClickListener(v -> pickFlow(row.symbol));", row)
+        self.assertNotIn("PKR", row, "no quote in the list")
+        self.assertNotIn("flowCell", row)
+        self.assertNotIn("private View flowTableHeader()", self.main)
+        self.assertNotIn("FLOW_COLUMNS", self.main)
+        self.assertNotIn("private void paintFlowRow(", self.main)
         self.assertIn("flowSplitText(found)", self.main)
-        self.assertIn("private void paintFlowRow(TextView[] cells", self.main)
         # Owner order 2026-11-07: the selected scrip's book is the two
         # column one below, so the old single line " & " sentence is gone.
         self.assertIn("fillFlowBook(found);", self.main)
@@ -602,13 +601,19 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn('out.changePct = number(row, "change_pct");', watcher)
         self.assertIn("Double changePct;", watcher)
 
-    def test_the_search_row_carries_the_days_high_and_low(self):
-        """Owner order 2026-11-07: H= and L= on each search row, the high
-        green and the low red, from the relay's own day range."""
-        self.assertIn('built.append(" H=");', self.main)
-        self.assertIn('built.append(" & L=");', self.main)
-        self.assertIn("quote.high != null", self.main)
-        self.assertIn("quote.low != null", self.main)
+    def test_the_search_row_carries_the_scrip_alone(self):
+        """Owner order 2026-11-25 (latest): the option under the SEARCH box is
+        the scrip alone while he types. The price, the move and the day range
+        of 2026-11-07 belong to the picked scrip's answer, so they left the
+        list with the rest of the detail; the relay still reports the range
+        (SO-3) and the parser keeps reading it.
+        """
+        row = self.main[self.main.index("private void styleSearchRow("):]
+        row = row[:row.index("private GradientDrawable highlightPlate")]
+        self.assertIn("row.setText(symbol);", row)
+        self.assertNotIn(" H=", row)
+        self.assertNotIn(" & L=", row)
+        self.assertNotIn("appendScripQuote", row)
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
                    / "pk" / "quantofrehan" / "Watcher.java").read_text(
             encoding="utf-8")
@@ -2771,10 +2776,12 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn("@+id/search_scroller", layout)
         self.assertNotIn("@+id/search_arrow", layout)
 
-    def test_a_search_option_is_the_volume_tile_s_own_scrip(self):
-        """Owner order 2026-11-23: the options read the way a scrip reads in
-        CUSTOM SCRIPS OF VOLUME, drawn by that tile's own builder, so the
-        SEARCH list never wears a second style of its own."""
+    def test_a_search_option_is_the_scrip_alone(self):
+        """Owner order 2026-11-25 (latest): "I don't want to see the details
+        while I'm still searching and haven't selected any scrip." The SEARCH
+        option is the scrip alone. CUSTOM SCRIPS OF VOLUME keeps its own
+        builder and its own order: the scrip, its current price, its
+        percentage, then the quantities."""
         main = MAIN.read_text(encoding="utf-8")
         self.assertIn("private void appendScripQuote(SpannableStringBuilder sb,",
                       main)
@@ -2784,12 +2791,14 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn("appendScripQuote(sb, quote);", reveal)
         row = main[main.index("private void styleSearchRow("):
                    main.index("private GradientDrawable highlightPlate(")]
-        self.assertIn("appendScripQuote(built, quote);", row)
-        self.assertIn('built.append(" H=");', row)
-        self.assertIn('built.append(" & L=");', row)
-        self.assertIn("row.setMinHeight(0);", row)
-        self.assertNotIn("PKR %,.2f\", quote.price", row,
-                         "the option must not rebuild the price line itself")
+        self.assertIn("row.setText(symbol);", row)
+        self.assertNotIn("appendScripQuote", row)
+        self.assertNotIn("PKR %,.2f", row)
+        # The volume tile's own order (owner order 2026-11-25): the price and
+        # the percentage stand on the scrip's line, ahead of the B line.
+        scrip = main[main.index("private void appendScripQuote("):
+                     main.index("private void colorQuantity")]
+        self.assertLess(scrip.index('"PKR %,.2f"'), scrip.index('"(B="'))
 
     def test_the_search_menu_is_the_apps_own_dropdown(self):
         """Owner order 2026-11-21: the results are the same dropdown every
@@ -2890,10 +2899,10 @@ class SearchPanelStabilityTest(unittest.TestCase):
         marker = 'PKR %,.2f'
         window = main[main.index("private void styleSearchRow("):
                       main.index("private void paintSignalInk(")]
-        # Owner order 2026-11-23: the row's price is the volume tile's own
-        # builder, so this window keeps the two restamps (the row's pinned
-        # base and its live rebuild) and the builder holds the third site.
-        self.assertIn("appendScripQuote(built, quote);", window)
+        # Owner order 2026-11-25 (latest): the list row carries no money at
+        # all, so this window's only PKR lines are the two restamps (the
+        # picked scrip's pinned base and its live rebuild).
+        self.assertNotIn("appendScripQuote", window)
         self.assertEqual(window.count(marker), 2, window.count(marker))
         scrip = main[main.index("private void appendScripQuote("):
                     main.index("private void colorQuantity")]
@@ -3513,14 +3522,13 @@ class MenuOrdersTest(unittest.TestCase):
     def test_every_price_wears_the_moves_colour(self):
         """Owner order 2026-11-01: the current price is green in profit
         and red in loss, both the PKR label and the number, on the index,
-        the leaders, the custom scrips reveal and the search rows and
-        pinned answer. A price with no percentage stays body ink."""
+        the leaders, the custom scrips reveal and the picked scrip's answer.
+        A price with no percentage stays body ink."""
         search = self.main[self.main.index("private void styleSearchRow("):]
         search = search[:search.index("private GradientDrawable highlightPlate")]
-        # Owner order 2026-11-23: a search option is the volume tile's own
-        # scrip, so its price and move are drawn by that builder; the row only
-        # proves it calls the builder and never builds a price of its own.
-        self.assertIn("appendScripQuote(built, quote);", search)
+        # Owner order 2026-11-25 (latest): the row carries the scrip alone,
+        # so there is no price in it to ink.
+        self.assertNotIn("PKR %,.2f", search, "no money in the list")
         scrip = self.main[self.main.index("private void appendScripQuote("):]
         scrip = scrip[:scrip.index("private void colorQuantity")]
         self.assertIn("priceFrom, sb.length(), 0", scrip)
