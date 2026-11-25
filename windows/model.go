@@ -196,6 +196,13 @@ const appVersion = "4.0.21"
 // 3.8.34, the gate drawn as one of the build's own tiles with its blinking box
 // cursor, and the KSE100 leaders' U= and & T= back on shared columns.
 //
+// Build 170 is 4.3.2, the owner's 2026-11-25 order: the percentage and the PKR
+// label step one cell left on BIG BUYING NOW and BIG SELLING NOW while each
+// price keeps its own field, the ALERTS LOG opens one more space between the
+// scrip and were bought or were sold and holds one width for the verb so at
+// starts on one cell for either side, and a value the relay never sent reads
+// N/A instead of n/a.
+//
 // Build 169 is 4.3.1, the same day's next order: both ALERTS boards wear the
 // heading ink every other tile wears, each transaction at or above 50k stands as
 // its own row, the ALERTS LOG reads in columns from the quantity onwards, and the
@@ -242,7 +249,7 @@ const appVersion = "4.0.21"
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.3.1"
+const hudBuild = "4.3.2"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

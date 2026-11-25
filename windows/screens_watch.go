@@ -78,18 +78,18 @@ func (a *App) watchSorted() []FlowRow {
 	return rows
 }
 
-// watchNum is one price the page prints, n/a when the relay has not sent it.
+// watchNum is one price the page prints, N/A when the relay has not sent it.
 func watchNum(p *float64) string {
 	if p == nil {
-		return "n/a"
+		return "N/A"
 	}
 	return flowPrice(*p)
 }
 
-// watchVol is one volume the page prints, n/a when the relay has not sent it.
+// watchVol is one volume the page prints, N/A when the relay has not sent it.
 func watchVol(p *int64) string {
 	if p == nil {
-		return "n/a"
+		return "N/A"
 	}
 	return commaInt(*p)
 }
@@ -98,7 +98,7 @@ func watchVol(p *int64) string {
 // with no minus anywhere in the build.
 func netDeltaText(r FlowRow) string {
 	if !r.Measured() {
-		return "n/a"
+		return "N/A"
 	}
 	return signedCompact(*r.Buy - *r.Sell)
 }
@@ -243,7 +243,7 @@ func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 		if r.ChangePct != nil {
 			chg, chgCol = changeText(*r.ChangePct), a.dirColor(*r.ChangePct)
 		}
-		px := "n/a"
+		px := "N/A"
 		if r.Price > 0 {
 			px = flowPrice(r.Price)
 		}

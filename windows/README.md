@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 169
+# Quant of Rehan for Windows (console edition), build 170
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 170
+
+* **Build 170 (version 4.3.2).** The percentage steps one cell left on BIG BUYING NOW and BIG SELLING NOW, so one blank cell stands between it and the quantity that follows. Only the PKR label steps one cell left on both boards; the price keeps the field it holds, so the label and its value stand one blank apart and the value never moves. The ALERTS LOG opens one more space between the scrip and were bought or were sold, and the verb holds one width, so the word at that leads into the price starts on one cell for a buy and a sell alike. A value the relay never sent reads N/A, never n/a. The executable's file version is `4.3.2.0`.
 
 ## What is new in build 169
 
