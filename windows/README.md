@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 171
+# Quant of Rehan for Windows (console edition), build 172
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 172
+
+* **Build 172 (version 4.3.4).** Six owner orders on one build. The yellow diamond the flagged rows carried on BIG BUYING NOW and BIG SELLING NOW is withdrawn, with the cells left in place so the symbol keeps its column. Each board row's NET DELTA is now the reading the day stood at when that transaction printed, copied onto the step and never restamped from the live pair, so two rows of the same scrip no longer show one moving number. The PRICE ALERTS tile wears the boards' own alternating shades, with the cursor row lifting over them. A price alert reads "<scrip> hit its price alert of PKR <price>", the price being the print that rang it, and the word of leads into the price column the way at does on a bought or sold row. An opened SECTORS tile keeps one blank line under its search box and its scrips stand one cell further right. T's figure is bold like B's and S's. The executable's file version is `4.3.4.0`.
 
 ## What is new in build 171
 

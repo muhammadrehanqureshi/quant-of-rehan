@@ -196,6 +196,15 @@ const appVersion = "4.0.21"
 // 3.8.34, the gate drawn as one of the build's own tiles with its blinking box
 // cursor, and the KSE100 leaders' U= and & T= back on shared columns.
 //
+// Build 172 is 4.3.4, the owner's 2026-11-25 orders: the yellow diamond the
+// flagged rows carried is gone from BIG BUYING NOW and BIG SELLING NOW, each
+// row's NET DELTA is the reading at the moment that transaction printed
+// instead of the live pair restamped onto it, the PRICE ALERTS tile wears the
+// boards' own alternating shades, a price alert reads "<scrip> hit its price
+// alert of PKR <price>", an opened SECTORS tile keeps one blank line under its
+// search box with the scrips one cell further right, and T's figure is bold
+// like B's and S's.
+//
 // Build 171 is 4.3.3, the owner's 2026-11-25 next order: the post-market
 // window (15:32 to 15:49 Monday to Thursday, 16:32 to 16:49 on Friday) is a
 // scanning window whose post-close session prints real trades, so the HUD's
@@ -255,7 +264,7 @@ const appVersion = "4.0.21"
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.3.3"
+const hudBuild = "4.3.4"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

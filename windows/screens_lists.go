@@ -81,9 +81,11 @@ func (a *App) scrollbar(c *Canvas, x, y, h int, l *listView) {
 	}
 }
 
-// zebra tints every other item of a list and makes its rows clickable: a click
-// opens the symbol in Search.
-func (a *App) zebra(c *Canvas, x, y, w, rows, i int, sym string) {
+// zebraBand is the one alternating ground every list wears: every other item
+// is lifted 5% toward the accent, and the row under the mouse lifts 12%. Owner
+// order 2026-11-25: the PRICE ALERTS tile takes the BIG BUYING NOW tile's own
+// shades, so the band is its own helper with no click of its own.
+func (a *App) zebraBand(c *Canvas, x, y, w, rows, i int) {
 	th := a.th
 	hover := a.hovering(x, y, w, rows)
 	for r := 0; r < rows; r++ {
@@ -98,6 +100,12 @@ func (a *App) zebra(c *Canvas, x, y, w, rows, i int, sym string) {
 			c.Set(x+k, y+r, ' ', th.Text, bg, false)
 		}
 	}
+}
+
+// zebra tints every other item of a list and makes its rows clickable: a click
+// opens the symbol in Search.
+func (a *App) zebra(c *Canvas, x, y, w, rows, i int, sym string) {
+	a.zebraBand(c, x, y, w, rows, i)
 	a.addHit(x, y, w, rows, func() { a.openSymbol(sym) })
 }
 
@@ -994,10 +1002,8 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	// hot diamond, like every other tile.
 	c.Put(x+2, y, '◆', th.Hot, false)
 	a.drawSectorSearch(c, ix, iy+1, iw, true)
-	// Owner order 2026-11-20: the field is on iy+1 and the table starts on the
-	// row under it. The blank separator row is gone, so an opened sector shows
-	// four of its scrips in the height the scanner gives this tile, and the
-	// owner no longer scrolls to read the fourth.
+	// Owner order 2026-11-25: one blank line stands between the search box and
+	// the scrips under it, and the scrips step one cell to the right.
 	groups := a.sectorGroups()
 	if a.sectorChoice < 0 || a.sectorChoice >= len(groups) {
 		a.sectorOpen = false
@@ -1018,17 +1024,17 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	spans = append(spans, Span{"  ·  ", th.Soft, false}, Span{detail, th.Soft, false})
 	c.Spans(ix, iy, iw, spans)
 	if len(all) == 0 {
-		c.Text(ix, iy+2, iw, "None of this sector's scrips is in KMIALLSHR right now.", th.Soft, false)
+		c.Text(ix+2, iy+3, max(1, iw-2), "None of this sector's scrips is in KMIALLSHR right now.", th.Soft, false)
 		return
 	}
 	if len(member) == 0 {
-		c.Text(ix, iy+2, iw, "No scrip in this sector starts with "+a.sectorQueryText()+".", th.Soft, false)
+		c.Text(ix+2, iy+3, max(1, iw-2), "No scrip in this sector starts with "+a.sectorQueryText()+".", th.Soft, false)
 		return
 	}
 	// Owner order 2026-11-19 (latest): an opened sector always shows five
 	// scrips, so one selection reads the same height as the next, and the rest
 	// of its scrips are a scroll away.
-	rows := min(sectorStockRows, ih-2)
+	rows := min(sectorStockRows, ih-3)
 	if rows < 1 {
 		return
 	}
@@ -1037,16 +1043,16 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 	cw := contentW(&a.lvSectorStk, iw)
 	for n := 0; n < a.lvSectorStk.view; n++ {
 		i := a.lvSectorStk.off + n
-		if i >= len(member) || iy+2+n >= iy+ih {
+		if i >= len(member) || iy+3+n >= iy+ih {
 			break
 		}
 		sym := member[i]
-		ry := iy + 2 + n
+		ry := iy + 3 + n
 		a.selectRow(c, ix, ry, cw, false, func() { a.openSymbol(sym) })
 		const priceW = 8
 		priceX := ix + cw - quoteWidth(priceW)
-		nameW := max(1, priceX-(ix+1)-2)
-		c.Text(ix+1, ry, nameW, fit(fmt.Sprintf("%3d. %-9s", i+1, sym), nameW), th.Hot, true)
+		nameW := max(1, priceX-(ix+2)-2)
+		c.Text(ix+2, ry, nameW, fit(fmt.Sprintf("%3d. %-9s", i+1, sym), nameW), th.Hot, true)
 		if q, ok := tbl[sym]; ok && q.Price > 0 {
 			// Owner order 2026-11-19: PKR holds one column, the price its own
 			// field, and the arrow keeps one cell before the percentage, exactly
@@ -1054,7 +1060,7 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 			a.drawQuote(c, priceX, ry, priceW, commaFloat(q.Price, 2), q.ChangePct, "px:"+sym)
 		}
 	}
-	a.scrollbar(c, ix+iw-1, iy+2, a.lvSectorStk.view, &a.lvSectorStk)
+	a.scrollbar(c, ix+iw-1, iy+3, a.lvSectorStk.view, &a.lvSectorStk)
 }
 
 // moveSectorChoice moves the SECTORS selection by d rows of the visible list,
@@ -1603,12 +1609,11 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		ry := iy + n
 		pxKey := "px:" + b.Symbol
 		a.zebra(c, ix, ry, cw, 1, i, b.Symbol)
-		star := "  "
-		if b.Flagged {
-			star = "◆ "
-		}
+		// Owner order 2026-11-25: the yellow diamond the flagged rows carried is
+		// withdrawn from both boards. The cells stay, so the symbol keeps its
+		// column and the rows still line up with the PRICE ALERTS tile below.
 		c.Text(ix, ry, 4, fmt.Sprintf("%2d.", i+1), th.Soft, false)
-		c.Text(ix+4, ry, 2, star, th.Warn, true)
+		c.Text(ix+4, ry, 2, "  ", th.Warn, false)
 		c.Text(ix+6, ry, 8, b.Symbol, th.Hot, true)
 		// Owner order 2026-11-16: both boards name the current price with PKR.
 		// Owner order 2026-11-20 (latest): PKR stands on one column and the price
@@ -1649,7 +1654,14 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		// Owner order 2026-11-23 (latest): NET DELTA and its figure stand right
 		// after the bar, and the figure's last cell closes the row.
 		if lay.netW > 0 {
-			net := barBuy - barSell
+			// Owner order 2026-11-25: the figure is the NET DELTA the day stood
+			// at when THIS transaction printed, never the live pair restamped
+			// onto an old row. A relay without the measured pair keeps the live
+			// fallback, so the tile never invents a number it did not receive.
+			net := b.Net
+			if !b.NetKnown {
+				net = barBuy - barSell
+			}
 			ink, bold := th.Soft, false
 			switch {
 			case net > 0:
@@ -1853,12 +1865,22 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 		// price or move. A live quote alone must not narrow a plain sentence.
 		showGroup := f.Price > 0 || f.ChangePct != nil
 		text := f.Text
+		// Owner order 2026-11-25: a price alert reads "<scrip> hit its price
+		// alert of PKR <price>", and the word of leads into the price column
+		// the way at leads into it on a bought or sold row.
 		if at := strings.Index(text, " at PKR "); at >= 0 {
 			stem := strings.TrimRight(text[:at], " .")
 			if showGroup {
 				// Owner order 2026-11-19: bought and sold lead into the price
 				// column with the word at, never a full stop.
 				text = stem + " at"
+			} else {
+				text = stem + "."
+			}
+		} else if at := strings.Index(text, " of PKR "); at >= 0 {
+			stem := strings.TrimRight(text[:at], " .")
+			if showGroup {
+				text = stem + " of"
 			} else {
 				text = stem + "."
 			}
@@ -1869,6 +1891,13 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 				stem := strings.TrimRight(detail[:at], " .")
 				if showGroup {
 					detail = stem + " at"
+				} else {
+					detail = stem + "."
+				}
+			} else if at := strings.Index(detail, " of PKR "); at >= 0 {
+				stem := strings.TrimRight(detail[:at], " .")
+				if showGroup {
+					detail = stem + " of"
 				} else {
 					detail = stem + "."
 				}

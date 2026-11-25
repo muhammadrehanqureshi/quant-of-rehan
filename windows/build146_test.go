@@ -94,8 +94,10 @@ func TestBuild146OpenSectorShowsFourScrips(t *testing.T) {
 	if a.lvSectorStk.total != 4 {
 		t.Fatalf("the open sector lists %d scrips, want four", a.lvSectorStk.total)
 	}
-	if a.lvSectorStk.view != 4 {
-		t.Fatalf("the open sector shows %d scrips, want four", a.lvSectorStk.view)
+	// Owner order 2026-11-25: one blank line stands under the sector's search
+	// box, so this height shows three scrips and the fourth is a scroll away.
+	if a.lvSectorStk.view != 3 {
+		t.Fatalf("the open sector shows %d scrips, want three", a.lvSectorStk.view)
 	}
 }
 

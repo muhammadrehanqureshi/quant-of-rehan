@@ -46,6 +46,11 @@ type flowEvt struct {
 	px   float64
 	side int8     // +1 bought, -1 sold, 0 unclassified
 	chg  *float64 // the change the quote carried when this step printed
+	// Owner order 2026-11-25: NET DELTA belongs to the print, so the day's
+	// measured buying minus selling is copied here when the step is recorded
+	// and never read live again. A board row is a receipt, not a live figure.
+	net      int64
+	netKnown bool
 }
 
 // sideBuy and sideSell index the per side alert memory.
@@ -68,7 +73,10 @@ type symFlow struct {
 	buy   int64
 	sell  int64
 	pair  bool // the relay supplied its own measured B/S pair
-	evts  []flowEvt
+	// runNet is the sided running net a relay without the measured pair gets,
+	// kept so a print can still carry its own NET DELTA.
+	runNet int64
+	evts   []flowEvt
 	alert [2]alertMem // the last flag on each side
 }
 
@@ -108,6 +116,11 @@ type FlowStat struct {
 	SellValue  float64
 	Share      float64
 	Flagged    bool
+	// Net and NetKnown are the day's buying minus selling at the moment this
+	// transaction printed (owner order 2026-11-25), copied from the step and
+	// never restamped from the live pair.
+	Net      int64
+	NetKnown bool
 }
 
 // Flow is the detector. Only the UI goroutine uses it.
@@ -149,7 +162,7 @@ func (f *Flow) Reset() {
 
 func (s *symFlow) set(now time.Time, q LiveQuote) {
 	s.have, s.t, s.px, s.vol = true, now, q.Price, q.Volume
-	s.buy, s.sell, s.pair = 0, 0, false
+	s.buy, s.sell, s.pair, s.runNet = 0, 0, false, 0
 	if b, sl, ok := relayPair(q); ok {
 		s.buy, s.sell, s.pair = b, sl, true
 	}
@@ -217,11 +230,13 @@ func (f *Flow) Observe(now time.Time, q *Quotes, trading bool) []Flag {
 				// frame. A heavy sell at the bid therefore moves S even when the
 				// last price did not move between the two frames.
 				if db > 0 {
-					sf.evts = append(sf.evts, flowEvt{t: now, dv: db, px: lq.Price, side: 1, chg: lq.ChangePct})
+					sf.evts = append(sf.evts, flowEvt{t: now, dv: db, px: lq.Price, side: 1, chg: lq.ChangePct,
+						net: b - sl, netKnown: true})
 					sf.side = 1
 				}
 				if ds > 0 {
-					sf.evts = append(sf.evts, flowEvt{t: now, dv: ds, px: lq.Price, side: -1, chg: lq.ChangePct})
+					sf.evts = append(sf.evts, flowEvt{t: now, dv: ds, px: lq.Price, side: -1, chg: lq.ChangePct,
+						net: b - sl, netKnown: true})
 					sf.side = -1
 				}
 				sf.buy, sf.sell = b, sl
@@ -241,7 +256,9 @@ func (f *Flow) Observe(now time.Time, q *Quotes, trading bool) []Flag {
 			}
 			sf.side = side
 			if dv > 0 {
-				sf.evts = append(sf.evts, flowEvt{t: now, dv: dv, px: lq.Price, side: side, chg: lq.ChangePct})
+				sf.runNet += int64(side) * dv
+				sf.evts = append(sf.evts, flowEvt{t: now, dv: dv, px: lq.Price, side: side, chg: lq.ChangePct,
+					net: sf.runNet, netKnown: true})
 			}
 		}
 		cut := now.Add(-f.cfg.Window - 5*time.Second)
@@ -454,7 +471,7 @@ func (f *Flow) Increments(now time.Time, floor int64, limit, side int) []FlowSta
 				continue
 			}
 			st := FlowStat{Side: word, Symbol: sym, Price: e.px, ChangePct: e.chg,
-				Flagged: e.dv >= f.cfg.MinShares}
+				Flagged: e.dv >= f.cfg.MinShares, Net: e.net, NetKnown: e.netKnown}
 			if side == sideSell {
 				st.SellShares = e.dv
 			} else {

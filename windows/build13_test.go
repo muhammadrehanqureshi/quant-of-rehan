@@ -108,8 +108,10 @@ func TestPriceAlertRingsOnceWhenTheTargetIsReached(t *testing.T) {
 	if n := len(a.flow.Log); n != 1 {
 		t.Fatalf("a hit rings once, not on every tick: %d entries", n)
 	}
-	if !strings.Contains(a.bannerBody, "PKR 15.50") {
-		t.Fatalf("the banner must name the target: %q", a.bannerBody)
+	// Owner order 2026-11-25: the sentence reads "<scrip> hit its price alert
+	// of PKR <price>", the price being the print that rang the alert.
+	if !strings.Contains(a.bannerBody, "hit its price alert of PKR 15.55") {
+		t.Fatalf("the banner must carry the new wording: %q", a.bannerBody)
 	}
 	a.screen = scrAlerts
 	s := plain(a)
