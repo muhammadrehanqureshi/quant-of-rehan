@@ -1220,14 +1220,15 @@ func (a *App) putBSTPacked(c *Canvas, x, y int, buy, sell, total *int64, cols bs
 			put(x+cols.unc, "U=", th.Soft, false)
 			put(x+cols.unc+2, commaInt(un), th.Warn, un > 0)
 			put(x+cols.tot, "&  T=", th.Soft, false)
-			put(x+cols.tot+5, totS, totalBlue, false)
+			// Owner order 2026-11-25: T's figure is bold like B's and S's.
+			put(x+cols.tot+5, totS, totalBlue, true)
 			return cols.tot + 5 + runeLen(totS)
 		}
 		return cols.unc
 	} else if total != nil {
 		put(x, "T=", th.Soft, false)
 		totS := commaInt(*total)
-		put(x+2, totS, totalBlue, false)
+		put(x+2, totS, totalBlue, true)
 		return 2 + runeLen(totS)
 	}
 	return 0
@@ -1284,11 +1285,12 @@ func (a *App) putBSTBare(c *Canvas, x, y int, buy, sell, total *int64, keys ...s
 			put(" U=", th.Soft, false)
 			put(strconv.FormatInt(un, 10), th.Warn, un > 0)
 			put(" & T=", th.Soft, false)
-			put(strconv.FormatInt(*total, 10), totalBlue, false)
+			// Owner order 2026-11-25: T's figure is bold like B's and S's.
+			put(strconv.FormatInt(*total, 10), totalBlue, true)
 		}
 	} else if total != nil {
 		put("T=", th.Soft, false)
-		put(strconv.FormatInt(*total, 10), totalBlue, false)
+		put(strconv.FormatInt(*total, 10), totalBlue, true)
 	}
 	return vx - x
 }
@@ -1489,11 +1491,12 @@ func (a *App) putBSTWide(c *Canvas, x, y int, buy, sell, total *int64, keys ...s
 			put("  U=", th.Soft, false)
 			put(leaderVolumeField(un), th.Warn, un > 0)
 			put("  &  T=", th.Soft, false)
-			put(leaderVolumeField(*total), totalBlue, false)
+			// Owner order 2026-11-25: T's figure is bold like B's and S's.
+			put(leaderVolumeField(*total), totalBlue, true)
 		}
 	} else if total != nil {
 		put("T=", th.Soft, false)
-		put(leaderVolumeField(*total), totalBlue, false)
+		put(leaderVolumeField(*total), totalBlue, true)
 	}
 	return vx - x
 }

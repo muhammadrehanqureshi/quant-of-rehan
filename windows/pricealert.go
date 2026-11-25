@@ -222,7 +222,10 @@ func (a *App) raisePriceAlert(p PriceAlert) {
 	if !p.Rises {
 		side = "SELL"
 	}
-	body := fmt.Sprintf("%s hit the PKR %s alert at PKR %s.", p.Symbol, p.TargetText(), commaFloat(p.Hit, 2))
+	// Owner order 2026-11-25: the ALERTS LOG sentence reads "<scrip> hit its
+	// price alert of PKR <price>", and the price it names is the print that
+	// rang the alert, the number the row's own price column carries.
+	body := fmt.Sprintf("%s hit its price alert of PKR %s.", p.Symbol, commaFloat(p.Hit, 2))
 	a.bannerTitle, a.bannerBody = "PRICE ALERT: "+p.Symbol, body
 	a.bannerUntil = a.now.Add(25 * time.Second)
 	a.bannerKind = "price"
@@ -245,8 +248,11 @@ func (a *App) raisePriceAlert(p PriceAlert) {
 		Side:      side,
 		Price:     p.Hit,
 		ChangePct: pct,
-		Text:      p.Symbol + " hit its price alert",
-		Detail:    body,
+		// Owner order 2026-11-25: the row is the one sentence. The detail
+		// sentence is left empty because the ALERTS LOG joins it to the text,
+		// which would print the same words twice; the banner and the toast
+		// already take their own copy above.
+		Text: fmt.Sprintf("%s hit its price alert of PKR %s", p.Symbol, commaFloat(p.Hit, 2)),
 	})
 }
 
@@ -262,6 +268,9 @@ func (a *App) drawPriceTile(c *Canvas, x, y, w, h int) {
 		ry := iy + i
 		cur := a.alertFocus == 3 && a.priceCursor == i
 		slot := i
+		// Owner order 2026-11-25: the slots wear the BIG BUYING NOW tile's own
+		// alternating shades, with the cursor row lifting over them.
+		a.zebraBand(c, ix, ry, iw, 1, i)
 		bg := a.selectRow(c, ix, ry, iw, cur, func() { a.alertFocus, a.priceCursor = 3, slot })
 		mark := ' '
 		if cur {
