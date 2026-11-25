@@ -56,7 +56,9 @@ func TestBuild170TheBoardsStepThePercentageAndThePkrLabelLeft(t *testing.T) {
 // and were bought or were sold, and the verb holds one width, so at starts on
 // one cell for a buy and a sell alike.
 func TestBuild170TheLogSpacesTheScripFromWereAndAlignsAt(t *testing.T) {
-	a := demoApp(t, 120, 30)
+	// The log gives its sentence the cells it needs at this width, the size
+	// the ALERTS page's own column laws are read at.
+	a := demoApp(t, 158, 41)
 	a.screen = scrAlerts
 	up := 10.01
 	flags := []Flag{
