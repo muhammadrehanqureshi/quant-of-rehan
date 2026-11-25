@@ -248,60 +248,53 @@
                 android:background="@drawable/field_bg"
                 android:orientation="vertical">
 
-                <EditText
-                    android:id="@+id/search_input"
-                    android:layout_width="match_parent"
-                    android:layout_height="43dp"
-                    android:background="@null"
-                    android:gravity="center_vertical"
-                    android:hint="@string/search_hint"
-                    android:imeOptions="actionSearch"
-                    android:includeFontPadding="false"
-                    android:inputType="textCapCharacters"
-                    android:maxLines="1"
-                    android:paddingLeft="10dp"
-                    android:paddingRight="10dp"
-                    android:paddingTop="3dp"
-                    android:paddingBottom="3dp"
-                    android:textColor="@color/text_bright"
-                    android:textColorHint="@color/text_soft"
-                    android:textSize="13sp"/>
-
-                <!-- Owner order 2026-11-22 ("everything is so far apart"):
-                     the scrips stand in a fixed window of six rows with the
-                     diamond's own track beside them, the SECTORS tile's law,
-                     so the whole list never stretches the tile. -->
+                <!-- Owner order 2026-11-25: the SEARCH box IS the CUSTOM
+                     SCRIPS OF VOL. box. One plate holds the centred face and
+                     its caret at the trailing edge, and the matches stand
+                     inside that same plate as the volume menu's own rows,
+                     with no pill background and no track of their own. The
+                     six-row window and its diamond are retired with the
+                     tall list the owner struck out. -->
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
 
-                    <ScrollView
-                        android:id="@+id/search_scroll"
+                    <EditText
+                        android:id="@+id/search_input"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false"
-                        android:paddingLeft="4dp"
-                        android:paddingRight="4dp"
-                        android:scrollbars="none"
-                        android:visibility="gone">
+                        android:layout_height="43dp"
+                        android:background="@null"
+                        android:gravity="center"
+                        android:hint="@string/search_hint"
+                        android:imeOptions="actionSearch"
+                        android:includeFontPadding="false"
+                        android:inputType="textCapCharacters"
+                        android:maxLines="1"
+                        android:paddingLeft="10dp"
+                        android:paddingRight="10dp"
+                        android:paddingTop="3dp"
+                        android:paddingBottom="3dp"
+                        android:textColor="@color/text_bright"
+                        android:textColorHint="@color/text_soft"
+                        android:textSize="13sp"/>
 
-                        <LinearLayout
-                            android:id="@+id/search_results"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:paddingTop="3dp"
-                            android:paddingBottom="3dp"
-                            android:visibility="gone"/>
-                    </ScrollView>
-
-                    <pk.quantofrehan.OrnamentScroller
-                        android:id="@+id/search_scroller"
-                        android:layout_width="14dp"
-                        android:layout_height="match_parent"
+                    <ImageView
+                        android:id="@+id/search_arrow"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
                         android:layout_gravity="end|top"
-                        android:visibility="gone"/>
+                        android:layout_marginTop="11dp"
+                        android:layout_marginEnd="14dp"
+                        android:contentDescription="@string/cd_dropdown"
+                        android:src="@drawable/dropdown_arrow"/>
                 </FrameLayout>
+
+                <LinearLayout
+                    android:id="@+id/search_results"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone"/>
 
             </LinearLayout>
 
@@ -360,56 +353,49 @@
                 android:background="@drawable/field_bg"
                 android:orientation="vertical">
 
-                <EditText
-                    android:id="@+id/order_flow_input"
-                    android:layout_width="match_parent"
-                    android:layout_height="43dp"
-                    android:background="@null"
-                    android:gravity="center_vertical"
-                    android:hint="@string/order_flow_hint"
-                    android:imeOptions="actionSearch"
-                    android:includeFontPadding="false"
-                    android:inputType="textCapCharacters"
-                    android:maxLines="1"
-                    android:paddingLeft="10dp"
-                    android:paddingRight="10dp"
-                    android:paddingTop="3dp"
-                    android:paddingBottom="3dp"
-                    android:textColor="@color/text_bright"
-                    android:textColorHint="@color/text_soft"
-                    android:textSize="13sp"/>
-
+                <!-- Owner order 2026-11-25: the ORDER FLOW box wears the
+                     CUSTOM SCRIPS OF VOL. box's own face, caret and menu,
+                     exactly as the SEARCH box does. -->
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
 
-                    <ScrollView
-                        android:id="@+id/order_flow_scroll"
+                    <EditText
+                        android:id="@+id/order_flow_input"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false"
-                        android:paddingLeft="4dp"
-                        android:paddingRight="4dp"
-                        android:scrollbars="none"
-                        android:visibility="gone">
+                        android:layout_height="43dp"
+                        android:background="@null"
+                        android:gravity="center"
+                        android:hint="@string/order_flow_hint"
+                        android:imeOptions="actionSearch"
+                        android:includeFontPadding="false"
+                        android:inputType="textCapCharacters"
+                        android:maxLines="1"
+                        android:paddingLeft="10dp"
+                        android:paddingRight="10dp"
+                        android:paddingTop="3dp"
+                        android:paddingBottom="3dp"
+                        android:textColor="@color/text_bright"
+                        android:textColorHint="@color/text_soft"
+                        android:textSize="13sp"/>
 
-                        <LinearLayout
-                            android:id="@+id/order_flow_results"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:paddingTop="3dp"
-                            android:paddingBottom="3dp"
-                            android:visibility="gone"/>
-                    </ScrollView>
-
-                    <pk.quantofrehan.OrnamentScroller
-                        android:id="@+id/order_flow_scroller"
-                        android:layout_width="14dp"
-                        android:layout_height="match_parent"
+                    <ImageView
+                        android:id="@+id/order_flow_arrow"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
                         android:layout_gravity="end|top"
-                        android:visibility="gone"/>
+                        android:layout_marginTop="11dp"
+                        android:layout_marginEnd="14dp"
+                        android:contentDescription="@string/cd_dropdown"
+                        android:src="@drawable/dropdown_arrow"/>
                 </FrameLayout>
+
+                <LinearLayout
+                    android:id="@+id/order_flow_results"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone"/>
             </LinearLayout>
 
             <TextView

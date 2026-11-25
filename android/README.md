@@ -1641,6 +1641,26 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.4.10, versionCode 143.**
+
+Owner order 2026-11-25 (evening), two changes on one build:
+
+- The QUANT STATUS seconds move like a clock's. The relay's Karachi stamp is
+  still the only anchor, but its cached health answer repeated the same string
+  between reads, so the face stood still and then jumped. The tile now keeps
+  the relay's last stamp and the moment it landed, advances those seconds once
+  per second, and re-anchors the instant a new stamp arrives; a stamp the app
+  cannot read is printed exactly as it arrived.
+- The SEARCH and ORDER FLOW boxes are the CUSTOM SCRIPS OF VOL. search and
+  drop down, exactly: one field plate with the centred face, the caret at its
+  trailing edge that turns as the menu opens, and the matches standing inside
+  the same plate as the volume menu's own divided rows. The tall rounded pill
+  rows, the scroll column and the diamond track beside them are gone. An
+  option still wears nothing of its own, an empty box still lists nothing, and
+  a pick still closes the menu and leaves the scrip's details under the box.
+
+The version bump is versionCode 143 / versionName 4.4.10.
+
 **Version 4.4.9, versionCode 142.**
 
 Owner order 2026-11-25, three changes on one build:
