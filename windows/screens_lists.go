@@ -1637,12 +1637,11 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		// the old "sh" suffix is withdrawn from both tiles.
 		qtyTxt := compactNum(float64(qty))
 		if lay.chgFits && b.ChangePct != nil {
-			// Owner order 2026-11-24 (later): the percentage is right aligned in
-			// its field, so every board row's percent ends on one cell.
-			// Owner order 2026-11-25: the field steps one cell left on both
-			// boards, so one blank cell stands between the percentage and the
-			// quantity that follows it.
-			a.flashText(c, lay.chgX-1, ry, padLeft(changeText(*b.ChangePct), lay.chgW), a.dirColor(*b.ChangePct), true, pxKey)
+			// Owner order 2026-11-25 (later, build 173): the arrow and the figure
+			// start on the cells the two digit move already starts on, so a one
+			// digit move no longer stands one cell to its right and every board
+			// row's percentage reads on one column.
+			a.flashText(c, lay.chgX, ry, changeText(*b.ChangePct), a.dirColor(*b.ChangePct), true, pxKey)
 		}
 		rightAlign(c, lay.qtyX, ry, lay.qtyW, []Span{{qtyTxt, good, true}})
 		// Owner order 2026-11-12 (latest): both boards draw the one bar, so a
@@ -1949,12 +1948,12 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 				// they carry no live flash key.
 				a.drawQuote(c, groupX, row, priceW, commaFloat(f.Price, 2), nil, "")
 				if pct != nil {
-					// Owner order 2026-11-24 (later): the whole move,
-					// arrow, gap and figure, is right aligned in the eight
-					// cells the group reserves, so 5.56% ends on the cell
-					// 10.01% ends on and the price keeps its own column.
+					// Owner order 2026-11-25 (build 173): the arrow stands on one
+					// cell and the figure starts on the cell after it, on every
+					// row, so a two digit move starts on the cell a one digit move
+					// starts on instead of standing one cell to its left.
 					c.Text(groupX+quoteLabelW+priceW+quoteGap, row, quotePctW+2,
-						padLeft(changeText(*pct), quotePctW+2), a.dirColor(*pct), true)
+						changeText(*pct), a.dirColor(*pct), true)
 				}
 			} else if pct != nil {
 				a.drawQuotePct(c, groupX+quoteLabelW+priceW+quoteGap, row, *pct)

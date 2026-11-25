@@ -261,10 +261,15 @@ const appVersion = "4.0.21"
 // boards carry the NET DELTA figure alone, right after the bar, one space
 // tighter in front of it; the gate is headed SIGN IN; and the WATCH LIST page
 // stands before SETTINGS.
+// Build 173 is 4.3.5, the owner's 2026-11-25 orders: every percentage in the
+// build starts its figure on one cell, so a 10% move and above stands on the
+// column a 9% move stands on in the ALERTS LOG and on both boards; the WATCH
+// LIST page keeps one more cell between its CHANGE column and HIGH, so a two
+// digit change never runs into the high beside it.
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.3.4"
+const hudBuild = "4.3.5"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
