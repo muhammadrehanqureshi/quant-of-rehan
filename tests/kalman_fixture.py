@@ -79,7 +79,15 @@ def entry_view_stub(symbol, rows, session=None, session_rows=None):
     """
     from src.signals import kalman_zscore_vwap as zlaw
 
+    if not rows:
+        return None, "zscore_5m_not_ready"
     close = float(rows[-1].close)
+    high = max(float(bar.high) for bar in rows)
+    low = min(float(bar.low) for bar in rows)
+    # A tape that has not moved is not a setup: the plumbing fixtures carry one
+    # moving name and a flat tail, and only the moving name may be called.
+    if close <= 0 or (high - low) / close < 0.002:
+        return None, "zscore_not_stretched_below_mean"
     frames = {f"{minutes}m": {"close": round(close, 6),
                               "vwap": round(close - 0.10, 6),
                               "kalman_state": 1, "above_vwap": True,
