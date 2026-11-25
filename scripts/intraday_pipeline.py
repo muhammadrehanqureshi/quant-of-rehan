@@ -442,11 +442,11 @@ def claim_signal(day, slot: str, call_no: int = 1) -> tuple[bool, str]:
 
 
 def mtf_summary(candidate: dict | None) -> str:
-    """The opening range and its three VWAP frames as one card line, or empty."""
-    from src.signals import opening_range_vwap
+    """The spread, the three frames and the day's side as one card line."""
+    from src.signals import kalman_zscore_vwap
 
-    return opening_range_vwap.summary(
-        ((candidate or {}).get("setup") or {}).get("opening_range"))
+    return kalman_zscore_vwap.summary(
+        ((candidate or {}).get("setup") or {}).get("zscore"))
 
 
 def card_text(day, slot: str, body: str, alert: bool) -> str:
@@ -766,7 +766,7 @@ def run_scan(slot: str, capture: Path | None = None,
             "status": scanner.DATA_BLOCKED, "reason": quality.reason,
             "capture": capture_label(path, session),
             "data_quality": quality.as_dict(), "trade_state": state.to_dict(),
-            "ai": {"active": False, "reason": "the opening range law has no daily-model routing"},
+            "ai": {"active": False, "reason": "the z-score spread law has no daily-model routing"},
             "mtf": None,
             "universe_size": len(symbols),
             "universe_sha256": universe_fingerprint(symbols),
@@ -788,7 +788,7 @@ def run_scan(slot: str, capture: Path | None = None,
         print(json.dumps(payload, indent=2, allow_nan=False))
         return payload
 
-    ai_status = {"active": False, "reason": "the opening range law has no daily-model routing"}
+    ai_status = {"active": False, "reason": "the z-score spread law has no daily-model routing"}
     # The only strategy reads the three VWAP frames, so the frames are always
     # read here: passing the deployment flag would let a scan run a law it
     # cannot evaluate (owner order 2026-11-12).
@@ -804,7 +804,7 @@ def run_scan(slot: str, capture: Path | None = None,
     # market. Don't go against the market."): the ONE orchestrator consults
     # the measured memory before anything is delivered, so both the
     # one-second band loop and the scheduled slots learn from the closed
-    # trades the research archive banks. The opening range law is
+    # trades the research archive banks. The z-score spread law is
     # untouched; the memory only refuses what its own record says failed.
     adaptive_note: dict = {"memory": None, "veto": None,
                            "error": None}
@@ -1253,7 +1253,7 @@ def run_finalize(capture: Path | None = None,
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="KMIALL long-only opening range and VWAP scan")
+        description="KMIALL long-only Kalman trend and z-score spread scan")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--scan", action="store_true")
     mode.add_argument("--finalize", action="store_true")

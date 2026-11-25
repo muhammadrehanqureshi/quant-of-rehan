@@ -75,18 +75,18 @@ rather than inventing a fresher number.
   returns exactly one confirmed long under the one running law, NO TRADE, or
   DATA BLOCKED, with market context gating and late-entry refusal instead of
   any fallback signal.
-- **The one strategy**: [src/signals/opening_range_vwap.py](src/signals/opening_range_vwap.py)
-  is the running law (`opening_range_vwap_v1`, owner order 2026-11-23): the
-  opening range with the VWAP on the 5, 15 and 30 minute charts. The range is
-  the session's first 30 completed one minute bars, the latest close must sit
-  above its high inside the three range height chase cap, and every frame's
-  completed close must sit above that frame's own rolling VWAP. Every call
-  carries a score out of 100 and the day carries at most three.
-  The owner's order of 2026-11-23 removed the Kalman Trend and the z-score
-  price-VWAP spread that ran before it: `kalman_zscore_vwap.py` is deleted,
-  the ZSCORE_* constants are gone, and `kalman_trend.py` is now only the
-  historical filter the research scripts replay. Nothing in the live path
-  reads a Kalman state or standardises a spread.
+- **The one strategy**: [src/signals/kalman_zscore_vwap.py](src/signals/kalman_zscore_vwap.py)
+  is the running law (`kalman_vwap_zscore_sa_v2`, owner order 2026-11-25): the
+  Kalman Trend with the VWAP on the 5, 15 and 30 minute charts and the z-score
+  of the price minus VWAP spread. The 5 minute spread must sit at least one
+  standard deviation below its own trailing mean while the 5, 15 and 30 minute
+  Kalman states are up, the 15 and 30 minute closes must hold above their own
+  VWAP, and the entry must stand closer to that day's low than to that day's
+  high. Every call carries a score out of 100 and the day carries at most
+  three.
+  The owner's order of 2026-11-23 opening range law is removed, not disabled:
+  `opening_range_vwap.py` is deleted and the OPENING_RANGE_* constants are
+  gone. The 2% day-gain cap and the 2:1 buyer gate of 2026-11-19 still stand.
 - **Owner order 2026-11-19 (Karachi)**: all three VWAP frames stay, the call
   must come early, the pick may not already be more than 2% up on the day, and
   its measured buyers must be at least twice its measured sellers. The 5
@@ -250,8 +250,8 @@ Full detail in [charts/README.md](charts/README.md) and
 ```
 src/config.py                     the ONE configuration surface
 src/signals/momentum_scanner.py   the ONE scanner (one law, one winner)
-src/signals/opening_range_vwap.py the ONE strategy: the opening range and the 5m/15m/30m VWAP
-src/signals/kalman_trend.py       the causal Kalman filter, replayed by research only
+src/signals/kalman_zscore_vwap.py the ONE strategy: the Kalman trend, the 5m/15m/30m VWAP and the spread z-score
+src/signals/kalman_trend.py       the causal Kalman filter the running law reads
 src/signals/mtf_vwap.py           the 5, 15 and 30 minute VWAP frames
 src/signals/trade_state.py        the persisted daily state and trade lock
 src/signals/contracts.py          the typed boundary: models, faults, ingest guard
@@ -335,13 +335,12 @@ python scripts/intraday_pipeline.py --finalize
 - [android/README.md](android/README.md), [charts/README.md](charts/README.md),
   [cloud/README.md](cloud/README.md): the three components in full.
 
-## Status, 2026-11-23
+## Status, 2026-11-25
 
-- **One strategy only**: the Kalman Trend and the z-score price-VWAP spread
-  are removed, along with the earlier hybrid law, the relative strength gate,
-  the three frame VWAP pullback and the fresh one minute flip. The only entry
-  law is the opening range with the 5, 15 and 30 minute VWAP frames
-  (`opening_range_vwap_v1`), every call is scored out of 100, and the day
+- **One strategy only**: the only entry law is the Kalman Trend with the 5, 15
+  and 30 minute VWAP frames and the z-score of the price minus VWAP spread
+  (`kalman_vwap_zscore_sa_v2`), and the entry must stand closer to that day's
+  low than to that day's high. Every call is scored out of 100, and the day
   carries at most three. Owner order 2026-11-19 still stands: the 2% day-gain
   cap from the venue's previous close and the 2:1 buyer gate.
 - **Suite green**: every pull request runs `governance-guard` (the governance

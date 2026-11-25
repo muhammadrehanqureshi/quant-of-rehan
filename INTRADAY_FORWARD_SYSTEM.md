@@ -1,17 +1,17 @@
 # Intraday Forward Validation System
 
-## Active strategy, 2026-11-23 (Karachi)
+## Active strategy, 2026-11-25 (Karachi)
 
-The only intraday strategy is `opening_range_vwap_v1` (owner order 2026-11-23):
-the opening range with the VWAP on the 5, 15 and 30 minute charts
-(src/signals/opening_range_vwap.py). The range is the session's first 30
-completed one minute bars, every one of those minutes present; the latest
-completed close must hold above the range high by no more than three range
-heights; and the 5, 15 and 30 minute frames must each close above their own
-rolling VWAP. The Kalman Trend and the z-score price-VWAP spread are removed,
-not disabled: `kalman_zscore_vwap.py` is deleted and the ZSCORE_* constants
-are gone. `kalman_trend.py` survives only as the causal filter the historical
-research scripts replay, and no live entry reads a Kalman state.
+The only intraday strategy is `kalman_vwap_zscore_sa_v2` (owner order
+2026-11-25): the Kalman Trend with the VWAP on the 5, 15 and 30 minute charts
+and the z-score of the price minus VWAP spread
+(src/signals/kalman_zscore_vwap.py). The 5 minute spread must sit at least one
+standard deviation below its own trailing mean while the 5, 15 and 30 minute
+Kalman states are up; the 15 and 30 minute frames must each close above their
+own rolling VWAP; and the entry price must stand closer to that day's low
+than to that day's high. The opening range law of 2026-11-23 is removed, not
+disabled: `opening_range_vwap.py` is deleted and the OPENING_RANGE_*
+constants are gone.
 
 Every call carries a score out of 100, and the day carries at most three
 calls (`MAX_TRADES_PER_DAY`). The plan is unchanged: paper entry at the last
