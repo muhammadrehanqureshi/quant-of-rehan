@@ -65,3 +65,41 @@ def setup_values(minute: int) -> tuple:
 def setup_rows(scanner, opens, count: int = FULL_MINUTES):
     return [scanner.MinuteBar(opens + timedelta(minutes=i), *setup_values(i))
             for i in range(count)]
+
+
+def entry_view_stub(symbol, rows, session=None, session_rows=None):
+    """A legal z-score entry for PLUMBING tests, built from the tape's close.
+
+    Owner order 2026-11-25 put a second market condition on the entry (closer
+    to the day's low than to the day's high) on top of the Kalman states and
+    the frame VWAPs. A plumbing test is about what the pipeline does with a
+    signal, not about whether one tape clears every market gate, so it stubs
+    the law's own evaluation here and lets tests/test_kalman_zscore_vwap.py
+    hold the gates themselves.
+    """
+    from src.signals import kalman_zscore_vwap as zlaw
+
+    close = float(rows[-1].close)
+    frames = {f"{minutes}m": {"close": round(close, 6),
+                              "vwap": round(close - 0.10, 6),
+                              "kalman_state": 1, "above_vwap": True,
+                              "spread_z": -1.8, "bars": 24}
+              for minutes in (5, 15, 30)}
+    return {
+        "rule": zlaw.ZSCORE_VERSION,
+        "symbol": symbol,
+        "side": "LONG",
+        "close": round(close, 6),
+        "signal_minutes": 5,
+        "z": -1.8,
+        "z_min": 1.0,
+        "spread": -0.30,
+        "spread_mean": 0.0,
+        "spread_sigma": 0.17,
+        "spread_samples": 20,
+        "day": {"high": round(close * 1.03, 6),
+                "low": round(close * 0.99, 6),
+                "close": round(close, 6),
+                "position": 0.33, "side": "LOW", "bars": len(rows)},
+        "frames": frames,
+    }, "ok"

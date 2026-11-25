@@ -257,8 +257,14 @@ class ScheduledScanTest(unittest.IsolatedAsyncioTestCase):
         # start works at once and joins the grid from the next fire on).
         self.clock_start = OPEN_AT + timedelta(minutes=1)
         self.clock.now = self.clock_start
-        report, fires = await self.run_schedule(
-            stop_after=OPEN_AT + timedelta(minutes=145))
+        # The law's market gates have their own tests; this one runs the
+        # schedule and the real pipeline, so the law's evaluation is stubbed.
+        from tests.kalman_fixture import entry_view_stub
+
+        with patch("src.signals.kalman_zscore_vwap.entry_view",
+                   entry_view_stub):
+            report, fires = await self.run_schedule(
+                stop_after=OPEN_AT + timedelta(minutes=145))
 
         scans = [(slot, moment) for action, slot, moment in fires
                  if action == "scan"]

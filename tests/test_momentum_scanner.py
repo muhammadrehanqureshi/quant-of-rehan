@@ -498,12 +498,16 @@ class TestOwnerOrderedCallWatch(unittest.TestCase):
         scanner.market_context = lambda s: {
             "median_return": -0.05, "info_score": 1.0}
 
+        from tests.kalman_fixture import entry_view_stub
+
         with patch.object(kalman_trend, "filter_series",
                           lambda closes, q, r, threshold: [
                               {"level": 0.0, "slope": 1e-4, "state": 1,
                                "flip_up": index == 0}
                               for index in range(len(closes))]), \
-                patch.object(mtf_vwap, "kalman_state", lambda bars: 1):
+                patch.object(mtf_vwap, "kalman_state", lambda bars: 1), \
+                patch("src.signals.kalman_zscore_vwap.entry_view",
+                      entry_view_stub):
             config.OWNER_ORDERED_CALLS = True
             watch = scanner.select_one(session, quality, frames=True)
             config.OWNER_ORDERED_CALLS = False
