@@ -651,6 +651,16 @@ func (a *App) trading() bool {
 	if a.demo {
 		return true
 	}
+	// Owner order 2026-11-25: the post-market window is a scan window too, and
+	// the exchange's post-close session prints real trades in it. The detector
+	// counts those prints, so the boards, the KSE100 leaders and the ALERTS LOG
+	// follow the tape to the last post-close print instead of holding the rows
+	// they carried at 15:30 (owner report: "post market results just don't get
+	// updated"). Before this law the flag was false there, so every post-market
+	// frame only reset the baseline and no print was ever recorded.
+	if inPostMarket(a.karachiNow()) {
+		return true
+	}
 	if ph := a.phase(); ph != "" {
 		return ph == "OPEN" || ph == "WARMUP"
 	}

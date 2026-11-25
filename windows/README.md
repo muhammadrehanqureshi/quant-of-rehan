@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 170
+# Quant of Rehan for Windows (console edition), build 171
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 171
+
+* **Build 171 (version 4.3.3).** The post-market window is a scanning window, and the HUD now counts what prints in it. Monday to Thursday the post-close session prints from 15:32 to 15:49, Friday from 16:32 to 16:49, and every print there is a trade like any other: the BIG BUYING NOW and BIG SELLING NOW boards take it as its own row, the KSE100 leaders and the volume tiles move with it, and the ALERTS LOG records it. Before this build the detector was switched off outside the live bands, so each post-market frame only reset its baseline and the tiles kept the rows they held at 15:30 until the day was finalized, which is what the owner saw as post-market results that never update. A print after the window closes is still ignored, and the pre-market and midday-break laws are untouched. The executable's file version is `4.3.3.0`.
 
 ## What is new in build 170
 
