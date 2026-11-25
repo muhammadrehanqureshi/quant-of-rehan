@@ -1,14 +1,16 @@
 """The authoritative intraday scanner: one strategy, the one the owner named.
 
-Owner order 2026-11-23 (Karachi): the day trading strategy is the opening
-range with the VWAP on the 5, 15 and 30 minute charts
-(src/signals/opening_range_vwap.py). The Kalman Trend and the z-score
-price-VWAP spread that ran before it are removed, not disabled. The capture
+Owner order 2026-11-25 (Karachi, latest): the day trading strategy is the
+Kalman Trend with the VWAP on the 5, 15 and 30 minute charts and the z-score
+of the price minus VWAP spread, and the entry price must sit closer to that
+day's low than to that day's high (src/signals/kalman_zscore_vwap.py). The
+opening range law that ran before it is removed, not disabled. The capture
 validation and the public SessionData/ScanResult contracts stay stable for
-all runners. The scanner builds its single entry through
-src/signals/opening_range_vwap.py: the session's first 30 completed minutes
-form the range, the latest completed close must hold above its high inside
-the chase cap, and all three frames' closes must sit above their own VWAP.
+all runners. The scanner builds its single entry through that law: the 5
+minute spread must sit at least ZSCORE_Z_MIN standard deviations below its
+own trailing mean while the 5, 15 and 30 minute Kalman states are up, the 15
+and 30 minute closes must hold above their own VWAP, and the entry must
+stand on the low side of the day's range.
 
 Every call carries a score out of 100 and the day carries at most three
 (config.MAX_TRADES_PER_DAY). Owner order 2026-11-19 still stands: the pick
@@ -32,7 +34,7 @@ from statistics import median
 from src import config
 from src.data import tape_bars
 from src.data.sessions import KARACHI, is_trading_day, open_time
-from src.signals import opening_range_vwap
+from src.signals import kalman_zscore_vwap
 
 DATA_BLOCKED = "DATA_BLOCKED"
 NO_TRADE = "NO_TRADE"
@@ -185,7 +187,7 @@ class ScanResult:
     ranked: list[dict] = field(default_factory=list)
     coverage_text: str = ""
     # Why no candidate: the per-gate rejection counts summed across the whole
-    # universe during this scan (src/signals/opening_range_vwap.py fills it).
+    # universe during this scan (src/signals/kalman_zscore_vwap.py fills it).
     # A NO
     # TRADE can
     # now name the gates that ran and how many symbols each one rejected,
@@ -674,7 +676,7 @@ def _wilder_rsi(closes: list[float], period: int = 14) -> float | None:
 def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData,
                  tally: dict | None = None,
                  frames: bool = False) -> dict | None:
-    """Score one symbol under the opening range and three VWAP frame law.
+    """Score one symbol under the Kalman trend and z-score spread law.
 
     `frames` says whether this deployment reads the 5 minute, 15 minute and
     30 minute VWAP frames (src/signals/mtf_vwap.py). The one running law
@@ -682,25 +684,25 @@ def score_symbol(symbol: str, rows: list[MinuteBar], session: SessionData,
     reason is named; the live pipeline passes the deployment flag from
     src/config.py.
     """
-    return opening_range_vwap.candidate(symbol, rows, session, tally,
+    return kalman_zscore_vwap.candidate(symbol, rows, session, tally,
                                         frames=frames)
 
 
 def _signal_extension(row: dict) -> float:
-    """The range-height extension a ranked row was built from, for ties."""
-    view = ((row.get("setup") or {}).get("opening_range") or {})
+    """The dislocation in sigmas a ranked row was built from, for ties."""
+    view = ((row.get("setup") or {}).get("zscore") or {})
     try:
-        return abs(float(view.get("extension") or 0.0))
+        return abs(float(view.get("z") or 0.0))
     except (TypeError, ValueError):
         return 0.0
 
 
 def _rank_key(row: dict) -> tuple:
-    """Highest score first; a score tie goes to the clearer breakout.
+    """Highest score first; a score tie goes to the deeper dislocation.
 
     The score is rounded for display, so two different setups can print the
     same number. Alphabetical order is never allowed to decide which of those
-    two names is called: the breakout that cleared its own range by more does.
+    two names is called: the entry that sits further below its own VWAP does.
     """
     return (-float(row.get("score") or 0.0), -_signal_extension(row),
             str(row.get("symbol") or ""))
@@ -732,7 +734,7 @@ def select_one(session: SessionData, quality: QualityReport,
     if quality.status == DATA_BLOCKED:
         return ScanResult(DATA_BLOCKED, quality.reason, quality, {}, coverage_text=coverage)
     context = market_context(session)
-    context["ai"] = {"active": False, "reason": "the opening range law does not use the daily momentum prior"}
+    context["ai"] = {"active": False, "reason": "the z-score spread law does not use the daily momentum prior"}
     tally: dict = {}
     ranked = rank_candidates(session, tally=tally, frames=frames)
     # Owner order 2026-11-21: three calls a day means three names, never the
@@ -819,17 +821,17 @@ def signal_message(candidate: dict, market: dict, entry: float,
     setup = candidate.get("setup") or {}
     stop = candidate["stop_loss"]
     strategy = candidate.get("strategy") or config.SCANNER_VERSION
-    view = setup.get("opening_range") or {}
-    rng = view.get("opening_range") or {}
-    if rng.get("high") is not None and rng.get("low") is not None:
-        reason = (f"the opening range {rng['low']:.2f} to {rng['high']:.2f} "
-                  f"is broken, with the 5m, 15m and 30m closes above their "
-                  f"own VWAP and the breakout "
-                  f"{float(view.get('extension') or 0.0):.2f} range(s) past "
-                  f"the high")
+    view = setup.get("zscore") or {}
+    day = view.get("day") or {}
+    if view.get("z") is not None and day.get("low") is not None:
+        reason = (f"the 5m price sits {abs(float(view['z'])):.2f} sigma below "
+                  f"its own VWAP mean, with the 5m, 15m and 30m Kalman states "
+                  f"up and the 15m and 30m closes above their VWAP, while "
+                  f"the entry is nearer the day's low {day['low']:.2f} than "
+                  f"its high {day['high']:.2f}")
     else:
-        reason = ("the opening range is broken with the 5m, 15m and 30m "
-                  "VWAP frames aligned")
+        reason = ("the 5m spread is stretched below its mean with the 5m, "
+                  "15m and 30m Kalman states up")
     lines = [
         "QUANT LONG SIGNAL - PAPER REFERENCE",
         "",

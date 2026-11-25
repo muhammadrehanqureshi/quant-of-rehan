@@ -161,29 +161,29 @@ class LawTest(unittest.TestCase):
 class CandidateContractTest(unittest.TestCase):
     def test_without_frames_the_law_refuses_and_names_it(self):
         """The one running law cannot be evaluated without its frames."""
-        from src.signals import opening_range_vwap
+        from src.signals import kalman_zscore_vwap
         from tests.kalman_fixture import setup_rows
 
         rows = setup_rows(scanner, SESSION_OPEN)
         tally: dict = {}
-        result = opening_range_vwap.candidate("OGDC", rows,
+        result = kalman_zscore_vwap.candidate("OGDC", rows,
                                               session_of(rows), tally)
         self.assertIsNone(result)
-        self.assertIn("opening_range_frames_not_read", tally)
+        self.assertIn("zscore_frames_not_read", tally)
 
     def test_when_the_frames_are_read_a_short_session_fails_closed(self):
-        from src.signals import opening_range_vwap
+        from src.signals import kalman_zscore_vwap
         from tests.kalman_fixture import setup_rows
 
-        # The opening range is the first 30 completed minutes, so a tape
-        # shorter than half an hour has no range to break.
+        # Twenty five minutes hold no completed five minute z history, so the
+        # fast frame cannot vote and the law names that refusal.
         rows = setup_rows(scanner, SESSION_OPEN, count=25)
         tally: dict = {}
-        result = opening_range_vwap.candidate("OGDC", rows,
+        result = kalman_zscore_vwap.candidate("OGDC", rows,
                                               session_of(rows), tally,
                                               frames=True)
         self.assertIsNone(result)
-        self.assertTrue(any(key.startswith("opening_range_") for key in tally),
+        self.assertTrue(any(key.startswith("zscore_") for key in tally),
                         tally)
 
 

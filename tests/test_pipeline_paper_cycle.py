@@ -425,9 +425,9 @@ class PipelineCycleTest(unittest.TestCase):
         text.encode("ascii")
 
     def test_full_paper_cycle(self):
-        # 11:28 is a slot with a formed opening range, a held breakout and all
-        # three frames above their own VWAP, while the fixture is still under
-        # the 2% day-gain cap and clear of the band's last-entry minute.
+        # 11:28 is a slot with the 5m spread below its mean, all three frames
+        # up and the entry nearer the day's low, while the fixture is still
+        # under the 2% day-gain cap and clear of the band's last-entry minute.
         first = self.scan("11:28")
         quality = first["data_quality"]
 

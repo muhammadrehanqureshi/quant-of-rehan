@@ -6,11 +6,15 @@ z-score price-VWAP spread. Its entry needs
 the 5 minute spread stretched below its trailing mean while the slower frames
 remain above VWAP, so this tape is shaped for exactly that:
 
-  * minutes 0 to 89 rise 0.05 a minute to 104.45, the uptrend;
-  * minutes 90 to 119 ease 0.04 a minute to 103.25, the measured 5m dip;
-  * minutes 120 to 129 turn up 0.02 a minute to 103.45;
+  * minutes 0 to 89 rise 0.016 a minute from 103.00 to 104.42, the uptrend;
+  * minutes 90 to 119 ease 0.04 a minute to 103.22, the measured 5m dip;
+  * minutes 120 to 129 turn up 0.02 a minute to 103.42, the entry close;
   * from minute 130 up 0.30 a minute, so the owner's +2% target taken at the
     entry near 103.75 is honestly touched inside the capture.
+
+The day's high is 104.46 and its low 103.17, so the entry at 103.42 stands
+0.25 above the low and 1.04 below the high: the owner's order of 2026-11-25
+(an entry closer to the day's low than to its day's high) holds on this tape.
 
 The numbers are a fixture, never a data claim or performance evidence. A
 consumer that needs the real trend reads it from its own tape; the plumbing
@@ -33,11 +37,11 @@ FULL_MINUTES = 150
 def setup_values(minute: int) -> tuple:
     """(open, high, low, close, volume) for one minute of the fixture."""
     if minute < FLAT_UNTIL:
-        price = 100.00 + 0.05 * minute
+        price = 103.00 + 0.016 * minute
     elif minute < TURN_START:
-        price = 104.45 - 0.04 * (minute - FLAT_UNTIL + 1)
+        price = 104.424 - 0.04 * (minute - FLAT_UNTIL + 1)
     elif minute < TAIL_START:
-        price = 103.25 + 0.02 * (minute - TURN_START + 1)
+        price = 103.224 + 0.02 * (minute - TURN_START + 1)
     else:
         price = 103.45 + 0.30 * (minute - TAIL_START + 1)
     return (round(price - 0.02, 4), round(price + 0.04, 4),

@@ -32,7 +32,7 @@ from src.data.sessions import KARACHI, open_time  # noqa: E402
 from src.signals import kalman_trend  # noqa: E402
 from src.signals import momentum_scanner as scanner  # noqa: E402
 from src.signals import mtf_vwap  # noqa: E402
-from src.signals import opening_range_vwap  # noqa: E402
+from src.signals import kalman_zscore_vwap  # noqa: E402
 
 
 WEDNESDAY = date(2026, 10, 7)      # Mon-Thu session: 09:32 to 15:30 PKT
@@ -374,7 +374,7 @@ class TestHighestScoreSelection(unittest.TestCase):
     def row(symbol: str, score: float, extension: float) -> dict:
         return {
             "symbol": symbol, "score": score, "strategy": "test",
-            "setup": {"opening_range": {"extension": extension}},
+            "setup": {"zscore": {"z": extension}},
             "price": {"last": 100.0}, "stop_loss": 99.0, "target": 102.0,
             "net_reward_risk": 1.5,
         }
@@ -490,8 +490,8 @@ class TestOwnerOrderedCallWatch(unittest.TestCase):
         # tail beside the one name the fixture moves.
         for index in range(70):
             bars[f"QUIET{index:02d}"] = minute_rows(150)
-        # 130 minutes in, the fixture has cleared its opening range and all
-        # three frames sit above their own VWAP (the law's entry window).
+        # 130 minutes in, the fixture's 5m spread is stretched below its mean
+        # with all three frames up and the entry nearer the day's low.
         session = session_of(bars, 130)
         quality = scanner.assess_quality(session, list(bars))
         assert quality.status != scanner.DATA_BLOCKED, quality.reason
@@ -576,8 +576,8 @@ class TestOwnerDayAndFlowGates(unittest.TestCase):
 
     def tally_for(self, session, rows):
         tally: dict = {}
-        opening_range_vwap.candidate("OGDC", rows, session, tally,
-                                     frames=True)
+        kalman_zscore_vwap.candidate("OGDC", rows, session, tally,
+                                    frames=True)
         return tally
 
     def test_a_pick_already_five_percent_up_on_the_day_is_refused(self):

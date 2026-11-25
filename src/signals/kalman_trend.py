@@ -1,9 +1,10 @@
 """The causal level plus slope Kalman, kept for the research scripts only.
 
-Owner order 2026-11-23 (Karachi) removed the Kalman Trend from the day
-trading law: the running strategy is the opening range with the 5, 15 and 30
-minute VWAP lines (src/signals/opening_range_vwap.py), and no live entry
-reads a Kalman state any more.
+Owner order 2026-11-25 (Karachi) put the Kalman Trend back into the day
+trading law: the running strategy is the Kalman Trend with the 5, 15 and 30
+minute VWAP lines and the z-score of the price minus VWAP spread
+(src/signals/kalman_zscore_vwap.py), and every live entry reads the frame
+states this filter produces.
 
 What remains here is the filter itself. ``scripts/kalman_grid_fit.py`` and
 ``scripts/backtest_eleven_intraday.py`` still replay it as historical
