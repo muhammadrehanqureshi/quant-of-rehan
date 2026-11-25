@@ -3462,18 +3462,22 @@ class MenuOrdersTest(unittest.TestCase):
         self.assertIn("showVolumeMenu(!volumeMenuOpen)", self.main)
         self.assertIn("showThemeMenu(!themeMenuOpen)", self.main)
 
-    def test_both_dropdown_carets_wear_the_themes_second_colour(self):
+    def test_every_dropdown_caret_wears_the_themes_second_colour(self):
         """Owner order 2026-11-01: the dropdown's colour follows the
         theme's second colour. Purple and yellow and green and yellow
         keep the brand gold; black and white, navy and white and orange
-        and white wear white. Both carets re-ink in the theme pass."""
+        and white wear white. Every caret re-inks in the theme pass, and
+        since owner order 2026-11-25 (evening) the SEARCH and ORDER FLOW
+        carets stand beside the volume and theme ones."""
         start = self.main.index("private void repaintDropdownArrows() {")
-        block = self.main[start:start + 800]
+        block = self.main[start:start + 1200]
         self.assertEqual(
-            block.count("ColorStateList.valueOf(themeAccentInk)"), 2)
+            block.count("ColorStateList.valueOf(themeAccentInk)"), 4)
         self.assertIn("volumeSplitArrow.setImageTintList", block)
         self.assertNotIn("sectorsArrow", block)
         self.assertIn("themeArrow.setImageTintList", block)
+        self.assertIn("searchArrow.setImageTintList", block)
+        self.assertIn("orderFlowArrow.setImageTintList", block)
         theme_pass = self.main[self.main.index(
             "private void applyTheme(int index) {"):]
         theme_pass = theme_pass[:theme_pass.index(
@@ -4110,7 +4114,7 @@ class SearchHighlightTest(unittest.TestCase):
         plate, divided like every other menu row."""
         main = MAIN.read_text(encoding="utf-8")
         block = main[main.index("private void styleSearchRow") :]
-        block = block[:block.index("/** One symbol's B, S and T")]
+        block = block[:block.index("/** One highlight plate")]
         self.assertIn("row.setBackground(null);", block)
         self.assertNotIn("highlightPlate(", block)
         flow = main[main.index("private View flowTableRow("):
