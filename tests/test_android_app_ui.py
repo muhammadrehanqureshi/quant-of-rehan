@@ -2403,9 +2403,15 @@ class VersionTest(unittest.TestCase):
         # volume drop down's own law with no caret, the QUANT STATUS clock
         # carries seconds and the date as "24 Nov 2026", and the KSE100
         # leaders put the price and its percentage in front of the scrip.
-        # They ship as 4.4.8, versionCode 141.
-        self.assertIn('android:versionName="4.4.8"', manifest)
-        self.assertIn('android:versionCode="141"', manifest)
+        # Owner order 2026-11-25 (latest): the scrip leads, then its price,
+        # then its percentage, on the KSE100 tile and in the same exact way
+        # on CUSTOM SCRIPS OF VOLUME; the SECTORS menu prints its
+        # percentages on the first price tick instead of only after a page
+        # round trip; and the SEARCH and ORDER FLOW instant searches list
+        # the scrip alone, no caret, with the details waiting on a pick.
+        # They ship as 4.4.9, versionCode 142.
+        self.assertIn('android:versionName="4.4.9"', manifest)
+        self.assertIn('android:versionCode="142"', manifest)
         # Owner order 2026-11-24: no part of either build's version reads above
         # ten, so 3.10.10 is followed by 4.0.0 and .11 never exists.
         shipped = manifest.split('android:versionName="', 1)[1].split('"', 1)[0]
@@ -2643,9 +2649,12 @@ class VersionTest(unittest.TestCase):
         # Owner order 2026-11-24: the SEARCH and ORDER FLOW menus wear the
         # volume drop down law with no caret, QUANT STATUS reads seconds and
         # the owner's date shape, and the leaders' money group stands in
-        # front of the scrip. They ship as 4.4.8, versionCode 141.
-        self.assertIn('android:versionCode="141"', manifest)
-        self.assertIn('android:versionName="4.4.8"', manifest)
+        # front of the scrip. Owner order 2026-11-25: the scrip leads then
+        # the money on both tiles, the SECTORS menu stamps its percentages on
+        # the first tick, and the instant searches list the scrip alone until
+        # a pick. They ship as 4.4.9, versionCode 142.
+        self.assertIn('android:versionCode="142"', manifest)
+        self.assertIn('android:versionName="4.4.9"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
