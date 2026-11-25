@@ -2772,7 +2772,7 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn("if (symbol.startsWith(q)) {", block)
         self.assertNotIn("if (q.isEmpty() || symbol.startsWith(q)) {", block)
         flow = main[main.index("private void renderFlowResults("):
-                    main.index("/** The header for the four-column ORDER FLOW")]
+                    main.index("private View flowTableRow(")]
         self.assertIn("if (query.isEmpty()) {", flow)
         self.assertNotIn("if (query.isEmpty() || row.symbol.startsWith(query)) {",
                          flow)
