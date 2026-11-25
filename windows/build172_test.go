@@ -137,15 +137,10 @@ func TestBuild172PriceAlertsWearTheBoardShades(t *testing.T) {
 	c := NewCanvas(120, 24, a.th.Panel)
 	a.drawPriceTile(c, 0, 0, 90, 9)
 	rows := c.PlainRows()
+	// A fresh app holds three empty slots, so each slot row carries the word.
 	var slots []int
 	for y, row := range rows {
-		body := row
-		if at := strings.IndexRune(body, '│'); at >= 0 {
-			body = body[at+1:]
-		}
-		body = strings.TrimSpace(body)
-		if strings.HasPrefix(body, "1.") || strings.HasPrefix(body, "2.") ||
-			strings.HasPrefix(body, "3.") {
+		if strings.Contains(row, "EMPTY") {
 			slots = append(slots, y)
 		}
 	}
