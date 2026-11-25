@@ -134,6 +134,9 @@ func TestBuild172PriceAlertNamesItsOwnPrice(t *testing.T) {
 // tile's own alternating shades.
 func TestBuild172PriceAlertsWearTheBoardShades(t *testing.T) {
 	a := demoApp(t, 120, 24)
+	// The cursor lifts the row it stands on, so it is parked off the tile: this
+	// test reads the alternating band alone.
+	a.alertFocus = 0
 	c := NewCanvas(120, 24, a.th.Panel)
 	a.drawPriceTile(c, 0, 0, 90, 9)
 	rows := c.PlainRows()
