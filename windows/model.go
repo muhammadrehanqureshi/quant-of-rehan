@@ -196,6 +196,12 @@ const appVersion = "4.0.21"
 // 3.8.34, the gate drawn as one of the build's own tiles with its blinking box
 // cursor, and the KSE100 leaders' U= and & T= back on shared columns.
 //
+// Build 171 is 4.3.3, the owner's 2026-11-25 next order: the post-market
+// window (15:32 to 15:49 Monday to Thursday, 16:32 to 16:49 on Friday) is a
+// scanning window whose post-close session prints real trades, so the HUD's
+// detector counts them and the boards, the KSE100 leaders and the ALERTS LOG
+// move after the close instead of holding the 15:30 rows.
+//
 // Build 170 is 4.3.2, the owner's 2026-11-25 order: the percentage and the PKR
 // label step one cell left on BIG BUYING NOW and BIG SELLING NOW while each
 // price keeps its own field, the ALERTS LOG opens one more space between the
@@ -249,7 +255,7 @@ const appVersion = "4.0.21"
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.3.2"
+const hudBuild = "4.3.3"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

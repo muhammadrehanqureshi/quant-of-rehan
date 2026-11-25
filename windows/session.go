@@ -99,6 +99,22 @@ func postWindow(p time.Time) window {
 	return weekdayPost
 }
 
+// inPostMarket is true inside the owner's post-market scanning window: 15:32
+// to 15:49 Monday to Thursday and 16:32 to 16:49 on Friday, plus the same
+// short grace inScanWindow keeps, so the feed's last post-close print is
+// counted too. Owner order 2026-11-25: the exchange's own post-close session
+// prints real trades in this window, so the HUD counts them like any other
+// trade instead of holding the live close's rows.
+func inPostMarket(t time.Time) bool {
+	p := t.In(pkt)
+	if !isMarketDay(p) {
+		return false
+	}
+	w := postWindow(p)
+	s := secondOf(p)
+	return s >= w.from*60 && s < w.to*60+scanGraceSecs
+}
+
 // Session names. They are the words the HUD shows.
 const (
 	sesClosed  = "CLOSED"
