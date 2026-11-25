@@ -153,11 +153,13 @@ func TestBuild172PriceAlertsWearTheBoardShades(t *testing.T) {
 			len(slots), strings.Join(rows, "\n"))
 	}
 	bg := func(y int) RGB { return c.Cells[y*c.W+20].BG }
+	shades := map[RGB]bool{bg(slots[0]): true, bg(slots[1]): true, bg(slots[2]): true}
 	if bg(slots[0]) == bg(slots[1]) {
 		t.Fatalf("slots 1 and 2 wear one shade")
 	}
-	if bg(slots[0]) == bg(slots[2]) {
-		t.Fatalf("slots 1 and 3 do not share the alternating shade")
+	if len(shades) != 2 {
+		t.Fatalf("the three slots wear %d shades, want the boards' two: %v %v %v",
+			len(shades), bg(slots[0]), bg(slots[1]), bg(slots[2]))
 	}
 }
 
