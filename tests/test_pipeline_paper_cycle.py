@@ -451,7 +451,8 @@ class PipelineCycleTest(unittest.TestCase):
         self.assertTrue(quality["volume_available"])
         self.assertEqual(quality["resolution"], "1-minute")
 
-        self.assertEqual(first["status"], scanner.TRADE)
+        self.assertEqual(first["status"], scanner.TRADE,
+                         (first.get("reason"), first.get("gate_tally")))
         self.assertEqual(first["eligible_count"], 1)
         winner = first["candidate"]
         self.assertEqual(winner["symbol"], WINNER)
@@ -798,8 +799,9 @@ class PipelineCycleTest(unittest.TestCase):
             payload = run_scan("11:20", self.capture)
 
         self.assertTrue(payload.get("gate_tally"),
-                        "the payload named no gate rejections"
-                        " -- the why was not measured")
+                        ("the payload named no gate rejections"
+                         " -- the why was not measured",
+                         payload.get("status"), payload.get("reason")))
         self.assertIn("status", payload)
         self.assertIn("reason", payload)
         self.assertIn("data_quality", payload)
