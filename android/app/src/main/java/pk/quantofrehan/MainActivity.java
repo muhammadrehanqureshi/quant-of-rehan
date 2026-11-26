@@ -233,6 +233,9 @@ public class MainActivity extends Activity {
     /** The word that, with the colour, carries the state. */
     private TextView statusWord;
     private TextView statusDetail, signalList;
+    /** The relay's own status detail, held so the clock can step every tick
+     *  without waiting for the next health answer (owner order 2026-11-26). */
+    private String statusDetailRaw = "";
     private TextView marketIndex, marketLeaders;
     /** W/L tile (owner order 2026-10-31): the win count, the loss count
      *  and the losing rate, each drawn from the relay's ledger - never
@@ -636,13 +639,14 @@ public class MainActivity extends Activity {
         // Owner order 2026-11-22: the box and its list are one plate, the
         // search box's own law, so the group carries the face and the box
         // itself wears nothing.
-        // Owner order 2026-11-25: the caret is the box's own roll-up and
-        // pull-down tap, the CUSTOM SCRIPS OF VOL. box's one law.
-        if (orderFlowArrow != null) {
-            orderFlowArrow.setOnClickListener(v -> toggleFlowList());
+        // Owner order 2026-11-26: the drop-down/up icon is gone from both
+        // search tiles, so the box itself brings its list back, its text and
+        // all.
+        if (orderFlowInput != null) {
+            orderFlowInput.setOnClickListener(v -> showFlowList(true));
         }
-        if (searchArrow != null) {
-            searchArrow.setOnClickListener(v -> toggleSearchList());
+        if (searchInput != null) {
+            searchInput.setOnClickListener(v -> showSearchList(true));
         }
         bigPrintsPanel = findViewById(R.id.big_prints_panel);
         bigPrintsList = findViewById(R.id.big_prints_list);
@@ -2914,6 +2918,10 @@ public class MainActivity extends Activity {
     private final Runnable tick = new Runnable() {
         @Override
         public void run() {
+            // Owner order 2026-11-26: the clock steps once a second on the
+            // tick itself, so a slow relay round can never make its seconds
+            // jump three at a time.
+            repaintClock();
             pollOnce();
             scheduleNext();
         }
@@ -3117,6 +3125,7 @@ public class MainActivity extends Activity {
         // the burn at once.
         orbGate(online);
 
+        statusDetailRaw = actualDetail;
         if (actualDetail.isEmpty()) {
             statusDetail.setText(getString(R.string.checking));
         } else {
@@ -3646,6 +3655,9 @@ public class MainActivity extends Activity {
         if (rebuild) {
             orderFlowResults.removeAllViews();
             padMenu(orderFlowResults);
+            // Owner order 2026-11-26: the hairline between the box and its
+            // first instant option, the SEARCH list's own line.
+            orderFlowResults.addView(menuDivider());
             // Owner order 2026-11-24: the scrips are the CUSTOM SCRIPS OF
             // VOL. menu's own options - the open menu's divider, the menu's
             // top and bottom air - so the two searches read as the dropdown
@@ -4639,6 +4651,9 @@ public class MainActivity extends Activity {
             // Owner order 2026-11-24: the menu's own top and bottom air, the
             // CUSTOM SCRIPS OF VOL. box's one law.
             padMenu(searchResults);
+            // Owner order 2026-11-26: one hairline stands between the letter
+            // he typed and its first instant option.
+            searchResults.addView(menuDivider());
             // Owner order 2026-10-20 (second note): every result carries the
             // stock's own price and percentage, both in the colour of its move,
             // so the list answers "which one" before a tap does. A symbol with
@@ -4687,14 +4702,70 @@ public class MainActivity extends Activity {
         centerDropdownCaret(searchArrow, searchInput, null);
     }
 
+    /**
+     * The search option's own three lines (owner order 2026-11-26: "have the
+     * current price and percentage right after the scrip on the same line and
+     * move B, S and U on the below line ... include high and low as well. Like
+     * this 'H=... & L=...' above B, S and U values").
+     *
+     * Line one is the scrip, its current price and its move; line two is the
+     * day's range; line three is the measured B, S and U. Nothing is invented
+     * for a scrip the relay has not quoted (SO-3): the price and the range
+     * print only when the relay carries them, and a scrip with no quote at
+     * all is listed bare.
+     */
+    private void appendSearchQuote(SpannableStringBuilder sb,
+                                   Watcher.Quote quote) {
+        sb.append("  ");
+        int priceFrom = sb.length();
+        sb.append(String.format(Locale.US, "PKR %,.2f", quote.price));
+        int moveInk = getColor(quote.changePct != null && quote.changePct < 0
+                ? R.color.red : R.color.green);
+        sb.setSpan(new ForegroundColorSpan(moveInk), priceFrom, sb.length(), 0);
+        if (quote.changePct != null) {
+            sb.append(' ');
+            int from = sb.length();
+            sb.append(String.format(Locale.US, "%s %.2f%%",
+                    quote.changePct >= 0 ? "\u25B2" : "\u25BC",
+                    Math.abs(quote.changePct)));
+            sb.setSpan(new ForegroundColorSpan(moveInk), from, sb.length(), 0);
+            sb.setSpan(new TypefaceSpan(ARROW_FACE), from, from + 1, 0);
+        }
+        if (quote.high != null && quote.low != null) {
+            sb.append('\n').append(String.format(Locale.US,
+                    "H=%,.2f & L=%,.2f", quote.high, quote.low));
+        }
+        if (quote.buy != null && quote.sell != null) {
+            sb.append('\n').append("B=");
+            colorQuantity(sb, quote.buy, R.color.green);
+            sb.append(", S=");
+            colorQuantity(sb, quote.sell, R.color.red);
+            if (quote.unclassified != null) {
+                sb.append(", U=");
+                int unclearFrom = sb.length();
+                sb.append(String.format(Locale.US, "%,d", quote.unclassified));
+                sb.setSpan(new ForegroundColorSpan(getColor(R.color.yellow)),
+                        unclearFrom, sb.length(), 0);
+            }
+        } else if (quote.unclassified != null) {
+            sb.append('\n').append("U=");
+            int unclearFrom = sb.length();
+            sb.append(String.format(Locale.US, "%,d", quote.unclassified));
+            sb.setSpan(new ForegroundColorSpan(getColor(R.color.yellow)),
+                    unclearFrom, sb.length(), 0);
+        }
+    }
+
     /** Colour one search row from its own live quote and its typed match. */
     private void styleSearchRow(TextView row, String symbol, String q) {
-        // Owner order 2026-11-25 (latest): "I don't want to see the details
-        // while I'm still searching and haven't selected any scrip." The
-        // option is the scrip alone, the CUSTOM SCRIPS OF VOL. menu's own
-        // one-line row; its price, move, day range and volumes are the
-        // picked scrip's answer, never the list's.
-        row.setText(symbol);
+        // Owner order 2026-11-26: the option carries the scrip and its own
+        // live quote, on the three lines appendSearchQuote builds.
+        Watcher.Quote quote = Watcher.quotes().get(symbol);
+        SpannableStringBuilder sb = new SpannableStringBuilder(symbol);
+        if (quote != null) {
+            appendSearchQuote(sb, quote);
+        }
+        row.setText(sb);
         // Owner order 2026-10-21 (15:15): a result row is body text, so it
         // carries the same 13sp as every other non-heading line, the size the
         // signal tile's own sentence uses. Its tracking is its own, a list of
@@ -5145,14 +5216,13 @@ public class MainActivity extends Activity {
      * exactly as it arrived, never guessed.
      */
     private String advanceRelayClock(String detail) {
-        int k = detail.indexOf("Karachi: ");
-        if (k < 0) {
-            return detail;
-        }
-        int start = k + "Karachi: ".length();
-        int end = start;
-        while (end < detail.length() && detail.charAt(end) != '\n') {
-            end++;
+        // Owner order 2026-11-26: the word KARACHI left the QUANT STATUS
+        // tile, so the stamp IS the detail's first line. A detail that
+        // carries no clock at all is printed exactly as it arrived.
+        int start = 0;
+        int end = detail.indexOf('\n');
+        if (end < 0) {
+            end = detail.length();
         }
         String stamp = detail.substring(start, end).trim();
         String body = stamp.endsWith(" PKT")
@@ -5178,25 +5248,39 @@ public class MainActivity extends Activity {
         }
         String shown = face.format(
                 new java.util.Date(relayClockMillis + (now - relayClockAt)));
-        return detail.substring(0, start) + shown + " PKT"
-                + detail.substring(end);
+        return shown + " PKT" + detail.substring(end);
     }
 
     private SpannableString clockSpans(String d) {
         SpannableString sp = new SpannableString(d);
-        int k = d.indexOf("Karachi: ");
-        if (k >= 0) {
-            int start = k + "Karachi: ".length();
-            int end = start;
-            while (end < d.length() && d.charAt(end) != '|'
-                    && d.charAt(end) != '\n') {
-                end++;
-            }
-            end = Math.min(end, d.length());
+        int end = d.indexOf('\n');
+        if (end < 0) {
+            end = d.length();
+        }
+        // Owner order 2026-11-26: only a stamp (a first line that ends in
+        // PKT) takes the move ink; a fault sentence stays body ink.
+        if (d.substring(0, end).contains(" PKT")) {
             sp.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
-                    start, end, 0);
+                    0, end, 0);
         }
         return sp;
+    }
+
+    /**
+     * The clock's own repaint, once per foreground tick.
+     *
+     * Owner order 2026-11-26: "the seconds on the clock are not moving in real
+     * time. There is like a delay. First it shows for example 40 seconds then
+     * after 3 seconds jumps straight to 43". The face was only rewritten when
+     * a health answer landed, so a slow round stepped the seconds by whatever
+     * the round took. The tick now re-reads the relay's own last stamp against
+     * the phone's carried time every second, so the seconds step by one.
+     */
+    private void repaintClock() {
+        if (statusDetail == null || statusDetailRaw.isEmpty()) {
+            return;
+        }
+        statusDetail.setText(clockSpans(advanceRelayClock(statusDetailRaw)));
     }
 
     /** The third card: index points and the day's volume leaders. */

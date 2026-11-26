@@ -264,7 +264,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="43dp"
                         android:background="@null"
-                        android:gravity="center"
+                        android:gravity="center_vertical|start"
                         android:hint="@string/search_hint"
                         android:imeOptions="actionSearch"
                         android:includeFontPadding="false"
@@ -286,7 +286,8 @@
                         android:layout_marginTop="11dp"
                         android:layout_marginEnd="14dp"
                         android:contentDescription="@string/cd_dropdown"
-                        android:src="@drawable/dropdown_arrow"/>
+                        android:src="@drawable/dropdown_arrow"
+                        android:visibility="gone"/>
                 </FrameLayout>
 
                 <LinearLayout
@@ -365,7 +366,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="43dp"
                         android:background="@null"
-                        android:gravity="center"
+                        android:gravity="center_vertical|start"
                         android:hint="@string/order_flow_hint"
                         android:imeOptions="actionSearch"
                         android:includeFontPadding="false"
@@ -387,7 +388,8 @@
                         android:layout_marginTop="11dp"
                         android:layout_marginEnd="14dp"
                         android:contentDescription="@string/cd_dropdown"
-                        android:src="@drawable/dropdown_arrow"/>
+                        android:src="@drawable/dropdown_arrow"
+                        android:visibility="gone"/>
                 </FrameLayout>
 
                 <LinearLayout

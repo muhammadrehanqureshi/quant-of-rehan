@@ -601,19 +601,22 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn('out.changePct = number(row, "change_pct");', watcher)
         self.assertIn("Double changePct;", watcher)
 
-    def test_the_search_row_carries_the_scrip_alone(self):
-        """Owner order 2026-11-25 (latest): the option under the SEARCH box is
-        the scrip alone while he types. The price, the move and the day range
-        of 2026-11-07 belong to the picked scrip's answer, so they left the
-        list with the rest of the detail; the relay still reports the range
-        (SO-3) and the parser keeps reading it.
-        """
+    def test_the_search_row_carries_the_scrip_and_its_quote(self):
+        """Owner order 2026-11-26: the option under the SEARCH box carries the
+        scrip's current price and percentage on the scrip's own line, the day's
+        range ("H=... & L=...") on the line under it, and the B, S and U
+        quantities under that. The range is the relay's own, never invented
+        (SO-3)."""
         row = self.main[self.main.index("private void styleSearchRow("):]
         row = row[:row.index("private GradientDrawable highlightPlate")]
-        self.assertIn("row.setText(symbol);", row)
-        self.assertNotIn(" H=", row)
-        self.assertNotIn(" & L=", row)
-        self.assertNotIn("appendScripQuote", row)
+        self.assertIn("appendSearchQuote(sb, quote);", row)
+        option = self.main[self.main.index("private void appendSearchQuote("):]
+        option = option[:option.index("private void styleSearchRow(")]
+        self.assertIn('"PKR %,.2f"', option)
+        self.assertLess(option.index('"PKR %,.2f"'),
+                        option.index('"H=%,.2f & L=%,.2f"'))
+        self.assertLess(option.index('"H=%,.2f & L=%,.2f"'),
+                        option.index('"B="'))
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
                    / "pk" / "quantofrehan" / "Watcher.java").read_text(
             encoding="utf-8")
@@ -1830,8 +1833,11 @@ class StatusPulseTest(unittest.TestCase):
         self.assertIn('"dd MMM yyyy HH:mm:ss"', clock)
         self.assertNotIn("liveLine()", render)
         self.assertNotIn("Watcher.FAST_POLL_MS", render)
-        # The status sentence remains the relay's session-clock response.
-        self.assertIn("Karachi: ", WATCHER.read_text(encoding="utf-8"))
+        # Owner order 2026-11-26: the word KARACHI left the tile, so the
+        # status sentence is the relay's stamp alone.
+        watcher = WATCHER.read_text(encoding="utf-8")
+        self.assertNotIn("Karachi: ", watcher)
+        self.assertIn("new StringBuilder(clockLine(karachi))", watcher)
 
     def test_the_settings_hint_separates_the_two_cadences(self):
         """Settings help must not masquerade as a live-poll status label."""
@@ -2246,7 +2252,10 @@ class HeaderCopyTest(unittest.TestCase):
         brand = element(self.layout, 'android:id="@+id/brand_tagline"')
         self.assertIn("@font/lemonmilk_light", brand)
         # The clock itself stays, in the tile the reader looks at.
-        self.assertIn("Karachi: ", WATCHER.read_text(encoding="utf-8"))
+        # Owner order 2026-11-26: the clock stays; only its KARACHI label left
+        # the tile.
+        self.assertNotIn("Karachi: ", WATCHER.read_text(encoding="utf-8"))
+        self.assertIn("clockLine(karachi)", WATCHER.read_text(encoding="utf-8"))
         self.assertIn("SO-8", self.strings)
 
 
@@ -2424,9 +2433,9 @@ class VersionTest(unittest.TestCase):
         # face, the caret at its trailing edge, the options as the volume
         # menu's own rows without a pill or a track - and the QUANT STATUS
         # seconds advance every second between relay answers.
-        # They ship as 4.4.10, versionCode 143.
-        self.assertIn('android:versionName="4.4.10"', manifest)
-        self.assertIn('android:versionCode="143"', manifest)
+        # They ship as 4.5.0, versionCode 144.
+        self.assertIn('android:versionName="4.5.0"', manifest)
+        self.assertIn('android:versionCode="144"', manifest)
         # Owner order 2026-11-24: no part of either build's version reads above
         # ten, so 3.10.10 is followed by 4.0.0 and .11 never exists.
         shipped = manifest.split('android:versionName="', 1)[1].split('"', 1)[0]
@@ -2669,9 +2678,13 @@ class VersionTest(unittest.TestCase):
         # the first tick, and the instant searches list the scrip alone until
         # a pick. Owner order 2026-11-25 (evening): the two searches wear the
         # CUSTOM SCRIPS OF VOL. box and its caret, and the QUANT STATUS clock
-        # moves every second. They ship as 4.4.10, versionCode 143.
-        self.assertIn('android:versionCode="143"', manifest)
-        self.assertIn('android:versionName="4.4.10"', manifest)
+        # moves every second. Owner order 2026-11-26: KARACHI leaves the tile,
+        # the clock steps on the tick, both search boxes type from the left
+        # with no caret and a hairline over their first option, and an option
+        # carries its quote with the day range. They ship as 4.5.0, versionCode
+        # 144.
+        self.assertIn('android:versionCode="144"', manifest)
+        self.assertIn('android:versionName="4.5.0"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
@@ -2801,8 +2814,11 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertNotIn("fitFlowWindow", main)
         self.assertNotIn("searchScroll.scrollTo", main)
         layout = LAYOUT.read_text(encoding="utf-8")
-        self.assertIn("@+id/search_arrow", layout)
-        self.assertIn("@+id/order_flow_arrow", layout)
+        # Owner order 2026-11-26: both carets are hidden, not drawn.
+        for view_id in ("search_arrow", "order_flow_arrow"):
+            with self.subTest(arrow=view_id):
+                self.assertIn('android:visibility="gone"',
+                              element(layout, 'android:id="@+id/%s"' % view_id))
         self.assertNotIn("@+id/search_scroll", layout)
         self.assertNotIn("@+id/search_scroller", layout)
         self.assertNotIn("@+id/order_flow_scroll", layout)
@@ -2823,7 +2839,7 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn("appendScripQuote(sb, quote);", reveal)
         row = main[main.index("private void styleSearchRow("):
                    main.index("private GradientDrawable highlightPlate(")]
-        self.assertIn("row.setText(symbol);", row)
+        self.assertIn("appendSearchQuote(sb, quote);", row)
         self.assertNotIn("appendScripQuote", row)
         self.assertNotIn("PKR %,.2f", row)
         # The volume tile's own order (owner order 2026-11-25): the price and
@@ -2842,14 +2858,14 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn('android:orientation="vertical"', group)
         box = element(layout, 'android:id="@+id/search_input"')
         self.assertIn('android:background="@null"', box)
-        # Owner order 2026-11-25 (evening): the face centres in its plate and
-        # the caret stands at its trailing edge, the volume box's own law.
-        self.assertIn('android:gravity="center"', box)
+        # Owner order 2026-11-26: the typed letter and the hint read from the
+        # LEFT edge now, and the drop-down/up icon is gone from both boxes.
+        self.assertIn('android:gravity="center_vertical|start"', box)
         arrow = element(layout, 'android:id="@+id/search_arrow"')
         self.assertIn('@drawable/dropdown_arrow', arrow)
-        self.assertIn('android:layout_gravity="end|top"', arrow)
+        self.assertIn('android:visibility="gone"', arrow)
         flow_box = element(layout, 'android:id="@+id/order_flow_input"')
-        self.assertIn('android:gravity="center"', flow_box)
+        self.assertIn('android:gravity="center_vertical|start"', flow_box)
         main = MAIN.read_text(encoding="utf-8")
         self.assertIn('TextView row = menuRow("");', main)
         # Owner order 2026-11-24: the search options are the volume menu's
@@ -3123,9 +3139,10 @@ class SearchBoxGapTest(unittest.TestCase):
         self.box = find_view(self.root, "@+id/search_input")
 
     def test_the_box_centres_its_one_line(self):
-        # Owner order 2026-11-25 (evening): the SEARCH box is the CUSTOM
-        # SCRIPS OF VOL. box's face, whose one line centres both ways.
-        self.assertEqual(self.box.get(f"{ANDROID_NS}gravity"), "center")
+        # Owner order 2026-11-26: the box types from the LEFT edge, hint and
+        # cursor alike, and still centres vertically in its 43dp plate.
+        self.assertEqual(self.box.get(f"{ANDROID_NS}gravity"),
+                         "center_vertical|start")
 
     def test_the_font_padding_is_out_of_the_box_height(self):
         self.assertEqual(self.box.get(f"{ANDROID_NS}includeFontPadding"), "false")
@@ -3572,9 +3589,14 @@ class MenuOrdersTest(unittest.TestCase):
         A price with no percentage stays body ink."""
         search = self.main[self.main.index("private void styleSearchRow("):]
         search = search[:search.index("private GradientDrawable highlightPlate")]
-        # Owner order 2026-11-25 (latest): the row carries the scrip alone,
-        # so there is no price in it to ink.
-        self.assertNotIn("PKR %,.2f", search, "no money in the list")
+        # Owner order 2026-11-26: the option's money is built in
+        # appendSearchQuote, which stands ABOVE this builder; the builder
+        # itself still adds none, and that builder inks the price too.
+        self.assertNotIn("PKR %,.2f", search,
+                         "the option's money lives in appendSearchQuote")
+        option = self.main[self.main.index("private void appendSearchQuote("):]
+        option = option[:option.index("private void styleSearchRow(")]
+        self.assertIn("priceFrom, sb.length(), 0", option)
         scrip = self.main[self.main.index("private void appendScripQuote("):]
         scrip = scrip[:scrip.index("private void colorQuantity")]
         self.assertIn("priceFrom, sb.length(), 0", scrip)
@@ -5728,6 +5750,72 @@ class V19SecondOrderTest(unittest.TestCase):
         self.assertNotIn("android:paddingLeft", tile[:tile.index(">")])
         self.assertNotIn("android:layout_marginLeft",
                          tile[:tile.index(">")])
+
+
+class Build174Test(unittest.TestCase):
+    """Owner order 2026-11-26: the phone pass on the clock and the searches."""
+
+    def test_the_status_tile_drops_the_karachi_word(self):
+        watcher = WATCHER.read_text(encoding="utf-8")
+        self.assertNotIn("Karachi: ", watcher)
+        self.assertIn("new StringBuilder(clockLine(karachi))", watcher)
+        main = MAIN.read_text(encoding="utf-8")
+        clock = main[main.index("private String advanceRelayClock("):]
+        clock = clock[:clock.index("private SpannableString clockSpans(")]
+        self.assertIn("int start = 0;", clock)
+        self.assertIn("detail.indexOf('\\n')", clock)
+
+    def test_the_clock_steps_on_the_foreground_tick(self):
+        main = MAIN.read_text(encoding="utf-8")
+        tick = main[main.index("private final Runnable tick = new Runnable()"):]
+        tick = tick[:tick.index("private void scheduleNext()")]
+        self.assertIn("repaintClock();", tick)
+        self.assertIn("statusDetailRaw = actualDetail;", main)
+        self.assertIn("private void repaintClock() {", main)
+
+    def test_both_search_boxes_type_from_the_left(self):
+        layout = LAYOUT.read_text(encoding="utf-8")
+        for view_id in ("search_input", "order_flow_input"):
+            with self.subTest(box=view_id):
+                box = element(layout, 'android:id="@+id/%s"' % view_id)
+                self.assertIn('android:gravity="center_vertical|start"', box)
+
+    def test_the_two_search_carets_are_gone(self):
+        layout = LAYOUT.read_text(encoding="utf-8")
+        for view_id in ("search_arrow", "order_flow_arrow"):
+            with self.subTest(arrow=view_id):
+                arrow = element(layout, 'android:id="@+id/%s"' % view_id)
+                self.assertIn('android:visibility="gone"', arrow)
+        main = MAIN.read_text(encoding="utf-8")
+        self.assertIn(
+            "searchInput.setOnClickListener(v -> showSearchList(true));", main)
+        self.assertIn(
+            "orderFlowInput.setOnClickListener(v -> showFlowList(true));", main)
+
+    def test_a_hairline_stands_over_the_first_option(self):
+        main = MAIN.read_text(encoding="utf-8")
+        search = main[main.index("private void renderSearchResults("):]
+        search = search[:search.index("private void appendSearchQuote(")]
+        self.assertIn("padMenu(searchResults);", search)
+        self.assertLess(search.index("padMenu(searchResults);"),
+                        search.index("searchResults.addView(menuDivider());"))
+        self.assertLess(search.index("searchResults.addView(menuDivider());"),
+                        search.index("searchResults.addView(row);"))
+        flow = main[main.index("private void renderFlowResults("):]
+        flow = flow[:flow.index("private View flowTableRow(")]
+        self.assertIn("orderFlowResults.addView(menuDivider());", flow)
+
+    def test_a_search_option_prints_its_quote(self):
+        main = MAIN.read_text(encoding="utf-8")
+        option = main[main.index("private void appendSearchQuote("):]
+        option = option[:option.index("private void styleSearchRow(")]
+        self.assertIn('"PKR %,.2f"', option)
+        self.assertIn('"H=%,.2f & L=%,.2f"', option)
+        self.assertLess(option.index('"H=%,.2f & L=%,.2f"'),
+                        option.index('"B="'))
+        row = main[main.index("private void styleSearchRow("):]
+        row = row[:row.index("private GradientDrawable highlightPlate")]
+        self.assertIn("Watcher.Quote quote = Watcher.quotes().get(symbol);", row)
 
 
 if __name__ == "__main__":
