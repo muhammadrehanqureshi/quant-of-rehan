@@ -191,7 +191,6 @@ type App struct {
 	passW int
 	passH int
 	unlockAt time.Time
-	splashAt time.Time // when the right password turned the gate into the splash
 	priceY      int // the PRICE ALERTS tile's top row, for the wheel
 	priceH      int // and its height
 
