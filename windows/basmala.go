@@ -90,7 +90,8 @@ func decodeInk(b []byte) *inkMask {
 }
 
 func pngDecode(b []byte) (image.Image, error) {
-	return image.Decode(bytes.NewReader(b))
+	img, _, err := image.Decode(bytes.NewReader(b))
+	return img, err
 }
 
 // brailleDots are the eight dots of a braille cell: two across, four down.
