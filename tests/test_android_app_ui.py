@@ -4793,7 +4793,12 @@ class ThinkingOrbPlanTest(unittest.TestCase):
                 # its own line, not only vertically. Owner order 2026-11-25
                 # (evening) puts the search box on that same face, so the
                 # typed ticker centres exactly like the volume caption.
-                self.assertIn('android:gravity="center"', box)
+                # Owner order 2026-11-26: the SEARCH box is the exception -
+                # it types from the LEFT edge, hint and cursor alike.
+                self.assertIn(
+                    'android:gravity="%s"' % ("center_vertical|start"
+                                              if view_id == "search_input"
+                                              else "center"), box)
                 self.assertIn('android:includeFontPadding="false"', box)
 
     def test_v2_3_16_the_dropdown_menu_opens_from_the_box_itself(self):
