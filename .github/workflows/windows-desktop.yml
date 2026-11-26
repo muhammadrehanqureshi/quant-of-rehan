@@ -27,7 +27,7 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check pillow numpy
           python tools/mkicon_hud.py assets/QuantOfRehan.ico assets/icon-1024.png
-          python tools/mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso 4.3.8.0
+          python tools/mksyso.py assets/QuantOfRehan.ico rsrc_windows_amd64.syso 4.3.9.0
       # Owner order 2026-11-10 (latest): the orb is the owner's own source,
       # drawn by that source's own code (windows/ring.go and its six layer
       # pictures), so there is nothing to sample here any more.

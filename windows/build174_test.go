@@ -181,3 +181,29 @@ func TestThePasswordShowsTheBasmalaAloneThenTheHud(t *testing.T) {
 		t.Fatal("the gate stayed shut after the banner")
 	}
 }
+
+// Owner order 2026-11-26 (later still): the banner stands at half the width it
+// took before, so the words read as a mark in the middle of the gate.
+func TestTheBannerIsHalfTheWidthOfTheWindow(t *testing.T) {
+	a := lockedApp(t, 200, 40)
+	typeRunes(a, wantUnlockPassword)
+	a.onKey(Key{Kind: KEnter})
+	widest := 0
+	for _, row := range a.render().PlainRows() {
+		n := 0
+		for _, r := range row {
+			if r >= 0x2800 && r <= 0x28ff {
+				n++
+			}
+		}
+		if n > widest {
+			widest = n
+		}
+	}
+	if widest == 0 {
+		t.Fatal("the banner drew no art")
+	}
+	if widest > 100 {
+		t.Fatalf("the banner is %d cells wide, want at most 100 in a 200 cell window", widest)
+	}
+}

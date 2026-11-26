@@ -163,10 +163,13 @@ func (a *App) drawLogin(c *Canvas) {
 // 2026-11-26 (later): the banner carries the basmala and nothing else, and the
 // HUD takes the screen after it and after nothing else. The words are the
 // braille art of basmala.go: whole letters, joined, read right to left, with no
-// cell cutting a glyph and no text drawn beside them.
+// cell cutting a glyph and no text drawn beside them. Owner order 2026-11-26
+// (later still): the banner stands at half the width it took before, so the
+// words read as a mark in the middle of the gate rather than as a full width
+// band.
 func (a *App) drawSplash(c *Canvas) {
 	th := a.th
-	if lines := basmalaArt(min(c.W-4, 200), c.H-4); len(lines) > 0 {
+	if lines := basmalaArt(min((c.W-4)/2, 100), c.H-4); len(lines) > 0 {
 		top := max(0, (c.H-len(lines))/2)
 		for i, line := range lines {
 			c.Text(max(0, (c.W-runeLen(line))/2), top+i, c.W, line, th.Hot, true)
