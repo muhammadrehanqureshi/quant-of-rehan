@@ -536,9 +536,11 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	default:
 		sync := ""
 		if !a.lastMarketOK.IsZero() {
-			sync = "  synced " + strconv.Itoa(max(0, int(a.now.Sub(a.lastMarketOK).Seconds()))) + " s ago"
+			sync = "  Synced " + strconv.Itoa(max(0, int(a.now.Sub(a.lastMarketOK).Seconds()))) + " s ago"
 		}
-		label(0, "LINK", []Span{{"UP", th.Good, true}, {"  " + strconv.Itoa(int(a.rtt.Milliseconds())) + " ms" + sync, th.Text, false}})
+		// Owner order 2026-11-26: the latency closes with a full stop and the
+		// word Synced opens with a capital.
+		label(0, "LINK", []Span{{"UP", th.Good, true}, {"  " + strconv.Itoa(int(a.rtt.Milliseconds())) + " ms." + sync, th.Text, false}})
 	}
 	// FEED: how old the freshest tick is, counting up each second, and how
 	// many answers per second are arriving.

@@ -191,6 +191,7 @@ type App struct {
 	passW int
 	passH int
 	unlockAt time.Time
+	splashAt time.Time // when the right password turned the gate into the splash
 	priceY      int // the PRICE ALERTS tile's top row, for the wheel
 	priceH      int // and its height
 
@@ -1934,10 +1935,47 @@ func (a *App) addWatch() {
 		a.watchMsg = "Type a scrip first."
 		return
 	}
+	if !a.isWatched(sym) {
+		// Owner order 2026-11-26: while the box is a search, ENTER takes the
+		// scrip the search has found. One match is added as it stands; several
+		// matches leave the pick to the tap that chooses one.
+		if m := a.watchMatches(sym); len(m) > 0 {
+			exact := false
+			for _, r := range m {
+				if r.Symbol == sym {
+					exact = true
+					break
+				}
+			}
+			switch {
+			case exact:
+			case len(m) == 1:
+				sym = m[0].Symbol
+			default:
+				a.watchMsg = fmt.Sprintf("%d scrips start with %s. Tap one to add it.", len(m), sym)
+				return
+			}
+		}
+	}
 	if a.isWatched(sym) {
 		a.watchMsg = sym + " is already on the list."
 		a.watchQuery, a.watchSearch = "", false
 		a.lvWatch.top()
+		return
+	}
+	a.addWatchSymbol(sym)
+}
+
+// addWatchSymbol puts one ticker on the owner's list under the same laws
+// addWatch keeps: no ticker twice, and never more than the list's own limit.
+// Owner order 2026-11-26: the row a search found is added by the tap on it, so
+// the search ends on his own list instead of on a list he cannot use.
+func (a *App) addWatchSymbol(sym string) {
+	if sym == "" {
+		return
+	}
+	if a.isWatched(sym) {
+		a.watchMsg = sym + " is already on the list."
 		return
 	}
 	if len(a.cfg.Watch) >= watchMax {

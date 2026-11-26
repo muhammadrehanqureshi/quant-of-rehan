@@ -25,10 +25,14 @@ const (
 	unlockPassword    = "7861"
 	unlockPlaceholder = "Enter password"
 	unlockHint        = "HINT: Password contains 13 characters."
-	unlockWelcome     = "Welcome back, Mr. Rehan!"
 	unlockTaunt       = "Nice try, buddy. Get your punk ahh out of here. HAHAHA!"
 	unlockMaxChars    = 16
-	unlockWelcomeFor  = 1500 * time.Millisecond
+	// Owner order 2026-11-26: the right password shows the basmala in Arabic,
+	// then the build's name, and only then the HUD.
+	unlockBasmala    = "بسم الله الرحمن الرحيم"
+	unlockBrand      = "QUANT OF REHAN"
+	unlockBasmalaFor = 1500 * time.Millisecond
+	unlockWelcomeFor = 3200 * time.Millisecond
 )
 
 // keyLogin owns every key while the gate is up, so nothing he types reaches a
@@ -70,15 +74,17 @@ func (a *App) keyLogin(k Key) {
 	}
 }
 
-// submitPassword judges the box. The welcome is shown on the gate for a moment
-// before the HUD takes the screen, so he reads the line he asked for.
+// submitPassword judges the box. The right password turns the gate into the
+// splash for a moment before the HUD takes the screen, so he reads the words he
+// asked for.
 func (a *App) submitPassword() {
 	if a.passOK {
 		return
 	}
 	if a.passText == unlockPassword {
 		a.passOK = true
-		a.passMsg = unlockWelcome
+		a.passMsg = ""
+		a.splashAt = a.now
 		a.unlockAt = a.now.Add(unlockWelcomeFor)
 		return
 	}
@@ -97,6 +103,12 @@ func (a *App) loginOpens(now time.Time) bool {
 // the end of the field while it has the keys. The field's cells are kept on the
 // app so a mouse click can take it.
 func (a *App) drawLogin(c *Canvas) {
+	// Owner order 2026-11-26: once the password is right the gate becomes the
+	// splash, so no tile shows behind it while he reads the words.
+	if a.passOK {
+		a.drawSplash(c)
+		return
+	}
 	th := a.th
 	w, h := c.W, c.H
 	if w < 12 || h < 8 {
@@ -148,4 +160,22 @@ func (a *App) drawLogin(c *Canvas) {
 	}
 
 	a.passX, a.passY, a.passW, a.passH = bx, iy+1, bw, 1
+}
+
+// drawSplash is what the gate becomes once the password is right. Owner order
+// 2026-11-26: he sees the basmala in Arabic first, then his Quant of Rehan, and
+// only then does the HUD take the screen. The Arabic stands alone on its row,
+// centred, so nothing drawn beside it can be re-read by the console's own
+// reading of the line.
+func (a *App) drawSplash(c *Canvas) {
+	th := a.th
+	if c.W < 8 || c.H < 3 {
+		return
+	}
+	mid := c.H / 2
+	if a.now.Sub(a.splashAt) < unlockBasmalaFor {
+		c.Text(max(0, (c.W-runeLen(unlockBasmala))/2), mid, c.W, unlockBasmala, th.Hot, true)
+		return
+	}
+	c.Text(max(0, (c.W-runeLen(unlockBrand))/2), mid, c.W, unlockBrand, th.Accent, true)
 }

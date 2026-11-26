@@ -266,10 +266,15 @@ const appVersion = "4.0.21"
 // column a 9% move stands on in the ALERTS LOG and on both boards; the WATCH
 // LIST page keeps one more cell between its CHANGE column and HIGH, so a two
 // digit change never runs into the high beside it.
+// Build 174 is 4.3.6, the owner's 2026-11-26 orders: the WATCH LIST page's box
+// searches as he types, so one letter puts every scrip that starts with it on
+// the page and a tap adds the one he picks; the TELEMETRY tile closes the LINK
+// latency with a full stop and opens Synced with a capital; and the right
+// password shows the basmala in Arabic, then QUANT OF REHAN, before the HUD.
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.3.5"
+const hudBuild = "4.3.6"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
