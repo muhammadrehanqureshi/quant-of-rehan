@@ -228,7 +228,9 @@ class LeaderLineTest(unittest.TestCase):
             encoding="utf-8")
         self.assertIn("static String clockLine(String stamp)", watcher)
         self.assertIn('"Jan", "Feb", "Mar", "Apr", "May", "Jun"', watcher)
-        self.assertIn(".append(clockLine(karachi))", watcher)
+        # Owner order 2026-11-26: KARACHI left the QUANT STATUS tile, so the
+        # clock line opens the detail on its own.
+        self.assertIn("new StringBuilder(clockLine(karachi))", watcher)
         worker = (ROOT / "cloud" / "worker.js").read_text(encoding="utf-8")
         self.assertIn("function hhmmss(d)", worker)
         self.assertIn("${dayStamp(k)} ${hhmmss(k)} PKT", worker)

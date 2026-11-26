@@ -643,10 +643,18 @@
      the tall rounded lists he struck out. This supersedes the 2026-11-24
      note that the two searches carry no drop down icon.
      Ships as 4.4.10, versionCode 143. -->
+<!-- Owner order 2026-11-26: the word KARACHI left the QUANT STATUS tile,
+     whose clock now steps once per foreground tick instead of jumping
+     whenever a health answer landed; the SEARCH and ORDER FLOW boxes drop
+     their drop-down/up icon, type from the LEFT edge (hint and cursor), and
+     put one hairline between the typed letter and their first instant
+     option; and a SEARCH option prints the scrip with its current price and
+     percentage, then "H=... & L=...", then B, S and U.
+     Ships as 4.5.0, versionCode 144. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="143"
-    android:versionName="4.4.10">
+    android:versionCode="144"
+    android:versionName="4.5.0">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

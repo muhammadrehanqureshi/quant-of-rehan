@@ -674,8 +674,10 @@ public final class Watcher {
             // relay's own clock still decides every number here; this only
             // rearranges what it sent, and a stamp it does not recognize is
             // printed exactly as it arrived.
-            StringBuilder d = new StringBuilder("Karachi: ")
-                    .append(clockLine(karachi));
+            // Owner order 2026-11-26: the word KARACHI left the QUANT STATUS
+            // tile, so the clock IS the first line of the detail now:
+            // "26 Nov 2026 15:42:41 PKT".
+            StringBuilder d = new StringBuilder(clockLine(karachi));
             String line = phaseLine(c, head.phase);
             if (!line.isEmpty()) {
                 d.append('\n').append(line);

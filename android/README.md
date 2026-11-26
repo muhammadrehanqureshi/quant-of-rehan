@@ -1641,6 +1641,29 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.5.0, versionCode 144.**
+
+Owner order 2026-11-26, the phone pass on the clock and the two searches:
+
+- The QUANT STATUS tile no longer says KARACHI: its first line is the relay's
+  own stamp, "26 Nov 2026 15:42:41 PKT".
+- The seconds move like a clock's. The face is repainted on the one-second
+  foreground tick from the relay's last stamp and the time the phone has
+  carried it, so the seconds step by one instead of jumping by whatever a slow
+  health round took ("40 seconds then after 3 seconds jumps straight to 43").
+- The SEARCH and ORDER FLOW boxes drop the drop-down/up icon, and both take
+  their text from the LEFT edge: the hint "Search for a KMIALL scrip" and the
+  cursor start at the plate's 10dp column instead of the middle. A tap on the
+  box itself brings its list back.
+- One hairline stands between the typed letter and the first instant option in
+  both searches, the same 1dp line the menu rows already use.
+- A SEARCH option now carries the scrip's own quote: the scrip with its current
+  price and percentage on the first line, "H=... & L=..." on the second, and
+  the measured B, S and U on the third. Nothing is invented for a scrip the
+  relay has not quoted.
+
+The version bump is versionCode 144 / versionName 4.5.0.
+
 **Version 4.4.10, versionCode 143.**
 
 Owner order 2026-11-25 (evening), two changes on one build:
