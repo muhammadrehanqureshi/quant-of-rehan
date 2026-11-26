@@ -1,12 +1,12 @@
 """Synthetic tape for the one running law, used by plumbing tests only.
 
 Owner order 2026-11-25: the only strategy is the Kalman Trend with the 5, 15
-and 30 minute VWAP frames (owner order 2026-11-19 keeps all three), the
-z-score of the price minus VWAP spread, and an entry price closer to that
-day's low than to that day's high. This tape is shaped for exactly that: a
-brief gap-up that sells off into the day's low, a long buyer-led recovery, a
-measured 5m dip and a turn back up into an entry that still stands in the
-lower half of the day's range.
+and 30 minute VWAP frames (owner order 2026-11-19 keeps all three) and the
+z-score of the price minus VWAP spread. Owner order 2026-11-26 removed the
+rule that put the entry closer to the day's low than to the day's high. This
+tape is shaped for the remaining law: a brief gap-up that sells off into the
+day's low, a long buyer-led recovery, a measured 5m dip and a turn back up into
+an entry in the lower half of the day's range.
 
   * minutes 0 to 3 fall 1.10 a minute from 105.40 to 102.10, the opening
     selloff that puts the day's high at 105.44;
@@ -73,12 +73,10 @@ def setup_rows(scanner, opens, count: int = FULL_MINUTES):
 def entry_view_stub(symbol, rows, session=None, session_rows=None):
     """A legal z-score entry for PLUMBING tests, built from the tape's close.
 
-    Owner order 2026-11-25 put a second market condition on the entry (closer
-    to the day's low than to the day's high) on top of the Kalman states and
-    the frame VWAPs. A plumbing test is about what the pipeline does with a
-    signal, not about whether one tape clears every market gate, so it stubs
-    the law's own evaluation here and lets tests/test_kalman_zscore_vwap.py
-    hold the gates themselves.
+    A plumbing test is about what the pipeline does with a signal, not about
+    whether one tape clears every market gate, so it stubs the law's own
+    evaluation here and lets tests/test_kalman_zscore_vwap.py hold the gates
+    themselves.
     """
     from src.signals import kalman_zscore_vwap as zlaw
 

@@ -309,11 +309,9 @@ class PipelineCycleTest(unittest.TestCase):
         frame_patcher = patch.object(mtf_vwap, "kalman_state", lambda bars: 1)
         frame_patcher.start()
         self.addCleanup(frame_patcher.stop)
-        # Owner order 2026-11-25 added a market condition on top of the trend
-        # and the frame VWAPs: the entry must sit closer to the day's low than
-        # to its high. A paper-cycle test measures the cycle, not the tape, so
-        # the law's own evaluation is stubbed while its gates keep their own
-        # tests (tests/test_kalman_zscore_vwap.py).
+        # A paper-cycle test measures the cycle, not the tape, so the law's own
+        # evaluation is stubbed while its gates keep their own tests
+        # (tests/test_kalman_zscore_vwap.py).
         from tests.kalman_fixture import entry_view_stub
 
         entry_patcher = patch("src.signals.kalman_zscore_vwap.entry_view",
@@ -436,9 +434,9 @@ class PipelineCycleTest(unittest.TestCase):
         text.encode("ascii")
 
     def test_full_paper_cycle(self):
-        # 11:28 is a slot with the 5m spread below its mean, all three frames
-        # up and the entry nearer the day's low, while the fixture is still
-        # under the 2% day-gain cap and clear of the band's last-entry minute.
+        # 11:28 is a slot with the 5m spread below its mean and all three frames
+        # up, while the fixture is still under the 2% day-gain cap and clear of
+        # the band's last-entry minute.
         first = self.scan("11:28")
         quality = first["data_quality"]
 
