@@ -16,7 +16,7 @@ on:
       task:
         description: "what to run"
         type: choice
-        options: [both, smoke, build-dataset, ten-year, mean-reversion, kalman-grid, eleven, forensic, quality, self-improve, breakthrough]
+        options: [both, smoke, build-dataset, ten-year, seasonality, mean-reversion, kalman-grid, eleven, forensic, quality, self-improve, breakthrough]
         default: both
       prior_trials:
         description: "trials already spent in this search program"
@@ -118,6 +118,56 @@ jobs:
             data/eod_dataset_10y.summary
           if-no-files-found: error
           retention-days: 30
+
+  # The owner's weekday seasonality question (2026-11-26): over five years,
+  # which KMIALL scrips go green, above 1.5 percent, on which weekday, with the
+  # dates as evidence. The panel is built here because data/ is gitignored, and
+  # the study is a declared SO-21 entry point that refuses outside Actions.
+  # Manual dispatch only (SO-21). Research only: no live rule reads its output.
+  seasonality:
+    if: inputs.task == 'seasonality'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --retries 5 --timeout 60
+
+      - name: Build the five year dataset
+        run: |
+          mkdir -p data
+          python scripts/build_backtest_dataset.py \
+            --universe src/data/universe_kmiall.json \
+            --start 2021-10-01 \
+            --out data/eod_5y.csv.gz \
+            --cache-dir data/mkt_cache
+
+      - name: Run the weekday seasonality study
+        run: |
+          python scripts/seasonality_study.py \
+            --dataset data/eod_5y.csv.gz \
+            --universe src/data/universe_kmiall.json \
+            --out data/research/seasonality_5y.json \
+            --md reports/2026-11-26-kmiall-weekday-seasonality.md
+
+      - name: Keep the evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: seasonality-${{ github.run_id }}
+          path: |
+            data/research/seasonality_5y.json
+            reports/2026-11-26-kmiall-weekday-seasonality.md
+            data/eod_5y.summary
+          if-no-files-found: warn
+          retention-days: 90
 
   # Mean-reversion (RSI(2) snapback) study under the MeanRevParams exit
   # law, scored and simulated against the same ten-year mkt_summary

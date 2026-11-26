@@ -78,6 +78,7 @@ BACKTEST_SCRIPTS = {
     "scripts/event_study.py": "the event study",
     "scripts/condition_scan.py": "the condition scan",
     "scripts/hcar_postmortem.py": "the HCAR post-mortem and rejected-candidate outcome audit",
+    "scripts/seasonality_study.py": "the KMIALL weekday seasonality evidence study",
     "scripts/train_signal_model.py": "the AI prior fit",
     "scripts/research_phase1.py": "phase 1 research",
     "scripts/research_phase2a.py": "phase 2a research",
