@@ -274,10 +274,13 @@ const appVersion = "4.0.21"
 // Build 175 is 4.3.7, the same day's correction: the sign in banner carries the
 // basmala alone, the owner's own words drawn as joined Arabic so the console
 // shows them in their own reading order, and nothing is drawn after them.
+// Build 176 is 4.3.8, the owner's 2026-11-26 correction: the console cut every
+// Arabic letter at its cell's edge, so the banner is now a picture of the same
+// words drawn as braille dots, whole and joined, and nothing follows it.
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.3.7"
+const hudBuild = "4.3.8"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

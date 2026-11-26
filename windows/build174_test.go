@@ -119,6 +119,49 @@ func TestTheLinkLineClosesWithAFullStopAndOpensSyncedWithACapital(t *testing.T) 
 
 // Owner order 2026-11-26 (later): the right password shows the basmala and
 // nothing after it, and only then does the HUD take the screen.
+// hasBasmalaArt says whether the screen carries the braille art of the words.
+func hasBasmalaArt(rows string) bool {
+	for _, r := range rows {
+		if r >= 0x2800 && r <= 0x28ff {
+			return true
+		}
+	}
+	return false
+}
+
+// The banner is a picture of the phrase, not text in cells: every cell of it is
+// a braille cell, it fills the width it is given, and it carries the whole
+// phrase with ink on every line.
+func TestTheBannerIsThePhraseDrawnWhole(t *testing.T) {
+	for _, cols := range []int{60, 100, 160} {
+		lines := basmalaArt(cols, 40)
+		if len(lines) < 4 {
+			t.Fatalf("%d cells: the art is %d lines", cols, len(lines))
+		}
+		for i, line := range lines {
+			if runeLen(line) != cols {
+				t.Fatalf("%d cells: line %d is %d cells wide", cols, i, runeLen(line))
+			}
+			blank := true
+			for _, r := range line {
+				if r < 0x2800 || r > 0x28ff {
+					t.Fatalf("%d cells: line %d carries %U, not a braille cell", cols, i, r)
+				}
+				if r != 0x2800 {
+					blank = false
+				}
+			}
+			if blank {
+				t.Fatalf("%d cells: line %d is empty", cols, i)
+			}
+		}
+	}
+	// The picture is one line of four words, so the art is wide and short.
+	if lines := basmalaArt(160, 40); len(lines) < 8 || len(lines) > 20 {
+		t.Fatalf("160 cells gives %d lines, want the four words on one line", len(lines))
+	}
+}
+
 func TestThePasswordShowsTheBasmalaAloneThenTheHud(t *testing.T) {
 	a := lockedApp(t, 100, 30)
 	typeRunes(a, wantUnlockPassword)
@@ -127,7 +170,7 @@ func TestThePasswordShowsTheBasmalaAloneThenTheHud(t *testing.T) {
 		t.Fatalf("the gate after the right password: passOK=%v locked=%v", a.passOK, a.locked)
 	}
 	rows := screenOf(a)
-	if !strings.Contains(rows, unlockBasmala) {
+	if !hasBasmalaArt(rows) {
 		t.Fatalf("the basmala is not on the gate:\n%s", rows)
 	}
 	if strings.Contains(rows, "QUANT OF REHAN") {
