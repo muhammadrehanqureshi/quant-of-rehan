@@ -405,16 +405,13 @@ func (a *App) drawScanner(c *Canvas, x, y, w, h int) {
 	// scrip, the price follows the widest one, and the change and the bar close
 	// the line, exactly as the three leaders on the KSE100 tile line up.
 	cols := scanBSTCols(tbl)
-	pxW := 1
-	for _, s := range syms {
-		if q := tbl[s]; q.Price > 0 {
-			pxW = max(pxW, runeLen(commaFloat(q.Price, 2)))
-		}
-	}
-	// Owner order 2026-11-21 (second pass): the NET DELTA field is only as wide
-	// as the widest figure this list carries, so a short 3M stands one gutter
-	// after its bar instead of at the tile's far edge.
-	netW := scanNetW(syms, tbl)
+	// Owner order 2026-11-26 (later): the quote group is measured on the whole
+	// scan table, not on the three scrips the chosen sort happens to carry, so
+	// PKR, its percentage, the bar and the NET DELTA stand on the same cells in
+	// all six sub menus. Only PRICES RISING FAST lined up before, because its
+	// own three scrips happened to carry the widest figures.
+	pxW := scanPriceW(tbl)
+	netW := scanNetWidth(tbl)
 	for n := 0; n < a.lvScan.view; n++ {
 		i := a.lvScan.off + n
 		if i >= len(syms) {
@@ -514,6 +511,28 @@ func scanNetW(syms []string, tbl map[string]Quote) int {
 		w = max(w, runeLen(signedCompact(*q.Buy-*q.Sell)))
 	}
 	return min(w, shareNetW)
+}
+
+// scanNetWidth is the NET DELTA field of the whole scan table, so every sub
+// menu keeps the same cells for its figure.
+func scanNetWidth(tbl map[string]Quote) int {
+	syms := make([]string, 0, len(tbl))
+	for s := range tbl {
+		syms = append(syms, s)
+	}
+	return scanNetW(syms, tbl)
+}
+
+// scanPriceW is the widest PKR price the whole scan table carries, so the quote
+// group starts on the same cell in every sub menu.
+func scanPriceW(tbl map[string]Quote) int {
+	w := 1
+	for _, q := range tbl {
+		if q.Price > 0 {
+			w = max(w, runeLen(commaFloat(q.Price, 2)))
+		}
+	}
+	return w
 }
 
 // scanBSTCols measures the whole scan table, not only the three scrips a sort

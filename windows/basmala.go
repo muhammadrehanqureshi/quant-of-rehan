@@ -15,9 +15,14 @@ import (
 // and nothing after them. A console cell grid gives each glyph one fixed cell
 // and cuts everything wider than that cell, which is why the phrase came out
 // clipped when it was drawn as text. The words are therefore drawn here as
-// braille dots: two dots across and four down in every cell, so the letters
-// stand whole, joined and in their own reading order, with nothing cut at a
-// cell's edge.
+// blocks: each cell carries the top half of a mark, the bottom half, or both,
+// so the letters stand whole, joined and in their own reading order, with
+// nothing cut at a cell's edge.
+//
+// Owner order 2026-11-26 (later): the dotted render is withdrawn. A grid of
+// separate dots across the words read as speckle, and it gave the letters more
+// dots than the Arabic carries. The whole phrase is now one kind of mark, the
+// solid block, so the only dots on the banner are the ones the letters own.
 //
 // windows/assets/basmala.png is Windows' own Arabic text engine drawing those
 // words in Segoe UI (right to left, joined), cut to the ink. Nothing in the
@@ -94,37 +99,27 @@ func pngDecode(b []byte) (image.Image, error) {
 	return img, err
 }
 
-// brailleDots are the eight dots of a braille cell: two across, four down.
-var brailleDots = [...]struct {
-	x, y int
-	bit  rune
-}{
-	{0, 0, 0x01}, {0, 1, 0x02}, {0, 2, 0x04}, {1, 0, 0x08},
-	{1, 1, 0x10}, {1, 2, 0x20}, {0, 3, 0x40}, {1, 3, 0x80},
-}
-
-// basmalaArt draws the phrase into a grid of cols cells by at most rows lines.
-// A braille dot is square in a cell two characters high, so the picture keeps
-// the shape it was drawn with, and every cell carries its own dots instead of
-// one clipped glyph.
+// basmalaArt draws the phrase into at most cols cells by at most rows lines.
+// Every mark is the same mark: a cell is the top half of a block, the bottom
+// half, or the whole block, so a stroke is solid from cell to cell instead of a
+// line of dots, and the picture keeps the shape it was drawn with.
 func basmalaArt(cols, rows int) []string {
 	m := basmalaInk
-	if m == nil || cols < 8 || rows < 4 {
+	if m == nil || cols < 8 || rows < 3 {
 		return nil
 	}
-	dw, dh := cols*2, rows*4
+	// One block column and two half block rows stand in every cell.
+	dw, dh := cols, rows*2
 	h := int(math.Round(float64(dw) * float64(m.h) / float64(m.w)))
 	if h > dh {
 		dw = int(math.Round(float64(dw) * float64(dh) / float64(h)))
 		h = dh
 	}
-	dw -= dw % 2
-	h -= h % 4
-	if dw < 2 || h < 4 {
+	if dw < 4 || h < 2 {
 		return nil
 	}
-	// Every dot takes the share of the picture under it, so a thin stroke
-	// survives the shrink instead of falling between two dots.
+	// Every mark takes the share of the picture under it, so a thin stroke
+	// survives the shrink instead of falling between two cells.
 	fill := make([]bool, dw*h)
 	for y := 0; y < h; y++ {
 		y0 := y * m.h / h
@@ -147,20 +142,25 @@ func basmalaArt(cols, rows int) []string {
 					}
 				}
 			}
-			fill[y*dw+x] = n > 0 && on*100 >= n*38
+			fill[y*dw+x] = n > 0 && on*100 >= n*30
 		}
 	}
-	lines := make([]string, 0, h/4)
-	for cy := 0; cy < h; cy += 4 {
+	lines := make([]string, 0, (h+1)/2)
+	for cy := 0; cy < h; cy += 2 {
 		var b strings.Builder
-		for cx := 0; cx < dw; cx += 2 {
-			var bits rune
-			for _, d := range brailleDots {
-				if fill[(cy+d.y)*dw+cx+d.x] {
-					bits |= d.bit
-				}
+		for cx := 0; cx < dw; cx++ {
+			top := fill[cy*dw+cx]
+			bot := cy+1 < h && fill[(cy+1)*dw+cx]
+			switch {
+			case top && bot:
+				b.WriteRune('█')
+			case top:
+				b.WriteRune('▀')
+			case bot:
+				b.WriteRune('▄')
+			default:
+				b.WriteRune(' ')
 			}
-			b.WriteRune(0x2800 + bits)
 		}
 		lines = append(lines, b.String())
 	}

@@ -6,38 +6,44 @@ import (
 	"time"
 )
 
-// Owner order 2026-11-26: the WATCH LIST page's box searches as he types. One
-// letter puts every scrip that starts with it on the page, so E lists every E
-// scrip and none of the others.
-func TestTypingALetterListsEveryScripThatStartsWithIt(t *testing.T) {
+// Owner order 2026-11-26 (later): the search reads in the box itself. Every
+// match it finds stands in the box's own drop down, and the list under it is
+// still his own list, which the search never filters or replaces.
+func TestTheBoxSearchAnswersUnderTheBoxAndLeavesTheListAlone(t *testing.T) {
 	a := demoApp(t, 160, 40)
 	a.setScreen(scrWatch)
 	a.prices = nil
+	a.cfg.Watch = []string{"HCAR"}
 	a.of = &OrderFlow{Rows: []FlowRow{
 		{Symbol: "ENGRO"}, {Symbol: "EFUG"}, {Symbol: "HCAR"}, {Symbol: "E"},
 	}}
-	a.watchQuery = "E"
-	got := []string{}
-	for _, r := range a.watchSorted() {
-		if !strings.HasPrefix(r.Symbol, "E") {
-			t.Fatalf("the search listed %s, which does not start with E", r.Symbol)
-		}
-		got = append(got, r.Symbol)
-	}
-	want := "E EFUG ENGRO"
-	if strings.Join(got, " ") != want {
-		t.Fatalf("typing E lists %v, want %s", got, want)
+	a.watchQuery, a.watchSearch = "E", true
+	if got := a.watchSorted(); len(got) != 1 || got[0].Symbol != "HCAR" {
+		t.Fatalf("the search rewrote his own list: %v", got)
 	}
 	rows := plain(a)
 	for _, sym := range []string{"EFUG", "ENGRO"} {
 		if !strings.Contains(rows, sym) {
-			t.Fatalf("%s is not on the page while the box holds E:\n%s", sym, rows)
+			t.Fatalf("%s is not in the box's drop down:\n%s", sym, rows)
 		}
 	}
-	if strings.Contains(rows, "HCAR") {
-		t.Fatalf("a scrip the search did not find is on the page:\n%s", rows)
+	if !strings.Contains(rows, "HCAR") {
+		t.Fatalf("the search took his own list away:\n%s", rows)
 	}
-	// ESC empties the box and the page is his own list again.
+	// The drop down stands under the box and above the ORDER line of chips.
+	orderY, matchY := -1, -1
+	for y, row := range a.render().PlainRows() {
+			if orderY < 0 && strings.Contains(row, "ORDER ") {
+			orderY = y
+		}
+		if matchY < 0 && strings.Contains(row, "ENGRO") {
+			matchY = y
+		}
+	}
+	if matchY < 0 || orderY < 0 || matchY > orderY {
+		t.Fatalf("the drop down is not above the ORDER line: match %d, ORDER %d\n%s", matchY, orderY, rows)
+	}
+	// ESC empties the box and the drop down goes with it.
 	a.watchQuery, a.watchSearch = "", false
 	if rows := plain(a); strings.Contains(rows, "EFUG") {
 		t.Fatalf("the search's rows stayed on the page after the box emptied:\n%s", rows)
@@ -98,7 +104,8 @@ func TestTheFooterCountsWhatTheSearchFound(t *testing.T) {
 }
 
 // Owner order 2026-11-26: the LINK line closes its latency with a full stop and
-// opens Synced with a capital.
+// opens Synced with a capital. Owner order 2026-11-26 (later): one space stands
+// between the full stop and the word, not two.
 func TestTheLinkLineClosesWithAFullStopAndOpensSyncedWithACapital(t *testing.T) {
 	a := demoApp(t, 122, 40)
 	a.link, a.checking = true, false
@@ -112,26 +119,24 @@ func TestTheLinkLineClosesWithAFullStopAndOpensSyncedWithACapital(t *testing.T) 
 			break
 		}
 	}
-	if !strings.Contains(line, "42 ms.  Synced 5 s ago") {
-		t.Fatalf("the LINK line reads %q, want the full stop and the capital", line)
+	if !strings.Contains(line, "42 ms. Synced 5 s ago") {
+		t.Fatalf("the LINK line reads %q, want one space before Synced", line)
+	}
+	if strings.Contains(line, "ms.  Synced") {
+		t.Fatalf("the LINK line keeps two spaces before Synced: %q", line)
 	}
 }
 
 // Owner order 2026-11-26 (later): the right password shows the basmala and
 // nothing after it, and only then does the HUD take the screen.
-// hasBasmalaArt says whether the screen carries the braille art of the words.
+// hasBasmalaArt says whether the screen carries the block art of the words.
 func hasBasmalaArt(rows string) bool {
-	for _, r := range rows {
-		if r >= 0x2800 && r <= 0x28ff {
-			return true
-		}
-	}
-	return false
+	return strings.ContainsAny(rows, "█▀▄")
 }
 
 // The banner is a picture of the phrase, not text in cells: every cell of it is
-// a braille cell, it fills the width it is given, and it carries the whole
-// phrase with ink on every line.
+// one kind of mark, a solid half or whole block, it fills the width it is given,
+// and it carries the whole phrase with ink on every line.
 func TestTheBannerIsThePhraseDrawnWhole(t *testing.T) {
 	for _, cols := range []int{60, 100, 160} {
 		lines := basmalaArt(cols, 40)
@@ -144,11 +149,12 @@ func TestTheBannerIsThePhraseDrawnWhole(t *testing.T) {
 			}
 			blank := true
 			for _, r := range line {
-				if r < 0x2800 || r > 0x28ff {
-					t.Fatalf("%d cells: line %d carries %U, not a braille cell", cols, i, r)
-				}
-				if r != 0x2800 {
+				switch r {
+				case '█', '▀', '▄':
 					blank = false
+				case ' ':
+				default:
+					t.Fatalf("%d cells: line %d carries %U, not a block mark", cols, i, r)
 				}
 			}
 			if blank {
@@ -192,7 +198,7 @@ func TestTheBannerIsHalfTheWidthOfTheWindow(t *testing.T) {
 	for _, row := range a.render().PlainRows() {
 		n := 0
 		for _, r := range row {
-			if r >= 0x2800 && r <= 0x28ff {
+			if r == '█' || r == '▀' || r == '▄' {
 				n++
 			}
 		}
@@ -206,4 +212,75 @@ func TestTheBannerIsHalfTheWidthOfTheWindow(t *testing.T) {
 	if widest > 100 {
 		t.Fatalf("the banner is %d cells wide, want at most 100 in a 200 cell window", widest)
 	}
+}
+
+// Owner order 2026-11-26 (later): one space stands between PKR and its price,
+// two digits or three, and the group's later columns are still placed from the
+// price field's own end.
+func TestPKRKeepsOneSpaceBeforeItsPrice(t *testing.T) {
+	a := demoApp(t, 80, 24)
+	for _, px := range []string{"99.50", "102.75"} {
+		c := NewCanvas(40, 1, a.th.Panel)
+		end := a.drawQuoteStart(c, 0, 0, 9, px, "")
+		row := c.PlainRows()[0]
+		if !strings.HasPrefix(row, "PKR "+px) {
+			t.Fatalf("%s: the day line reads %q, want one space after PKR", px, row)
+		}
+		if end != quoteLabelW+9 {
+			t.Fatalf("%s: the price field ends on %d, want %d", px, end, quoteLabelW+9)
+		}
+	}
+}
+
+// Owner order 2026-11-26 (later): every sub menu carries the same PKR field and
+// the same NET DELTA field, because both are measured on the whole scan table
+// and not on the three scrips the chosen sort happens to carry.
+func TestEverySubMenuKeepsTheSameQuoteFields(t *testing.T) {
+	b, s, tot := int64(40), int64(5), int64(45)
+	b2, s2, tot2 := int64(9000), int64(10), int64(9010)
+	tbl := map[string]Quote{
+		"QUIET": {Price: 12.5, Buy: &b, Sell: &s, Volume: &tot},
+		"LOUD":  {Price: 1234.5, Buy: &b2, Sell: &s2, Volume: &tot2},
+	}
+	if w, want := scanPriceW(tbl), runeLen("1,234.50"); w != want {
+		t.Fatalf("the PKR field is %d cells, want the table's widest price, %d", w, want)
+	}
+	if w, want := scanNetWidth(tbl), runeLen(signedCompact(8990)); w != want {
+		t.Fatalf("the NET DELTA field is %d cells, want the table's widest figure, %d", w, want)
+	}
+}
+
+// Owner order 2026-11-26 (later): the FEED row carries the freshest tick and
+// the answers per second, and no "typical" age at all.
+func TestTheTelemetryRowCarriesNoTypicalAge(t *testing.T) {
+	a := demoApp(t, 122, 40)
+	rows := plain(a)
+	if strings.Contains(rows, "typical") {
+		t.Fatalf("the TELEMETRY tile still counts a typical stock:\n%s", rows)
+	}
+	if !strings.Contains(rows, "/s") {
+		t.Fatalf("the FEED row lost its answers per second:\n%s", rows)
+	}
+}
+
+// Owner order 2026-11-26 (later): the slash between the advancers and the
+// decliners is the theme's white.
+func TestTheAdvDecSlashIsWhite(t *testing.T) {
+	a := demoApp(t, 122, 40)
+	c := a.render()
+	for y, row := range c.PlainRows() {
+		if !strings.Contains(row, "ADV/DEC") {
+			continue
+		}
+		at := strings.LastIndex(row, "/")
+		if at < 0 || at == strings.Index(row, "/") {
+			t.Fatalf("the ADV/DEC row carries no dividing slash: %q", row)
+		}
+		x := runeLen(row[:at])
+		if fg := c.Cells[y*c.W+x].FG; fg != a.th.Text {
+			t.Fatalf("the ADV/DEC slash is %v, want the theme's white %v", fg, a.th.Text)
+		}
+		return
+	}
+	t.Fatal("no ADV/DEC row on the page")
 }

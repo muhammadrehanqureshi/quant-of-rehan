@@ -203,7 +203,12 @@ func pctFixed(pct float64) string {
 // group shares one rule.
 func (a *App) drawQuoteStart(c *Canvas, pkrX, y, pxW int, px, pxKey string) int {
 	c.Text(pkrX, y, 3, "PKR", a.th.Soft, false)
-	a.flashText(c, pkrX+quoteLabelW, y, padLeft(px, pxW), a.th.Text, true, pxKey)
+	// Owner order 2026-11-26 (later): the price stands on the cell after the
+	// word, so one space separates PKR from a two digit figure as from a three
+	// digit one. The group's later columns are still placed from the price
+	// field's own end, so the percentage, the bar and the NET DELTA keep their
+	// cells whatever number of digits a price carries.
+	a.flashText(c, pkrX+quoteLabelW, y, px, a.th.Text, true, pxKey)
 	return pkrX + quoteLabelW + pxW
 }
 
@@ -536,7 +541,9 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	default:
 		sync := ""
 		if !a.lastMarketOK.IsZero() {
-			sync = "  Synced " + strconv.Itoa(max(0, int(a.now.Sub(a.lastMarketOK).Seconds()))) + " s ago"
+			// Owner order 2026-11-26 (later): one space stands between the full
+			// stop and the word Synced.
+			sync = " Synced " + strconv.Itoa(max(0, int(a.now.Sub(a.lastMarketOK).Seconds()))) + " s ago"
 		}
 		// Owner order 2026-11-26: the latency closes with a full stop and the
 		// word Synced opens with a capital.
@@ -558,23 +565,15 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		case state == "LAGGING":
 			fc = th.Warn
 		}
-		// Say how old the freshest tick is. A typical stock is older: the
-		// broker's wire repeats each symbol about every 24 seconds, so show that
-		// too, and the answers per second when the panel is wide enough.
-		sinceAnswer := max(0, int(a.now.Sub(a.quotes.FetchedAt).Seconds()))
+		// Say how old the freshest tick is, and the answers per second when the
+		// panel is wide enough. Owner order 2026-11-26 (later): the typical
+		// stock's age is withdrawn from the tile, so the row carries no
+		// "typical" figure at all.
 		old := fmt.Sprintf("  %d s old", age)
-		typ := ""
-		if a.feed.Median >= 0 {
-			typ = fmt.Sprintf("  typical %d s", a.feed.Median+sinceAnswer)
-		}
 		rate := fmt.Sprintf("  %.1f/s", a.updatesPerSecond())
 		room := tw - labelW - runeLen(state)
 		detail := old
 		switch {
-		case runeLen(old+rate+typ) <= room:
-			detail = old + rate + typ
-		case runeLen(old+typ) <= room:
-			detail = old + typ
 		case runeLen(old+rate) <= room:
 			detail = old + rate
 		}
@@ -638,7 +637,10 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	fullRow(6, "MARKET BREADTH", []Span{{breadth, bc, true}})
 	fullRow(7, "ADV/DEC", []Span{
 		{strconv.Itoa(adv), th.Good, true},
-		{"/", th.Soft, false},
+		// Owner order 2026-11-26 (later): the slash between the two counts is
+		// the theme's white, so it reads as a division and not as part of either
+		// side's ink.
+		{"/", th.Text, false},
 		{strconv.Itoa(dec), th.Bad, true},
 	})
 	// FLOW. Owner order 2026-11-11 (eleventh pass): the row must not read zero
