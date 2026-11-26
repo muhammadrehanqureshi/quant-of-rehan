@@ -203,13 +203,22 @@ func pctFixed(pct float64) string {
 // group shares one rule.
 func (a *App) drawQuoteStart(c *Canvas, pkrX, y, pxW int, px, pxKey string) int {
 	c.Text(pkrX, y, 3, "PKR", a.th.Soft, false)
-	// Owner order 2026-11-26 (later): the price stands on the cell after the
-	// word, so one space separates PKR from a two digit figure as from a three
-	// digit one. The group's later columns are still placed from the price
-	// field's own end, so the percentage, the bar and the NET DELTA keep their
-	// cells whatever number of digits a price carries.
-	a.flashText(c, pkrX+quoteLabelW, y, px, a.th.Text, true, pxKey)
+	a.flashText(c, pkrX+quoteLabelW, y, padLeft(px, pxW), a.th.Text, true, pxKey)
 	return pkrX + quoteLabelW + pxW
+}
+
+// drawQuoteLeft is CUSTOM SCRIPS OF VOLUME's quote group. Owner order
+// 2026-11-26 (later): its price stands on the cell after the word, so one space
+// separates PKR from a two digit figure as from a three digit one, while the
+// percentage, the bar and the NET DELTA are still placed from the price field's
+// own end and keep their cells. The other tiles keep the price inside its field,
+// so their own columns do not move.
+func (a *App) drawQuoteLeft(c *Canvas, pkrX, y, pxW int, px string, pct *float64, pxKey string) {
+	c.Text(pkrX, y, 3, "PKR", a.th.Soft, false)
+	a.flashText(c, pkrX+quoteLabelW, y, px, a.th.Text, true, pxKey)
+	if pct != nil {
+		a.drawQuotePct(c, pkrX+quoteLabelW+pxW+quoteGap, y, *pct)
+	}
 }
 
 func (a *App) drawQuotePct(c *Canvas, x, y int, pct float64) int {

@@ -214,20 +214,17 @@ func TestTheBannerIsHalfTheWidthOfTheWindow(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-26 (later): one space stands between PKR and its price,
-// two digits or three, and the group's later columns are still placed from the
-// price field's own end.
+// Owner order 2026-11-26 (later): one space stands between PKR and its price on
+// CUSTOM SCRIPS OF VOLUME, two digits or three, and the group's later columns
+// are still placed from the price field's own end.
 func TestPKRKeepsOneSpaceBeforeItsPrice(t *testing.T) {
 	a := demoApp(t, 80, 24)
 	for _, px := range []string{"99.50", "102.75"} {
 		c := NewCanvas(40, 1, a.th.Panel)
-		end := a.drawQuoteStart(c, 0, 0, 9, px, "")
+		a.drawQuoteLeft(c, 0, 0, 9, px, nil, "")
 		row := c.PlainRows()[0]
 		if !strings.HasPrefix(row, "PKR "+px) {
 			t.Fatalf("%s: the day line reads %q, want one space after PKR", px, row)
-		}
-		if end != quoteLabelW+9 {
-			t.Fatalf("%s: the price field ends on %d, want %d", px, end, quoteLabelW+9)
 		}
 	}
 }

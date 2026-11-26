@@ -470,7 +470,7 @@ func (a *App) drawScanQuote(c *Canvas, row, end, left int, atT bool, q Quote, px
 		if left+groupW-1 > end {
 			return
 		}
-		a.drawQuote(c, left, row, pxW, px, q.ChangePct, pxKey)
+		a.drawQuoteLeft(c, left, row, pxW, px, q.ChangePct, pxKey)
 		barStart := left + groupW + quoteGap
 		fieldW := shareBarSpan + shareBarGap + netW
 		if q.Buy != nil && q.Sell != nil && barStart+fieldW <= end+1 {
@@ -490,7 +490,7 @@ func (a *App) drawScanQuote(c *Canvas, row, end, left int, atT bool, q Quote, px
 	if pkrX < left {
 		return
 	}
-	a.drawQuote(c, pkrX, row, pxW, px, q.ChangePct, pxKey)
+	a.drawQuoteLeft(c, pkrX, row, pxW, px, q.ChangePct, pxKey)
 	if barStart > 0 && q.Buy != nil && q.Sell != nil {
 		if total := *q.Buy + *q.Sell; total > 0 {
 			a.shareBarNetLeft(c, barStart, row, fieldW, netW, *q.Buy, *q.Sell)
