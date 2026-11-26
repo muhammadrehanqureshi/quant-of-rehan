@@ -279,10 +279,16 @@ const appVersion = "4.0.21"
 // words drawn as braille dots, whole and joined, and nothing follows it.
 // Build 177 is 4.3.9, the same day's order: the banner stands at half the
 // width, so the words sit in the middle of the gate as a mark.
+// Build 178 is 4.4.0, the same day's six corrections: the banner is solid
+// blocks with one mark for the whole phrase, the LINK line keeps one space
+// before Synced, the FEED row drops the typical stock's age, the ADV/DEC slash
+// is white, the CUSTOM SCRIPS quote group is measured on the whole table so all
+// six sub menus line up, PKR keeps one space before a two digit price, and the
+// WATCH LIST's search answers in its own box.
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.3.9"
+const hudBuild = "4.4.0"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

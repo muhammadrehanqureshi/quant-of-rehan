@@ -63,8 +63,9 @@ func (a *App) watchUniverse() []FlowRow {
 }
 
 // watchMatches is every scrip whose ticker starts with what the box holds.
-// Owner order 2026-11-26: typing E puts every E scrip on the page as the letter
-// is typed, so the table under the box is the search itself.
+// Owner order 2026-11-26: typing E answers as the letter is typed. Owner order
+// 2026-11-26 (later): those answers stand in the box's own drop down, so the
+// page's list is never swapped for them.
 func (a *App) watchMatches(q string) []FlowRow {
 	if q == "" {
 		return nil
@@ -79,14 +80,45 @@ func (a *App) watchMatches(q string) []FlowRow {
 	return kept
 }
 
+// watchSuggestRows is how many matches the box's drop down holds. The footer
+// still counts them all, so a fifth match is a figure away, not a taller box.
+const watchSuggestRows = 4
+
+// drawWatchMatches writes the search's answers in a drop down under the box,
+// one scrip a row, with the letters he typed hot and the rest of the ticker in
+// the text ink. A row tapped adds that scrip. It returns the rows the drop down
+// took, none when the box is empty. The owner's list under it is never filtered
+// by the search: the box is the only place the search shows.
+func (a *App) drawWatchMatches(c *Canvas, ix, row, iw int) int {
+	th := a.th
+	q := strings.ToUpper(strings.TrimSpace(a.watchQuery))
+	if q == "" {
+		return 0
+	}
+	m := a.watchMatches(q)
+	if len(m) == 0 {
+		c.Text(ix, row, min(iw, 40), "No scrip starts with "+q+".", th.Soft, false)
+		return 1
+	}
+	for i, r := range m {
+		if i >= watchSuggestRows {
+			break
+		}
+		ry := row + i
+		sym := r.Symbol
+		bg := a.selectRow(c, ix, ry, min(iw, 40), false, func() { a.addWatchSymbol(sym) })
+		c.Set(ix+1, ry, '\u25c6', th.Accent, bg, true)
+		cut := min(len(q), len(sym))
+		c.Text(ix+3, ry, max(1, iw-3), sym[:cut], th.Hot, true)
+		c.Text(ix+3+cut, ry, max(0, iw-3-cut), sym[cut:], th.Text, false)
+	}
+	return min(len(m), watchSuggestRows)
+}
+
 // watchRows is the owner's list as table rows. A ticker with no frame in the
 // latest ORDER FLOW answer keeps its row, so the list never hides a scrip he
-// put on it. While the box holds letters the page shows the search's own rows
-// in place of the list.
+// put on it. The box's search leaves this list alone.
 func (a *App) watchRows() []FlowRow {
-	if q := a.watchQuery; q != "" {
-		return a.watchMatches(q)
-	}
 	rows := make([]FlowRow, 0, len(a.cfg.Watch))
 	bySym := map[string]FlowRow{}
 	if a.of != nil {
@@ -217,13 +249,13 @@ func (a *App) drawWatchFoot(c *Canvas, ix, y, iw, found int) {
 	c.Text(ix, y, iw, fit(line, iw), th.Soft, false)
 }
 
-// drawWatch is the WATCH LIST page: the box that adds a scrip, one blank line,
-// the ORDER line of chips, and the table of the owner's own tickers. Nothing is
-// written under the box: the page's one instruction stands on its last row.
+// drawWatch is the WATCH LIST page: the box that adds a scrip, its own drop
+// down of search answers while it holds letters, one blank line, the ORDER line
+// of chips, and the table of the owner's own tickers. The page's one
+// instruction stands on its last row.
 func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 	th := a.th
 	ix, iy, iw, ih := a.panel(c, x, y, w, h, "WATCH LIST", watchAddHint)
-	a.addHit(x, y, w, h, func() { a.watchSearch = true })
 
 	row := iy
 	bw := a.searchBox(c, ix, row, min(iw, 40), a.watchQuery, watchPlaceholder, a.watchSearch)
@@ -232,8 +264,12 @@ func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 	if ih < 3 {
 		return
 	}
-	// Owner order 2026-11-24 (later): one blank line stands between the box and
-	// the ORDER line of chips.
+	// Owner order 2026-11-26 (later): the box's search reads in a drop down just
+	// under the box, and one blank line stands between it and the ORDER line of
+	// chips. A box with nothing in it keeps that blank line alone.
+	if n := a.drawWatchMatches(c, ix, row, iw); n > 0 {
+		row += n
+	}
 	row++
 	a.drawWatchSorts(c, ix, row, iw)
 	row++
@@ -242,7 +278,11 @@ func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 	// tab bar that carries TAB, R and Q again. It counts the search's own rows
 	// while the box holds letters.
 	rows := a.watchSorted()
-	a.drawWatchFoot(c, ix, iy+ih-1, iw, len(rows))
+	found := len(rows)
+	if a.watchQuery != "" {
+		found = len(a.watchMatches(strings.ToUpper(strings.TrimSpace(a.watchQuery))))
+	}
+	a.drawWatchFoot(c, ix, iy+ih-1, iw, found)
 	if len(rows) == 0 {
 		return
 	}
@@ -363,12 +403,8 @@ func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 			c.Text(ix+4, ry+1, tw, fit(line, tw), th.Soft, false)
 		}
 		a.addHit(ix, ry, cw, per, func() {
-			// Owner order 2026-11-26: a row the search found is added by the tap
-			// that picks it, so the search ends on his own list.
-			if a.watchQuery != "" {
-				a.addWatchSymbol(r.Symbol)
-				return
-			}
+			// Owner order 2026-11-26 (later): the search adds a scrip from its own
+			// drop down, so a tap on the list only picks the row.
 			a.watchPick = key
 			a.watchSearch = true
 		})
