@@ -52,7 +52,8 @@ MAX_MONITOR_LOSING_STREAK = 8
 LIVE_RULE = config.SCANNER_VERSION
 # Owner order 2026-11-25: the one running law is the Kalman Trend with the
 # 5, 15 and 30 minute VWAP frames and the z-score of the price minus VWAP
-# spread (`kalman_vwap_zscore_sa_v2`), with the entry nearer the day's low.
+# spread (`kalman_vwap_zscore_sa_v2`). Owner order 2026-11-26 removed the
+# entry's low side of the day's range from that law.
 # Every previous strategy is removed, so only the live rule is registered
 # beside the frozen historical cohorts, and a row is always scored under the
 # scanner version that produced it.

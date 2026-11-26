@@ -81,9 +81,9 @@ rather than inventing a fresher number.
   of the price minus VWAP spread. The 5 minute spread must sit at least one
   standard deviation below its own trailing mean while the 5, 15 and 30 minute
   Kalman states are up, the 15 and 30 minute closes must hold above their own
-  VWAP, and the entry must stand closer to that day's low than to that day's
-  high. Every call carries a score out of 100 and the day carries at most
-  three.
+  VWAP. Every call carries a score out of 100 and the day carries at most
+  three. The rule that put the entry closer to the day's low than to the day's
+  high (owner order 2026-11-25) was removed by owner order 2026-11-26.
   The owner's order of 2026-11-23 opening range law is removed, not disabled:
   `opening_range_vwap.py` is deleted and the OPENING_RANGE_* constants are
   gone. The 2% day-gain cap and the 2:1 buyer gate of 2026-11-19 still stand.

@@ -259,12 +259,13 @@ def is_etf_symbol(symbol: str) -> bool:
     return eligibility.is_etf(symbol)
 
 # The scanner's identity is the one law it runs. Owner order 2026-11-25
-# (Karachi, latest): the day trading strategy is the Kalman Trend with the
-# VWAP on the 5, 15 and 30 minute charts and the z-score of the price minus
-# VWAP spread, with the entry closer to the day's low than the day's high
+# (Karachi): the day trading strategy is the Kalman Trend with the VWAP on the
+# 5, 15 and 30 minute charts and the z-score of the price minus VWAP spread
 # (src/signals/kalman_zscore_vwap.py). The opening range law that ran before
-# it is removed. The name is kept as a constant because the relay, the
-# journal and the research gate file every signal under it.
+# it is removed. Owner order 2026-11-26 removed the rule that put the entry
+# closer to the day's low than to the day's high. The name is kept as a
+# constant because the relay, the journal and the research gate file every
+# signal under it.
 SCANNER_VERSION = "kalman_vwap_zscore_sa_v2"
 
 # The Kalman Trend, the owner's sole intraday strategy (owner order
@@ -331,12 +332,12 @@ MTF_VWAP_LOOKBACK = {5: 3, 15: 12, 30: 12}
 MTF_MIN_BARS = {5: 3, 15: 2, 30: 1}
 
 # ------------------- the Kalman Trend with the z-score spread law
-# Owner order 2026-11-25 (Karachi, latest): the running intraday strategy is
-# the Kalman Trend with the VWAP on the 5, 15 and 30 minute charts, the
-# z-score of the price minus VWAP spread as the mathematical base, and the
-# entry price closer to that day's low than to that day's high
+# Owner order 2026-11-25 (Karachi): the running intraday strategy is the Kalman
+# Trend with the VWAP on the 5, 15 and 30 minute charts and the z-score of the
+# price minus VWAP spread as the mathematical base
 # (src/signals/kalman_zscore_vwap.py). It is the ONE entry law, not a second
-# engine, and the opening range law that ran before it is removed.
+# engine, and the opening range law that ran before it is removed. Owner order
+# 2026-11-26 removed the low side of the day's range from the entry.
 ZSCORE_ENABLED = _flag("ZSCORE_ENABLED", True)
 ZSCORE_STRATEGY_VERSION = "kalman_vwap_zscore_sa_v2"
 #: The frame whose price-VWAP spread is standardised for the entry.
@@ -348,10 +349,10 @@ ZSCORE_Z_MIN = _number("ZSCORE_Z_MIN", 1.0)
 ZSCORE_MIN_SPREADS = int(_number("ZSCORE_MIN_SPREADS", 3))
 # Owner order 2026-11-21: a call must score MORE than this out of 100.
 # Owner order 2026-11-25: the law's own weakest legal setup (all three frames
-# aligned, the dislocation at its floor, the 1% stop and 2% target, and an
-# entry on the low side of the day's range) prints 75.6, so the floor sits at
-# 60 and never refuses the law's own answer. Stronger setups rank higher. The
-# floor is checked where the call is chosen
+# aligned and the dislocation at its floor, with the 1% stop and 2% target)
+# prints at least 62, so the floor sits at 60 and never refuses the law's own
+# answer. Stronger setups rank higher. The floor is checked where the call is
+# chosen
 # (src/signals/momentum_scanner.select_one), never inside the entry law, so
 # every refusal keeps its own measured reason.
 MIN_CALL_SCORE = _number("MIN_CALL_SCORE", 60.0)
@@ -694,8 +695,7 @@ def config_snapshot() -> dict:
             "min_spreads": ZSCORE_MIN_SPREADS,
             "basis": "z score of the current price minus rolling VWAP "
                      "spread against that spread's own trailing mean and "
-                     "standard deviation, with every Kalman state up and "
-                     "the entry closer to the day's low than its high",
+                     "standard deviation, with every Kalman state up",
         },
         "entry_gates": {
             "max_day_gain_pct": round(MAX_DAY_GAIN_PCT * 100, 4),

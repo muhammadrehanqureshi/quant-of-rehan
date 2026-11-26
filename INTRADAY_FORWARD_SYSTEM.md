@@ -8,8 +8,9 @@ and the z-score of the price minus VWAP spread
 (src/signals/kalman_zscore_vwap.py). The 5 minute spread must sit at least one
 standard deviation below its own trailing mean while the 5, 15 and 30 minute
 Kalman states are up; the 15 and 30 minute frames must each close above their
-own rolling VWAP; and the entry price must stand closer to that day's low
-than to that day's high. The opening range law of 2026-11-23 is removed, not
+own rolling VWAP. The rule that put the entry closer to that day's low than to
+that day's high (owner order 2026-11-25) is removed by owner order 2026-11-26.
+The opening range law of 2026-11-23 is removed, not
 disabled: `opening_range_vwap.py` is deleted and the OPENING_RANGE_*
 constants are gone.
 

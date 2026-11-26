@@ -1,16 +1,16 @@
 """The authoritative intraday scanner: one strategy, the one the owner named.
 
-Owner order 2026-11-25 (Karachi, latest): the day trading strategy is the
-Kalman Trend with the VWAP on the 5, 15 and 30 minute charts and the z-score
-of the price minus VWAP spread, and the entry price must sit closer to that
-day's low than to that day's high (src/signals/kalman_zscore_vwap.py). The
-opening range law that ran before it is removed, not disabled. The capture
-validation and the public SessionData/ScanResult contracts stay stable for
-all runners. The scanner builds its single entry through that law: the 5
-minute spread must sit at least ZSCORE_Z_MIN standard deviations below its
-own trailing mean while the 5, 15 and 30 minute Kalman states are up, the 15
-and 30 minute closes must hold above their own VWAP, and the entry must
-stand on the low side of the day's range.
+Owner order 2026-11-25 (Karachi): the day trading strategy is the Kalman Trend
+with the VWAP on the 5, 15 and 30 minute charts and the z-score of the price
+minus VWAP spread (src/signals/kalman_zscore_vwap.py). The opening range law
+that ran before it is removed, not disabled. The capture validation and the
+public SessionData/ScanResult contracts stay stable for all runners. The
+scanner builds its single entry through that law: the 5 minute spread must sit
+at least ZSCORE_Z_MIN standard deviations below its own trailing mean while the
+5, 15 and 30 minute Kalman states are up, and the 15 and 30 minute closes must
+hold above their own VWAP. Owner order 2026-11-26 removed the low side of the
+day's range from the entry: it is measured for the card and no longer refuses a
+call.
 
 Every call carries a score out of 100 and the day carries at most three
 (config.MAX_TRADES_PER_DAY). Owner order 2026-11-19 still stands: the pick
@@ -822,13 +822,10 @@ def signal_message(candidate: dict, market: dict, entry: float,
     stop = candidate["stop_loss"]
     strategy = candidate.get("strategy") or config.SCANNER_VERSION
     view = setup.get("zscore") or {}
-    day = view.get("day") or {}
-    if view.get("z") is not None and day.get("low") is not None:
+    if view.get("z") is not None:
         reason = (f"the 5m price sits {abs(float(view['z'])):.2f} sigma below "
                   f"its own VWAP mean, with the 5m, 15m and 30m Kalman states "
-                  f"up and the 15m and 30m closes above their VWAP, while "
-                  f"the entry is nearer the day's low {day['low']:.2f} than "
-                  f"its high {day['high']:.2f}")
+                  f"up and the 15m and 30m closes above their VWAP")
     else:
         reason = ("the 5m spread is stretched below its mean with the 5m, "
                   "15m and 30m Kalman states up")

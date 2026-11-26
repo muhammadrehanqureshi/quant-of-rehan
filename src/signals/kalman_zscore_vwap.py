@@ -1,11 +1,16 @@
 """The Kalman Trend, the 5m/15m/30m VWAP frames and the z-score spread law.
 
-Owner order 2026-11-25 (Karachi, the latest): the day trading strategy is this
-law and no other. The Kalman Trend and the VWAP on the 5 minute, 15 minute and
-30 minute charts stay, the z-score of the price minus VWAP spread is the
-mathematical base, and the entry price must stand closer to that day's low
-than to that day's high. The opening range law that ran before this order is
-removed, not disabled.
+Owner order 2026-11-25 (Karachi): the day trading strategy is this law and no
+other. The Kalman Trend and the VWAP on the 5 minute, 15 minute and 30 minute
+charts stay and the z-score of the price minus VWAP spread is the mathematical
+base. The opening range law that ran before this order is removed, not
+disabled.
+
+Owner order 2026-11-26 (Karachi, the latest): the entry is no longer required
+to stand closer to the day's low than to the day's high. That gate is removed,
+and so is its share of the score. The day's range is still measured and
+carried in the view for the card, and a range that cannot be read no longer
+refuses a call.
 
 Owner order 2026-11-16 (Karachi): the z-score of the price minus VWAP spread
 is a statistical-arbitrage mean-reversion measure, not a z-score of closes.
@@ -39,24 +44,19 @@ Entry law:
   * the 5 minute price-VWAP spread must sit at least ZSCORE_Z_MIN standard
     deviations below its own trailing mean, so the entry buys a measured
     statistical dislocation inside that rising regime;
-  * the entry price must sit closer to the day's low than to the day's high
-    (owner order 2026-11-25), so a call is never the top of the day's range.
 
 Exit and risk are the owner's unchanged paper law: entry at the latest
 completed close, a fixed -1% stop and a +2% target, three calls a day, each of
 which must score above config.MIN_CALL_SCORE out of 100.
 
 The score is a ranking number out of 100, never a probability. The law's own
-shape (all three frames aligned, the dislocation at its floor and the entry on
-the day's low side of the range) is worth 62; the rest is measured: how far
-past the floor the dislocation is, the reward against the stop, and how much
-closer to the low than the midpoint the entry sits. A minimal legal setup
-therefore clears config.MIN_CALL_SCORE without the floor ever refusing the
-law's own answer.
+shape (all three frames aligned and the dislocation at its floor) is worth 62;
+the rest is measured: how far past the floor the dislocation is and the reward
+against the stop. A minimal legal setup therefore clears
+config.MIN_CALL_SCORE without the floor ever refusing the law's own answer.
 
 Nothing here executes, sleeps or touches a network. A missing frame, an
-unmeasurable spread, an unreadable day range or a thin tape fails closed with
-its reason named (SO-3).
+unmeasurable spread or a thin tape fails closed with its reason named (SO-3).
 """
 
 from __future__ import annotations
@@ -256,20 +256,18 @@ def entry_view(symbol: str, rows: list, session,
     if z > -config.ZSCORE_Z_MIN:
         return None, "zscore_not_stretched_below_mean"
 
-    # Owner order 2026-11-25: the entry must sit closer to the day's low than
-    # to the day's high. A range that cannot be read refuses rather than
-    # guessing which side the price is on.
+    # Owner order 2026-11-26: the low side of the day's range is not a gate. The
+    # range is still measured and carried in the view for the card; a range
+    # that cannot be read no longer refuses the entry, and the tape's own last
+    # close stands in its place.
     day = day_range(session_rows if session_rows is not None else rows, session)
-    if day is None:
-        return None, "zscore_day_range_unmeasurable"
-    if day["close"] - day["low"] >= day["high"] - day["close"]:
-        return None, "zscore_entry_closer_to_the_high"
+    close = day["close"] if day is not None else (rows[-1].close if rows else None)
 
     return {
         "rule": ZSCORE_VERSION,
         "symbol": symbol,
         "side": "LONG",
-        "close": round(float(day["close"]), 6),
+        "close": round(float(close), 6) if close is not None else None,
         "signal_minutes": config.ZSCORE_SIGNAL_FRAME_MINUTES,
         "z": round(z, 4),
         "z_min": round(config.ZSCORE_Z_MIN, 4),
@@ -290,21 +288,18 @@ def score(view: dict | None, reward_risk: float) -> float:
     """A ranking number for a z-score spread setup, never a probability.
 
     Owner order 2026-11-25: the law's own shape is 62, the dislocation past
-    its floor adds up to 18, the reward against the stop adds up to 10, and
-    standing on the low side of the day's range adds up to 10, so no legal
-    setup can print below 62 and a perfect one prints 100. The floor
-    (config.MIN_CALL_SCORE) never refuses the law's own answer and the day can
-    still carry the three calls the owner asked for.
+    its floor adds up to 18 and the reward against the stop adds up to 10. The
+    low side of the day's range used to add up to 10 more; owner order
+    2026-11-26 removed it, so no legal setup can print below 62 and a perfect
+    one prints 90. The floor (config.MIN_CALL_SCORE) never refuses the law's
+    own answer and the day can still carry the three calls the owner asked for.
     """
     if not isinstance(view, dict):
         return 0.0
     z = abs(float(view.get("z") or 0.0))
-    day = view.get("day") or {}
-    position = day.get("position")
     depth = min(18.0, 9.0 * max(0.0, z - config.ZSCORE_Z_MIN))
     reward = min(10.0, 4.0 * max(0.0, reward_risk))
-    low_side = 0.0 if position is None else 10.0 * max(0.0, 1.0 - float(position))
-    return round(min(100.0, 62.0 + depth + reward + low_side), 2)
+    return round(min(100.0, 62.0 + depth + reward), 2)
 
 
 def candidate(symbol: str, rows: list, session,
@@ -425,8 +420,7 @@ def candidate(symbol: str, rows: list, session,
                  "buy_sell_ratio": round(buy / sell, 3) if sell else None},
         "last_bar": rows[-1].timestamp.isoformat(), "bars": len(rows),
         "entry_basis": "latest completed close at a measured spread below its "
-                       "5m VWAP with the 5m, 15m and 30m Kalman states up and "
-                       "the entry closer to the day's low than its high; "
+                       "5m VWAP with the 5m, 15m and 30m Kalman states up; "
                        "paper reference, not a fill",
     }
 
@@ -438,12 +432,8 @@ def summary(view: dict | None) -> str:
     z = view.get("z")
     fast = (view.get("frames") or {}).get("5m") or {}
     vwap = fast.get("vwap")
-    day = view.get("day") or {}
     if z is None or vwap is None:
         return ""
     line = (f"Z-SPREAD {z:+.2f} sigma versus the 5m VWAP {vwap}, "
             f"with 5m/15m/30m Kalman aligned")
-    if day.get("low") is not None and day.get("high") is not None:
-        line += (f", entry nearer the day's low {day['low']:.2f} than its "
-                 f"high {day['high']:.2f}")
     return line

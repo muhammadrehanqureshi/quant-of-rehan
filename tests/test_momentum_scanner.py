@@ -491,7 +491,7 @@ class TestOwnerOrderedCallWatch(unittest.TestCase):
         for index in range(70):
             bars[f"QUIET{index:02d}"] = minute_rows(150)
         # 130 minutes in, the fixture's 5m spread is stretched below its mean
-        # with all three frames up and the entry nearer the day's low.
+        # with all three frames up.
         session = session_of(bars, 130)
         quality = scanner.assess_quality(session, list(bars))
         assert quality.status != scanner.DATA_BLOCKED, quality.reason

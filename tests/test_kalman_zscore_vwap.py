@@ -1,12 +1,12 @@
 """Tests for the Kalman Trend, 5m/15m/30m VWAP and z-score spread law.
 
-Owner order 2026-11-25 (Karachi, latest): the running intraday strategy is
-the Kalman Trend with VWAP on the 5, 15 and 30 minute charts and the z-score
-of the price minus VWAP spread, the entry price must stand closer to that
-day's low than to that day's high, the day carries at most three calls and
-every call is scored out of 100. The law is pure: completed bars, the session
-clock and measured spreads in, a view or a named refusal out. No network, no
-clock, no daily file.
+Owner order 2026-11-25 (Karachi): the running intraday strategy is the Kalman
+Trend with VWAP on the 5, 15 and 30 minute charts and the z-score of the price
+minus VWAP spread, the day carries at most three calls and every call is
+scored out of 100. Owner order 2026-11-26 removed the rule that put the entry
+closer to the day's low than to the day's high. The law is pure: completed
+bars, the session clock and measured spreads in, a view or a named refusal
+out. No network, no clock, no daily file.
 """
 
 from __future__ import annotations
@@ -150,11 +150,18 @@ class EntryTest(unittest.TestCase):
         self.assertEqual(view["frames"]["30m"]["kalman_state"], 1)
         self.assertEqual(view["day"]["side"], "LOW")
 
-    def test_an_entry_nearer_the_days_high_is_refused(self):
-        """Owner order 2026-11-25: never the top of the day's range."""
+    def test_an_entry_nearer_the_days_high_is_no_longer_refused(self):
+        """Owner order 2026-11-26: the low side of the range is not a gate.
+
+        The tape rallies to the day's high, and the law still takes the same
+        entry it takes on a dip: the day's side is measured and reported, never
+        required.
+        """
         view, reason = self.build(frames=frames_ready(), rows=rally_tape())
-        self.assertIsNone(view)
-        self.assertEqual(reason, "zscore_entry_closer_to_the_high")
+        self.assertEqual(reason, "ok")
+        self.assertIsNotNone(view)
+        self.assertEqual(view["day"]["side"], "HIGH")
+        self.assertIsNotNone(view["close"])
 
     def test_a_fast_frame_that_has_not_turned_up_is_refused(self):
         view, reason = self.build(frames=frames_ready(fast_state=-1))
@@ -219,13 +226,13 @@ class LabelTest(unittest.TestCase):
         self.assertGreater(config.ZSCORE_Z_MIN, 0.0)
         self.assertEqual(config.MTF_TIMEFRAMES, (5, 15, 30))
 
-    def test_the_summary_line_names_the_spread_the_frames_and_the_low(self):
+    def test_the_summary_line_names_the_spread_and_the_frames_alone(self):
         view, _ = EntryTest().build(frames=frames_ready())
         line = zlaw.summary(view)
         self.assertIn("Z-SPREAD", line)
         self.assertIn("5m VWAP", line)
         self.assertIn("5m/15m/30m", line)
-        self.assertIn("nearer the day's low", line)
+        self.assertNotIn("nearer the day's low", line)
 
 
 class TimingTest(unittest.TestCase):
