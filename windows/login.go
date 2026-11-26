@@ -27,12 +27,17 @@ const (
 	unlockHint        = "HINT: Password contains 13 characters."
 	unlockTaunt       = "Nice try, buddy. Get your punk ahh out of here. HAHAHA!"
 	unlockMaxChars    = 16
-	// Owner order 2026-11-26: the right password shows the basmala in Arabic,
-	// then the build's name, and only then the HUD.
-	unlockBasmala    = "بسم الله الرحمن الرحيم"
-	unlockBrand      = "QUANT OF REHAN"
-	unlockBasmalaFor = 1500 * time.Millisecond
-	unlockWelcomeFor = 3200 * time.Millisecond
+	// Owner order 2026-11-26 (later): the right password shows the basmala and
+	// nothing after it, and then the HUD takes the screen.
+	//
+	// The words are the owner's own: بسم الله الرحمن الرحيم. The console draws a
+	// cell grid from left to right and joins no Arabic letter, so the same words
+	// are kept here as their joined forms in the order the eye reads them,
+	// rightmost cell first: U+FEE2 U+FEF4 U+FEA3 U+FEAE U+FEDF U+FE8D (الرحيم),
+	// U+FEE6 U+FEE4 U+FEA3 U+FEAE U+FEDF U+FE8D (الرحمن), U+FEEA U+FEDE U+FEDF
+	// U+FE8D (الله), U+FEE2 U+FEB4 U+FE91 (بسم).
+	unlockBasmala    = "\uFEE2\uFEF4\uFEA3\uFEAE\uFEDF\uFE8D \uFEE6\uFEE4\uFEA3\uFEAE\uFEDF\uFE8D \uFEEA\uFEDE\uFEDF\uFE8D \uFEE2\uFEB4\uFE91"
+	unlockWelcomeFor = 2500 * time.Millisecond
 )
 
 // keyLogin owns every key while the gate is up, so nothing he types reaches a
@@ -84,7 +89,6 @@ func (a *App) submitPassword() {
 	if a.passText == unlockPassword {
 		a.passOK = true
 		a.passMsg = ""
-		a.splashAt = a.now
 		a.unlockAt = a.now.Add(unlockWelcomeFor)
 		return
 	}
@@ -163,19 +167,14 @@ func (a *App) drawLogin(c *Canvas) {
 }
 
 // drawSplash is what the gate becomes once the password is right. Owner order
-// 2026-11-26: he sees the basmala in Arabic first, then his Quant of Rehan, and
-// only then does the HUD take the screen. The Arabic stands alone on its row,
-// centred, so nothing drawn beside it can be re-read by the console's own
+// 2026-11-26 (later): the banner carries the basmala and nothing else, and the
+// HUD takes the screen after it. The words stand alone on the middle row,
+// centred, so nothing drawn beside them can be re-read by the console's own
 // reading of the line.
 func (a *App) drawSplash(c *Canvas) {
 	th := a.th
-	if c.W < 8 || c.H < 3 {
+	if c.W < 12 || c.H < 3 {
 		return
 	}
-	mid := c.H / 2
-	if a.now.Sub(a.splashAt) < unlockBasmalaFor {
-		c.Text(max(0, (c.W-runeLen(unlockBasmala))/2), mid, c.W, unlockBasmala, th.Hot, true)
-		return
-	}
-	c.Text(max(0, (c.W-runeLen(unlockBrand))/2), mid, c.W, unlockBrand, th.Accent, true)
+	c.Text(max(0, (c.W-runeLen(unlockBasmala))/2), c.H/2, c.W, unlockBasmala, th.Hot, true)
 }

@@ -117,9 +117,9 @@ func TestTheLinkLineClosesWithAFullStopAndOpensSyncedWithACapital(t *testing.T) 
 	}
 }
 
-// Owner order 2026-11-26: the right password shows the basmala in Arabic, then
-// QUANT OF REHAN, and only then does the HUD take the screen.
-func TestThePasswordShowsTheBasmalaThenTheNameThenTheHud(t *testing.T) {
+// Owner order 2026-11-26 (later): the right password shows the basmala and
+// nothing after it, and only then does the HUD take the screen.
+func TestThePasswordShowsTheBasmalaAloneThenTheHud(t *testing.T) {
 	a := lockedApp(t, 100, 30)
 	typeRunes(a, wantUnlockPassword)
 	a.onKey(Key{Kind: KEnter})
@@ -130,18 +130,11 @@ func TestThePasswordShowsTheBasmalaThenTheNameThenTheHud(t *testing.T) {
 	if !strings.Contains(rows, unlockBasmala) {
 		t.Fatalf("the basmala is not on the gate:\n%s", rows)
 	}
-	if strings.Contains(rows, unlockBrand) {
-		t.Fatalf("the name came before the basmala:\n%s", rows)
-	}
-	a.onTick(a.now.Add(unlockBasmalaFor))
-	if !a.locked {
-		t.Fatal("the HUD took the screen before the name was read")
-	}
-	if rows := screenOf(a); !strings.Contains(rows, unlockBrand) {
-		t.Fatalf("the name is not on the gate:\n%s", rows)
+	if strings.Contains(rows, "QUANT OF REHAN") {
+		t.Fatalf("the banner carries a name after the basmala:\n%s", rows)
 	}
 	a.onTick(a.now.Add(unlockWelcomeFor))
 	if a.locked {
-		t.Fatal("the gate stayed shut after the splash")
+		t.Fatal("the gate stayed shut after the banner")
 	}
 }
