@@ -28,15 +28,8 @@ const (
 	unlockTaunt       = "Nice try, buddy. Get your punk ahh out of here. HAHAHA!"
 	unlockMaxChars    = 16
 	// Owner order 2026-11-26 (later): the right password shows the basmala and
-	// nothing after it, and then the HUD takes the screen.
-	//
-	// The words are the owner's own: بسم الله الرحمن الرحيم. The console draws a
-	// cell grid from left to right and joins no Arabic letter, so the same words
-	// are kept here as their joined forms in the order the eye reads them,
-	// rightmost cell first: U+FEE2 U+FEF4 U+FEA3 U+FEAE U+FEDF U+FE8D (الرحيم),
-	// U+FEE6 U+FEE4 U+FEA3 U+FEAE U+FEDF U+FE8D (الرحمن), U+FEEA U+FEDE U+FEDF
-	// U+FE8D (الله), U+FEE2 U+FEB4 U+FE91 (بسم).
-	unlockBasmala    = "\uFEE2\uFEF4\uFEA3\uFEAE\uFEDF\uFE8D \uFEE6\uFEE4\uFEA3\uFEAE\uFEDF\uFE8D \uFEEA\uFEDE\uFEDF\uFE8D \uFEE2\uFEB4\uFE91"
+	// nothing after it, and then the HUD takes the screen. The words and their
+	// picture live in basmala.go, drawn as braille dots so no cell cuts a letter.
 	unlockWelcomeFor = 2500 * time.Millisecond
 )
 
@@ -168,13 +161,20 @@ func (a *App) drawLogin(c *Canvas) {
 
 // drawSplash is what the gate becomes once the password is right. Owner order
 // 2026-11-26 (later): the banner carries the basmala and nothing else, and the
-// HUD takes the screen after it. The words stand alone on the middle row,
-// centred, so nothing drawn beside them can be re-read by the console's own
-// reading of the line.
+// HUD takes the screen after it and after nothing else. The words are the
+// braille art of basmala.go: whole letters, joined, read right to left, with no
+// cell cutting a glyph and no text drawn beside them.
 func (a *App) drawSplash(c *Canvas) {
 	th := a.th
-	if c.W < 12 || c.H < 3 {
+	if lines := basmalaArt(min(c.W-4, 200), c.H-4); len(lines) > 0 {
+		top := max(0, (c.H-len(lines))/2)
+		for i, line := range lines {
+			c.Text(max(0, (c.W-runeLen(line))/2), top+i, c.W, line, th.Hot, true)
+		}
 		return
 	}
-	c.Text(max(0, (c.W-runeLen(unlockBasmala))/2), c.H/2, c.W, unlockBasmala, th.Hot, true)
+	// A window too small to carry the art still says the words.
+	if c.W >= runeLen(basmalaWords)+2 && c.H >= 3 {
+		c.Text(max(0, (c.W-runeLen(basmalaWords))/2), c.H/2, c.W, basmalaWords, th.Hot, true)
+	}
 }

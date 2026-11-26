@@ -62,7 +62,7 @@ func TestTheRightPasswordWelcomesHimThenOpensTheHud(t *testing.T) {
 	if !a.locked {
 		t.Fatal("the HUD took the screen before the splash was read")
 	}
-	if rows := screenOf(a); !strings.Contains(rows, unlockBasmala) {
+	if rows := screenOf(a); !hasBasmalaArt(rows) {
 		t.Fatalf("the basmala is not on the gate:\n%s", rows)
 	}
 	if a.passText != wantUnlockPassword {
