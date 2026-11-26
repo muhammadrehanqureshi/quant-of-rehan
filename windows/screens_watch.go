@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 )
 
 // The WATCH LIST page (owner order 2026-11-24): the owner's own scrips, in his
@@ -34,10 +35,58 @@ const watchAddHint = `Press "/" to add`
 // gone from the page, so every list is read through one of those seven figures.
 var watchSorts = flowSorts
 
+// watchUniverse is every scrip the build holds by ticker: the ORDER FLOW
+// answer's own rows first, then the live price table for a scrip that answer
+// has not carried yet, one entry each and in ticker order, so one search reads
+// the same list twice.
+func (a *App) watchUniverse() []FlowRow {
+	rows := make([]FlowRow, 0, len(a.cfg.Watch))
+	seen := make(map[string]bool, len(a.cfg.Watch))
+	add := func(r FlowRow) {
+		if r.Symbol == "" || seen[r.Symbol] {
+			return
+		}
+		seen[r.Symbol] = true
+		rows = append(rows, r)
+	}
+	if a.of != nil {
+		for _, r := range a.of.Rows {
+			add(r)
+		}
+	}
+	for sym, q := range a.prices {
+		add(FlowRow{Symbol: sym, Price: q.Price, ChangePct: q.ChangePct,
+			Buy: q.Buy, Sell: q.Sell, Volume: q.Volume, Fresh: true})
+	}
+	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Symbol < rows[j].Symbol })
+	return rows
+}
+
+// watchMatches is every scrip whose ticker starts with what the box holds.
+// Owner order 2026-11-26: typing E puts every E scrip on the page as the letter
+// is typed, so the table under the box is the search itself.
+func (a *App) watchMatches(q string) []FlowRow {
+	if q == "" {
+		return nil
+	}
+	rows := a.watchUniverse()
+	kept := rows[:0]
+	for _, r := range rows {
+		if strings.HasPrefix(r.Symbol, q) {
+			kept = append(kept, r)
+		}
+	}
+	return kept
+}
+
 // watchRows is the owner's list as table rows. A ticker with no frame in the
 // latest ORDER FLOW answer keeps its row, so the list never hides a scrip he
-// put on it.
+// put on it. While the box holds letters the page shows the search's own rows
+// in place of the list.
 func (a *App) watchRows() []FlowRow {
+	if q := a.watchQuery; q != "" {
+		return a.watchMatches(q)
+	}
 	rows := make([]FlowRow, 0, len(a.cfg.Watch))
 	bySym := map[string]FlowRow{}
 	if a.of != nil {
@@ -145,16 +194,27 @@ func (a *App) drawWatchSorts(c *Canvas, ix, row, iw int) {
 }
 
 // drawWatchFoot writes the page's one instruction on the panel's own last row.
-func (a *App) drawWatchFoot(c *Canvas, ix, y, iw int) {
-	if iw < runeLen(watchFooter) {
+// Owner order 2026-11-26: while the box holds letters the row says what the
+// search has found instead.
+func (a *App) drawWatchFoot(c *Canvas, ix, y, iw, found int) {
+	if iw < 1 {
 		return
 	}
 	th := a.th
-	// Owner order 2026-11-24 (later): the whole sentence is one ink, the word
-	// del included, so nothing in it stands out in colour.
-	c.Spans(ix, y, iw, []Span{
-		{"Select a scrip and press \"del\" to remove that.", th.Soft, false},
-	})
+	line := watchFooter
+	if q := a.watchQuery; q != "" {
+		switch found {
+		case 0:
+			line = fmt.Sprintf("No KMIALL scrip starts with %q.", q)
+		case 1:
+			line = fmt.Sprintf("1 scrip starts with %q. Tap it to add it.", q)
+		default:
+			line = fmt.Sprintf("%d scrips start with %q. Tap one to add it.", found, q)
+		}
+	}
+	// The whole sentence is one ink, the word del included, so nothing in it
+	// stands out in colour.
+	c.Text(ix, y, iw, fit(line, iw), th.Soft, false)
 }
 
 // drawWatch is the WATCH LIST page: the box that adds a scrip, one blank line,
@@ -179,10 +239,10 @@ func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 	row++
 	row++ // one blank row above the table, as ORDER FLOW keeps it
 	// The page's one instruction stands on the panel's own last row, above the
-	// tab bar that carries TAB, R and Q again.
-	a.drawWatchFoot(c, ix, iy+ih-1, iw)
-
+	// tab bar that carries TAB, R and Q again. It counts the search's own rows
+	// while the box holds letters.
 	rows := a.watchSorted()
+	a.drawWatchFoot(c, ix, iy+ih-1, iw, len(rows))
 	if len(rows) == 0 {
 		return
 	}
@@ -303,6 +363,12 @@ func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 			c.Text(ix+4, ry+1, tw, fit(line, tw), th.Soft, false)
 		}
 		a.addHit(ix, ry, cw, per, func() {
+			// Owner order 2026-11-26: a row the search found is added by the tap
+			// that picks it, so the search ends on his own list.
+			if a.watchQuery != "" {
+				a.addWatchSymbol(r.Symbol)
+				return
+			}
 			a.watchPick = key
 			a.watchSearch = true
 		})

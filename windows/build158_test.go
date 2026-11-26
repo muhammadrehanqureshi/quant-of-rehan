@@ -13,7 +13,6 @@ import (
 const (
 	wantUnlockPlaceholder = "Enter password"
 	wantUnlockHint        = "HINT: Password contains 13 characters."
-	wantUnlockWelcome     = "Welcome back, Mr. Rehan!"
 	wantUnlockTaunt       = "Nice try, buddy. Get your punk ahh out of here. HAHAHA!"
 	wantUnlockPassword    = "7861"
 )
@@ -60,14 +59,11 @@ func TestTheRightPasswordWelcomesHimThenOpensTheHud(t *testing.T) {
 	a := lockedApp(t, 100, 30)
 	typeRunes(a, wantUnlockPassword)
 	a.onKey(Key{Kind: KEnter})
-	if a.passMsg != wantUnlockWelcome {
-		t.Fatalf("the right password says %q, want %q", a.passMsg, wantUnlockWelcome)
-	}
 	if !a.locked {
-		t.Fatal("the HUD took the screen before the welcome was read")
+		t.Fatal("the HUD took the screen before the splash was read")
 	}
-	if rows := screenOf(a); !strings.Contains(rows, wantUnlockWelcome) {
-		t.Fatalf("the welcome is not on the gate:\n%s", rows)
+	if rows := screenOf(a); !strings.Contains(rows, unlockBasmala) {
+		t.Fatalf("the basmala is not on the gate:\n%s", rows)
 	}
 	if a.passText != wantUnlockPassword {
 		t.Fatalf("the box lost the password: %q", a.passText)
@@ -113,8 +109,8 @@ func TestTheWrongPasswordGetsTheTauntAndStaysShut(t *testing.T) {
 	// And the password is right after the refusal.
 	typeRunes(a, wantUnlockPassword[1:])
 	a.onKey(Key{Kind: KEnter})
-	if a.passMsg != wantUnlockWelcome {
-		t.Fatalf("the second try says %q, want the welcome", a.passMsg)
+	if !a.passOK {
+		t.Fatal("the second try did not take the password")
 	}
 }
 
