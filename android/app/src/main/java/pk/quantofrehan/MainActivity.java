@@ -3461,8 +3461,10 @@ public class MainActivity extends Activity {
             if (print.shares < BIG_PRINT_FLOOR_SHARES) {
                 continue;
             }
+            // Owner order 2026-11-27: the board filters on the prefix too, so
+            // one law governs every scrip box on the console.
             if (!query.isEmpty() && (print.symbol == null
-                    || !print.symbol.toUpperCase(Locale.US).contains(query))) {
+                    || !print.symbol.toUpperCase(Locale.US).startsWith(query))) {
                 continue;
             }
             // Owner order 2026-11-05: EVERY print the relay holds joins the
@@ -3635,13 +3637,13 @@ public class MainActivity extends Activity {
             return;
         }
         // Owner order 2026-11-27: the list is every scrip whose symbol
-        // carries the letters he typed, wherever they stand inside it, and a
-        // full ticker is still only a row on that list. Nothing opens by
-        // itself: the answer prints when he taps a scrip, never while he is
-        // still typing.
+        // STARTS with the letters he typed, the one prefix law the SEARCH
+        // tile keeps, and a full ticker is still only a row on that list.
+        // Nothing opens by itself: the answer prints when he taps a scrip,
+        // never while he is still typing.
         List<Watcher.FlowRow> visible = new ArrayList<>();
         for (Watcher.FlowRow row : flowRows) {
-            if (row.symbol.contains(query)
+            if (row.symbol.toUpperCase(Locale.US).startsWith(query)
                     && visible.size() < FLOW_RESULTS_SHOWN) {
                 visible.add(row);
             }
@@ -4628,10 +4630,10 @@ public class MainActivity extends Activity {
         // eight of them, exactly the law the tile carried before build 155.
         List<String> filtered = new java.util.ArrayList<>();
         for (String symbol : symbols) {
-            // Owner order 2026-11-27: every scrip carrying the typed letters
-            // is a match, the ORDER FLOW list's own law. Typing E lists every
-            // scrip with an E in it, wherever the E stands.
-            if (symbol.toUpperCase(Locale.US).contains(q)) {
+            // Owner order 2026-11-27: a match is a scrip that STARTS with
+            // the typed letters, never one carrying them in the middle.
+            // Typing PR lists PRL, PREMA and PRWM, and never FPRM.
+            if (symbol.toUpperCase(Locale.US).startsWith(q)) {
                 filtered.add(symbol);
             }
         }

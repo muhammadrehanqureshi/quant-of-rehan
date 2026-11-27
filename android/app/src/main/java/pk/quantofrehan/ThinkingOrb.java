@@ -56,8 +56,6 @@ public class ThinkingOrb extends View {
     private final Paint corePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sweepPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint satellitePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint scanPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint bracketPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint hotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     /** The three arc rings' own rectangles, rebuilt once per size. */
@@ -69,8 +67,8 @@ public class ThinkingOrb extends View {
     private float cx;
     private float cy;
     private float reach;
+    /** Where every tick begins, and so the radius of the compass circle. */
     private float tickInner;
-    private float tickOuter;
 
     private int ink = DEFAULT_INK;
     private RadialGradient coreGradient;
@@ -106,9 +104,6 @@ public class ThinkingOrb extends View {
         tickPaint.setStrokeCap(Paint.Cap.ROUND);
         sweepPaint.setStyle(Paint.Style.STROKE);
         sweepPaint.setStrokeCap(Paint.Cap.ROUND);
-        scanPaint.setStyle(Paint.Style.STROKE);
-        bracketPaint.setStyle(Paint.Style.STROKE);
-        bracketPaint.setStrokeCap(Paint.Cap.SQUARE);
         hotPaint.setStyle(Paint.Style.FILL);
         corePaint.setStyle(Paint.Style.FILL);
         satellitePaint.setStyle(Paint.Style.FILL);
@@ -158,8 +153,6 @@ public class ThinkingOrb extends View {
         tickPaint.setColor(ink);
         sweepPaint.setColor(ink);
         satellitePaint.setColor(ink);
-        scanPaint.setColor(ink);
-        bracketPaint.setColor(ink);
         if (built) {
             buildGradient();
         }
@@ -175,7 +168,6 @@ public class ThinkingOrb extends View {
         cx = w / 2f;
         cy = h / 2f;
         reach = Math.min(w, h) / 2f - dp(9f);
-        tickOuter = reach;
         tickInner = reach - dp(9f);
         outerArc.set(cx - reach * 0.86f, cy - reach * 0.86f,
                 cx + reach * 0.86f, cy + reach * 0.86f);
@@ -189,8 +181,6 @@ public class ThinkingOrb extends View {
         arcPaint.setStrokeWidth(Math.max(1f, dp(1.4f)));
         tickPaint.setStrokeWidth(Math.max(1f, dp(1.3f)));
         sweepPaint.setStrokeWidth(Math.max(1f, dp(1.2f)));
-        scanPaint.setStrokeWidth(Math.max(1f, dp(1f)));
-        bracketPaint.setStrokeWidth(Math.max(1f, dp(1.4f)));
         buildGradient();
         built = true;
         invalidate();
@@ -242,14 +232,17 @@ public class ThinkingOrb extends View {
         drawSweep(canvas, wake, sweep);
         drawOrbiters(canvas, wake, seconds);
         drawCore(canvas, wake, pulse, seconds);
-        drawScan(canvas, wake, seconds);
-        drawBrackets(canvas, wake);
     }
 
-    /** The faint compass circle the ticks ride on. */
+    /**
+     * The faint compass circle, drawn on the exact radius every tick begins
+     * on, so the circle and the first point of every little line are one
+     * edge (owner order 2026-11-27: "make that outside circle sit on the
+     * exact starting of the little lines that are making a circle").
+     */
     private void drawRing(Canvas canvas, float wake) {
         ringPaint.setAlpha((int) (70f * wake));
-        canvas.drawCircle(cx, cy, reach, ringPaint);
+        canvas.drawCircle(cx, cy, tickInner, ringPaint);
         ringPaint.setAlpha((int) (26f * wake));
         canvas.drawCircle(cx, cy, reach * 0.52f, ringPaint);
     }
@@ -265,14 +258,19 @@ public class ThinkingOrb extends View {
             float heat = Math.max(0f, 1f - behind / 130f);
             float alpha = (0.22f + 0.78f * heat * heat) * wake;
             boolean major = i % 8 == 0;
-            float from = major ? reach - dp(11f) : tickInner;
+            // Owner order 2026-11-27: every tick STARTS on the compass
+            // circle and runs outward from it, the majors reaching the
+            // field's own edge, so the circle sits exactly on the start of
+            // all 96 little lines instead of standing off their tips.
+            float from = tickInner;
+            float to = from + dp(major ? 11f : 6f);
             double rad = Math.toRadians(angle - 90f);
             float cos = (float) Math.cos(rad);
             float sin = (float) Math.sin(rad);
             tickPaint.setAlpha((int) (alpha * (major ? 235f : 150f)));
             tickPaint.setStrokeWidth(Math.max(1f, dp(major ? 1.6f : 1.1f)));
             canvas.drawLine(cx + cos * from, cy + sin * from,
-                    cx + cos * tickOuter, cy + sin * tickOuter, tickPaint);
+                    cx + cos * to, cy + sin * to, tickPaint);
         }
     }
 
@@ -310,10 +308,14 @@ public class ThinkingOrb extends View {
                 cy + (float) Math.sin(lead) * reach * 0.9f, sweepPaint);
     }
 
-    /** Two satellites on their own orbits, each trailing its light. */
+    /**
+     * Two satellites on their own orbits, each trailing its light. Owner
+     * order 2026-11-27: both travel the SAME way round, each at its own
+     * speed, so neither of them swims against the other.
+     */
     private void drawOrbiters(Canvas canvas, float wake, float seconds) {
         orbit(canvas, wake, seconds * 26f + 40f, reach * 0.66f, 0.9f);
-        orbit(canvas, wake, -seconds * 44f + 200f, reach * 0.46f, 0.75f);
+        orbit(canvas, wake, seconds * 44f + 200f, reach * 0.46f, 0.75f);
     }
 
     private void orbit(Canvas canvas, float wake, float angle, float radius,
@@ -355,38 +357,6 @@ public class ThinkingOrb extends View {
         canvas.drawCircle(cx, cy, reach * 0.055f * pulse, hotPaint);
         hotPaint.setAlpha((int) (60f * wake));
         canvas.drawCircle(cx, cy, reach * 0.115f * pulse, hotPaint);
-    }
-
-    /** A scan line crossing the field, the sight's own read pass. */
-    private void drawScan(Canvas canvas, float wake, float seconds) {
-        float swing = (float) Math.sin(seconds * 0.55f);
-        float y = cy + swing * reach * 0.72f;
-        float half = (float) Math.sqrt(Math.max(0f,
-                reach * reach * 0.92f * 0.92f - (y - cy) * (y - cy)));
-        scanPaint.setAlpha((int) (46f * wake));
-        canvas.drawLine(cx - half, y, cx + half, y, scanPaint);
-        scanPaint.setAlpha((int) (16f * wake));
-        canvas.drawLine(cx - half, y - dp(3f), cx + half, y - dp(3f),
-                scanPaint);
-    }
-
-    /** The four corner brackets of a live sight. */
-    private void drawBrackets(Canvas canvas, float wake) {
-        float arm = reach * 0.16f;
-        float box = reach * 0.94f;
-        bracketPaint.setAlpha((int) (150f * wake));
-        float left = cx - box;
-        float right = cx + box;
-        float top = cy - box * 0.62f;
-        float bottom = cy + box * 0.62f;
-        canvas.drawLine(left, top, left + arm, top, bracketPaint);
-        canvas.drawLine(left, top, left, top + arm, bracketPaint);
-        canvas.drawLine(right, top, right - arm, top, bracketPaint);
-        canvas.drawLine(right, top, right, top + arm, bracketPaint);
-        canvas.drawLine(left, bottom, left + arm, bottom, bracketPaint);
-        canvas.drawLine(left, bottom, left, bottom - arm, bracketPaint);
-        canvas.drawLine(right, bottom, right - arm, bottom, bracketPaint);
-        canvas.drawLine(right, bottom, right, bottom - arm, bracketPaint);
     }
 
     private float dp(float value) {

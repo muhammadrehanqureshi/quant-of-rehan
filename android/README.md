@@ -1641,6 +1641,29 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.5.2, versionCode 146.**
+
+Owner order 2026-11-27 (second pass), the orb and the two searches:
+
+- The four corner brackets leave the ORB. Nothing frames the instrument any
+  more; the compass, its beam and its satellites stand on the field alone.
+- The scan line that swept above and below the core is gone too.
+- Both satellites travel the same way round, each at its own speed. The inner
+  one used to run against the outer one and read as swimming backwards.
+- The compass circle is drawn on the exact radius every tick begins on, so the
+  circle and the first point of all 96 little lines are one edge instead of
+  the circle standing off their tips.
+- The greeting wears LEMON MILK Light, the same face the PSX's KMIALL INDEX
+  line is cut in. Only the face changed: same 26.1sp, same seam, same ink.
+- The SEARCH and ORDER FLOW boxes are 43dp again, the field plate the rest of
+  the console wears. The 32dp drop in 4.5.1 read as two boxes that had been
+  shortened.
+- A search matches only the scrips that START with the typed letters, in the
+  SEARCH list, the ORDER FLOW list and the BIG PRINTS filter alike. Typing PR
+  lists PRL, PREMA and PRWM, and never FPRM.
+
+The version bump is versionCode 146 / versionName 4.5.2.
+
 **Version 4.5.1, versionCode 145.**
 
 Owner order 2026-11-27, the searches and the orb:

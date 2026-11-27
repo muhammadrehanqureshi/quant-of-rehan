@@ -254,7 +254,12 @@
                      inside that same plate as the volume menu's own rows,
                      with no pill background and no track of their own. The
                      six-row window and its diamond are retired with the
-                     tall list the owner struck out. -->
+                     tall list the owner struck out.
+
+                     Owner order 2026-11-27: the box is 43dp again, the
+                     field plate every other field on the console wears,
+                     because the drop to the row's 32dp read as a box that
+                     had been shortened. -->
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
@@ -262,7 +267,7 @@
                     <EditText
                         android:id="@+id/search_input"
                         android:layout_width="match_parent"
-                        android:layout_height="32dp"
+                        android:layout_height="43dp"
                         android:background="@null"
                         android:gravity="center_vertical|start"
                         android:hint="@string/search_hint"
@@ -356,7 +361,8 @@
 
                 <!-- Owner order 2026-11-25: the ORDER FLOW box wears the
                      CUSTOM SCRIPS OF VOL. box's own face, caret and menu,
-                     exactly as the SEARCH box does. -->
+                     exactly as the SEARCH box does. Owner order 2026-11-27:
+                     and its 43dp height comes back with the SEARCH box's. -->
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
@@ -364,7 +370,7 @@
                     <EditText
                         android:id="@+id/order_flow_input"
                         android:layout_width="match_parent"
-                        android:layout_height="32dp"
+                        android:layout_height="43dp"
                         android:background="@null"
                         android:gravity="center_vertical|start"
                         android:hint="@string/order_flow_hint"
@@ -907,10 +913,15 @@
              Owner order 2026-10-23 (third order, v2.2.1): +10% from its
              current size, 23.7sp grown to 26.1sp (23.7 x 1.10 = 26.07,
              rounded to one decimal), the fourth growth of this line,
-             the body still the one 13sp. -->        <TextView
+             the body still the one 13sp.
+
+             Owner order 2026-11-27: the greeting wears the face of the
+             PSX's KMIALL INDEX line above it, LEMON MILK Light, and
+             nothing else about it changes: same size, same seam, same
+             colour. -->        <TextView
             android:id="@+id/greeting"
             style="@style/QorValue"
-            android:fontFamily="@font/bonskin"
+            android:fontFamily="@font/lemonmilk_light"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"

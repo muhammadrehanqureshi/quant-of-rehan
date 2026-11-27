@@ -656,11 +656,18 @@
      the SEARCH tile is the ORDER FLOW tile (the scrip alone until a tap),
      the tapped answer prints H in green and L in red, and the photographed
      sun with its wireframe cloud is replaced by a Jarvis core.
-     Ships as 4.5.1, versionCode 145. -->
+     Ships as 4.5.1, versionCode 145.
+     Owner order 2026-11-27 (second pass): the four corner brackets and the
+     scan line leave the ORB, both satellites travel the same way round, the
+     compass circle is drawn on the exact radius every tick begins on, the
+     greeting wears the PSX's KMIALL INDEX face, the two search boxes take
+     their 43dp plate back, and a search matches only the scrips that START
+     with the typed letters, so PR can never list FPRM.
+     Ships as 4.5.2, versionCode 146. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="145"
-    android:versionName="4.5.1">
+    android:versionCode="146"
+    android:versionName="4.5.2">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
