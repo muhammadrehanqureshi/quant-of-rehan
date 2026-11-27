@@ -654,14 +654,10 @@ func (a *App) drawSearchTile(c *Canvas, x, y, w, h int) {
 			}
 			a.pickSymbol(sym)
 		})
-		// Owner order 2026-11-12 (latest): the row being scrolled through carries
-		// the diamond, the same mark every other list in the build selects with,
-		// and so does the scrip that is open in the tile.
-		marker := " "
-		if i == a.searchCursor || s == a.selectedSym {
-			marker = "◆"
-		}
-		c.Set(ix+1, row+i, []rune(marker)[0], th.Accent, bg, true)
+		// Owner order 2026-11-27: the blue diamond is withdrawn from the search's
+		// answers, so the row the arrows are on is the pick, drawn by its own
+		// band instead of by a mark beside it.
+		c.Set(ix+1, row+i, ' ', th.Text, bg, false)
 		c.Text(ix+3, row+i, len(q), s[:len(q)], th.Hot, true)
 		c.Text(ix+3+len(q), row+i, 20, s[len(q):], th.Text, false)
 	}

@@ -135,6 +135,8 @@ type App struct {
 	ofSort      int        // which order the ORDER FLOW list is in
 	ofQuery     string     // the ORDER FLOW search text, upper case
 	ofSearch    bool       // the ORDER FLOW search box has the keys
+	ofSuggest   int        // the ORDER FLOW answer the UP and DOWN keys are on
+	ofPick      string     // the scrip ENTER highlighted on the ORDER FLOW table
 	sectors      *Sectors   // the latest /sectors answer
 	sectorsErr   string     // why the last sector read failed, for the screen
 	sectorChoice int        // which sector group the scanner tile shows
@@ -150,6 +152,7 @@ type App struct {
 	lvWatch     listView   // the WATCH LIST's own list
 	watchQuery  string     // the WATCH LIST's add box, upper case
 	watchSearch bool       // the WATCH LIST's add box has the keys
+	watchSuggest int       // the WATCH LIST answer the UP and DOWN keys are on
 	watchPick   int        // the WATCH LIST row the DEL key takes out
 	watchSort   int        // the WATCH LIST's order line: 0 is the owner's own order
 	watchMsg    string     // what the last add or remove did
@@ -1811,17 +1814,22 @@ func (a *App) keyAlerts(k Key) {
 func (a *App) keyOrderFlow(k Key) {
 	switch k.Kind {
 	case KEsc:
-		a.ofQuery, a.ofSearch = "", false
+		a.ofQuery, a.ofSearch, a.ofPick = "", false, ""
+		a.ofSuggest = 0
 		a.lvOF.top()
 	case KEnter:
 		// Owner order 2026-11-13: ENTER on the page orders the stocks by NET
-		// DELTA, highest positive first. While a search is typed, ENTER keeps
-		// its old job and closes the field.
+		// DELTA, highest positive first. Owner order 2026-11-27: while a search
+		// is typed, ENTER highlights the answer the arrows are on, and no scrip
+		// leaves the table.
 		if a.ofQuery == "" {
+			a.ofPick = ""
 			a.ofSort = flowSortNetDelta
 			a.lvOF.top()
-		} else {
+		} else if m := a.flowMatches(a.ofQuery); len(m) > 0 {
+			a.ofSuggest = min(max(0, a.ofSuggest), len(m)-1)
 			a.ofSearch = false
+			a.pickFlowSymbol(m[a.ofSuggest].Symbol)
 		}
 	case KBackspace:
 		if r := []rune(a.ofQuery); len(r) > 0 {
@@ -1829,6 +1837,7 @@ func (a *App) keyOrderFlow(k Key) {
 		} else {
 			a.ofSearch = false
 		}
+		a.ofSuggest = 0
 		a.lvOF.top()
 	case KRune:
 		r := k.R
@@ -1840,6 +1849,7 @@ func (a *App) keyOrderFlow(k Key) {
 				a.ofQuery += string(r)
 			}
 			a.ofSearch = true
+			a.ofSuggest = 0
 			a.lvOF.top()
 		}
 	case KLeft:
@@ -1847,9 +1857,23 @@ func (a *App) keyOrderFlow(k Key) {
 	case KRight:
 		a.stepFlowSort(1)
 	case KUp:
-		a.lvOF.scroll(-1)
+		// Owner order 2026-11-27: while a search is typed, UP and DOWN walk its
+		// answers, so a scrip is chosen without leaving the box.
+		if a.ofQuery != "" {
+			if m := a.flowMatches(a.ofQuery); len(m) > 0 {
+				a.ofSuggest = max(0, min(a.ofSuggest, len(m)-1)-1)
+			}
+		} else {
+			a.lvOF.scroll(-1)
+		}
 	case KDown:
-		a.lvOF.scroll(1)
+		if a.ofQuery != "" {
+			if m := a.flowMatches(a.ofQuery); len(m) > 0 {
+				a.ofSuggest = min(len(m)-1, min(a.ofSuggest, len(m)-1)+1)
+			}
+		} else {
+			a.lvOF.scroll(1)
+		}
 	case KPgUp:
 		a.lvOF.page(-1)
 	case KPgDn:
@@ -1869,9 +1893,17 @@ func (a *App) keyWatch(k Key) {
 	switch k.Kind {
 	case KEsc:
 		a.watchQuery, a.watchSearch = "", false
+		a.watchSuggest = 0
 		a.lvWatch.top()
 	case KEnter:
-		a.addWatch()
+		// Owner order 2026-11-27: while a search is typed, ENTER adds the answer
+		// the arrows are on.
+		if m := a.watchMatches(strings.ToUpper(strings.TrimSpace(a.watchQuery))); len(m) > 0 {
+			a.watchSuggest = min(max(0, a.watchSuggest), len(m)-1)
+			a.addWatchSymbol(m[a.watchSuggest].Symbol)
+		} else {
+			a.addWatch()
+		}
 	case KDel, KBackspace:
 		if r := []rune(a.watchQuery); len(r) > 0 {
 			a.watchQuery = string(r[:len(r)-1])
@@ -1879,6 +1911,7 @@ func (a *App) keyWatch(k Key) {
 			a.watchSearch = false
 			a.removeWatch()
 		}
+		a.watchSuggest = 0
 		a.lvWatch.top()
 	case KRune:
 		r := k.R
@@ -1890,6 +1923,7 @@ func (a *App) keyWatch(k Key) {
 				a.watchQuery += string(r)
 			}
 			a.watchSearch = true
+			a.watchSuggest = 0
 			a.watchMsg = ""
 			a.lvWatch.top()
 		}
@@ -1898,9 +1932,23 @@ func (a *App) keyWatch(k Key) {
 	case KRight:
 		a.stepWatchSort(1)
 	case KUp:
-		a.pickWatch(-1)
+		// Owner order 2026-11-27: while a search is typed, UP and DOWN walk its
+		// answers, so a scrip is added without leaving the box.
+		if a.watchQuery != "" {
+			if m := a.watchMatches(strings.ToUpper(strings.TrimSpace(a.watchQuery))); len(m) > 0 {
+				a.watchSuggest = max(0, min(a.watchSuggest, len(m)-1)-1)
+			}
+		} else {
+			a.pickWatch(-1)
+		}
 	case KDown:
-		a.pickWatch(1)
+		if a.watchQuery != "" {
+			if m := a.watchMatches(strings.ToUpper(strings.TrimSpace(a.watchQuery))); len(m) > 0 {
+				a.watchSuggest = min(len(m)-1, min(a.watchSuggest, len(m)-1)+1)
+			}
+		} else {
+			a.pickWatch(1)
+		}
 	case KPgUp:
 		a.lvWatch.page(-1)
 	case KPgDn:

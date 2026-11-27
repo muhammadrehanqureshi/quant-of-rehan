@@ -106,11 +106,14 @@ func (a *App) drawWatchMatches(c *Canvas, ix, row, iw int) int {
 		}
 		ry := row + i
 		sym := r.Symbol
-		bg := a.selectRow(c, ix, ry, min(iw, 40), false, func() { a.addWatchSymbol(sym) })
-		c.Set(ix+1, ry, '\u25c6', th.Accent, bg, true)
+		// Owner order 2026-11-27: the blue diamond is withdrawn from the search's
+		// answers, and the row the arrows are on is the pick, drawn by its own
+		// band instead of by a mark beside it.
+		cur := i == a.watchSuggest
+		a.selectRow(c, ix, ry, min(iw, 40), cur, func() { a.addWatchSymbol(sym) })
 		cut := min(len(q), len(sym))
-		c.Text(ix+3, ry, max(1, iw-3), sym[:cut], th.Hot, true)
-		c.Text(ix+3+cut, ry, max(0, iw-3-cut), sym[cut:], th.Text, false)
+		c.Text(ix+1, ry, max(1, iw-1), sym[:cut], th.Hot, true)
+		c.Text(ix+1+cut, ry, max(0, iw-1-cut), sym[cut:], th.Text, false)
 	}
 	return min(len(m), watchSuggestRows)
 }
@@ -266,9 +269,11 @@ func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 	}
 	// Owner order 2026-11-26 (later): the box's search reads in a drop down just
 	// under the box, and one blank line stands between it and the ORDER line of
-	// chips. A box with nothing in it keeps that blank line alone.
-	if n := a.drawWatchMatches(c, ix, row, iw); n > 0 {
-		row += n
+	// chips. Owner order 2026-11-27: one blank line stands between the box and
+	// the answers as well, so the search never starts on the box's own next row.
+	if a.watchQuery != "" {
+		row++
+		row += a.drawWatchMatches(c, ix, row, iw)
 	}
 	row++
 	a.drawWatchSorts(c, ix, row, iw)

@@ -1,0 +1,4 @@
+package: name='pk.quantofrehan' versionCode='144' versionName='4.5.0' platformBuildVersionName='11' platformBuildVersionCode='30' compileSdkVersion='30' compileSdkVersionCodename='11'
+sdkVersion:'24'
+targetSdkVersion:'30'
+launchable-activity: name='pk.quantofrehan.MainActivity'  label='' icon=''

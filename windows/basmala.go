@@ -99,17 +99,22 @@ func pngDecode(b []byte) (image.Image, error) {
 	return img, err
 }
 
+// basmalaDot is the one mark the banner is drawn with. Owner order 2026-11-27:
+// the block art read as a bad render, so the phrase is drawn here as continuous
+// dots, one single dot for the entire banner, with no half block and no whole
+// block anywhere in it.
+const basmalaDot = '●'
+
 // basmalaArt draws the phrase into at most cols cells by at most rows lines.
-// Every mark is the same mark: a cell is the top half of a block, the bottom
-// half, or the whole block, so a stroke is solid from cell to cell instead of a
-// line of dots, and the picture keeps the shape it was drawn with.
+// Every mark is the same mark, basmalaDot, so the whole picture is made of one
+// continuous line of dots: a cell carries a dot where the picture has ink and a
+// space where it does not, and the words keep the shape they were drawn with.
 func basmalaArt(cols, rows int) []string {
 	m := basmalaInk
 	if m == nil || cols < 8 || rows < 3 {
 		return nil
 	}
-	// One block column and two half block rows stand in every cell.
-	dw, dh := cols, rows*2
+	dw, dh := cols, rows
 	h := int(math.Round(float64(dw) * float64(m.h) / float64(m.w)))
 	if h > dh {
 		dw = int(math.Round(float64(dw) * float64(dh) / float64(h)))
@@ -145,20 +150,13 @@ func basmalaArt(cols, rows int) []string {
 			fill[y*dw+x] = n > 0 && on*100 >= n*30
 		}
 	}
-	lines := make([]string, 0, (h+1)/2)
-	for cy := 0; cy < h; cy += 2 {
+	lines := make([]string, 0, h)
+	for y := 0; y < h; y++ {
 		var b strings.Builder
-		for cx := 0; cx < dw; cx++ {
-			top := fill[cy*dw+cx]
-			bot := cy+1 < h && fill[(cy+1)*dw+cx]
-			switch {
-			case top && bot:
-				b.WriteRune('█')
-			case top:
-				b.WriteRune('▀')
-			case bot:
-				b.WriteRune('▄')
-			default:
+		for x := 0; x < dw; x++ {
+			if fill[y*dw+x] {
+				b.WriteRune(basmalaDot)
+			} else {
 				b.WriteRune(' ')
 			}
 		}

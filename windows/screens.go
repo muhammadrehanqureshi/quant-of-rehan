@@ -551,11 +551,11 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		sync := ""
 		if !a.lastMarketOK.IsZero() {
 			// Owner order 2026-11-26 (later): one space stands between the full
-			// stop and the word Synced.
-			sync = " Synced " + strconv.Itoa(max(0, int(a.now.Sub(a.lastMarketOK).Seconds()))) + " s ago"
+			// stop and the word. Owner order 2026-11-27: the word reads SYNCED.
+			sync = " SYNCED " + strconv.Itoa(max(0, int(a.now.Sub(a.lastMarketOK).Seconds()))) + " s ago"
 		}
 		// Owner order 2026-11-26: the latency closes with a full stop and the
-		// word Synced opens with a capital.
+		// word opens with a capital.
 		label(0, "LINK", []Span{{"UP", th.Good, true}, {"  " + strconv.Itoa(int(a.rtt.Milliseconds())) + " ms." + sync, th.Text, false}})
 	}
 	// FEED: how old the freshest tick is, counting up each second, and how
@@ -574,18 +574,11 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		case state == "LAGGING":
 			fc = th.Warn
 		}
-		// Say how old the freshest tick is, and the answers per second when the
-		// panel is wide enough. Owner order 2026-11-26 (later): the typical
-		// stock's age is withdrawn from the tile, so the row carries no
-		// "typical" figure at all.
-		old := fmt.Sprintf("  %d s old", age)
-		rate := fmt.Sprintf("  %.1f/s", a.updatesPerSecond())
-		room := tw - labelW - runeLen(state)
-		detail := old
-		switch {
-		case runeLen(old+rate) <= room:
-			detail = old + rate
-		}
+		// Say how old the freshest tick is. Owner order 2026-11-26 (later): the
+		// typical stock's age is withdrawn from the tile, so the row carries no
+		// "typical" figure at all. Owner order 2026-11-27: the answers per
+		// second figure is withdrawn too, so FEED carries the age alone.
+		detail := fmt.Sprintf("  %d s old", age)
 		feed = []Span{{state, fc, true}, {detail, th.Text, false}}
 		if state == "NO FEED" {
 			feed = []Span{{state, th.Warn, true}}
@@ -695,7 +688,10 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		}
 		fullRow(9, "NET DELTA", []Span{{signedCompact(net), nc, true}})
 	} else {
-		fullRow(9, "NET DELTA", []Span{{"--", th.Soft, false}})
+		// Owner order 2026-11-27: a NET DELTA the relay has not sent reads N/A,
+		// the same word the rest of the build uses for a figure it does not
+		// have, instead of a dash.
+		fullRow(9, "NET DELTA", []Span{{"N/A", th.Soft, false}})
 	}
 	// Owner order 2026-11-11: TOP PERFORMERS follows NET DELTA. A short tile
 	// keeps FLOW and REQ and drops only TOP PERFORMERS.
@@ -747,13 +743,15 @@ func leftTileHeights(h int) (coreH, telH int) {
 // traded at all, so a name is only eligible when the day has traded volume
 // behind it: the flow table's, the broker feed's, or the relay's own pair.
 func (a *App) topPerformers() []string {
-	pct := map[string]float64{}
+	// Owner order 2026-11-27: TOP PERFORMERS is decided by NET DELTA VALUE,
+	// buy minus sell in shares, not by a percentage. The value moves with every
+	// frame the relay sends, so the three names keep changing through the day
+	// instead of standing on the morning's upper lock prints.
+	delta := map[string]int64{}
 	traded := map[string]int64{}
 	for sym, q := range a.prices {
-		if q.ChangePct != nil {
-			pct[sym] = *q.ChangePct
-		}
 		if q.Buy != nil && q.Sell != nil {
+			delta[sym] = *q.Buy - *q.Sell
 			traded[sym] = *q.Buy + *q.Sell
 		}
 	}
@@ -762,8 +760,8 @@ func (a *App) topPerformers() []string {
 			if !q.Fresh {
 				continue
 			}
-			if q.ChangePct != nil {
-				pct[sym] = *q.ChangePct
+			if q.Buy != nil && q.Sell != nil {
+				delta[sym] = *q.Buy - *q.Sell
 			}
 			if q.Volume > 0 {
 				traded[sym] = q.Volume
@@ -778,17 +776,20 @@ func (a *App) topPerformers() []string {
 			case fr.Measured():
 				traded[fr.Symbol] = *fr.Buy + *fr.Sell
 			}
+			if fr.Measured() {
+				delta[fr.Symbol] = *fr.Buy - *fr.Sell
+			}
 		}
 	}
-	syms := make([]string, 0, len(pct))
-	for sym := range pct {
+	syms := make([]string, 0, len(delta))
+	for sym := range delta {
 		if traded[sym] > 0 {
 			syms = append(syms, sym)
 		}
 	}
 	sort.Slice(syms, func(i, j int) bool {
-		if pct[syms[i]] != pct[syms[j]] {
-			return pct[syms[i]] > pct[syms[j]]
+		if delta[syms[i]] != delta[syms[j]] {
+			return delta[syms[i]] > delta[syms[j]]
 		}
 		return syms[i] < syms[j]
 	})
