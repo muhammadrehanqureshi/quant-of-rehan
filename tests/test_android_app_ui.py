@@ -572,7 +572,8 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("private View flowTableRow(", self.main)
         row = self.main[self.main.index("private View flowTableRow("):]
         row = row[:row.index("private void pickFlow(")]
-        self.assertIn("TextView line = menuRow(row.symbol);", row)
+        self.assertIn("TextView line = menuRow(scripMatchSpans(row.symbol, query));",
+                      row)
         self.assertIn("line.setOnClickListener(v -> pickFlow(row.symbol));", row)
         self.assertNotIn("PKR", row, "no quote in the list")
         self.assertNotIn("flowCell", row)
@@ -602,21 +603,25 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("Double changePct;", watcher)
 
     def test_the_search_row_carries_the_scrip_and_its_quote(self):
-        """Owner order 2026-11-26: the option under the SEARCH box carries the
-        scrip's current price and percentage on the scrip's own line, the day's
-        range ("H=... & L=...") on the line under it, and the B, S and U
-        quantities under that. The range is the relay's own, never invented
-        (SO-3)."""
+        """Owner order 2026-11-27: "Make the SEARCH tile also like the ORDER
+        FLOW tile. When I will tap on a scrip only then I will be able to see
+        the details of that scrip." The option is the scrip alone, so no
+        option prints a price, a range or a split while he types; the tapped
+        scrip's answer carries the day's range, H in the green of a high and L
+        in the red of a low."""
         row = self.main[self.main.index("private void styleSearchRow("):]
         row = row[:row.index("private GradientDrawable highlightPlate")]
-        self.assertIn("appendSearchQuote(sb, quote);", row)
-        option = self.main[self.main.index("private void appendSearchQuote("):]
-        option = option[:option.index("private void styleSearchRow(")]
-        self.assertIn('"PKR %,.2f"', option)
-        self.assertLess(option.index('"PKR %,.2f"'),
-                        option.index('"H=%,.2f & L=%,.2f"'))
-        self.assertLess(option.index('"H=%,.2f & L=%,.2f"'),
-                        option.index('"B="'))
+        self.assertIn("row.setText(scripMatchSpans(symbol, q));", row)
+        self.assertNotIn("appendSearchQuote", row)
+        self.assertNotIn("Watcher.quotes()", row)
+        answer = self.main[self.main.index("private CharSequence liveSelectedLine("):]
+        answer = answer[:answer.index("private CharSequence signalInk")]
+        self.assertIn('"\\nH="', answer)
+        self.assertIn('" & L="', answer)
+        self.assertIn("highFrom, highTo, 0", answer)
+        self.assertIn("lowFrom, lowTo, 0", answer)
+        self.assertLess(answer.index("highFrom, highTo, 0"),
+                        answer.index("lowFrom, lowTo, 0"))
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
                    / "pk" / "quantofrehan" / "Watcher.java").read_text(
             encoding="utf-8")
@@ -1349,7 +1354,10 @@ class TypefaceTest(unittest.TestCase):
         # The clock span used to force monospace and a synthesised bold; the
         # tiles are one face end to end now.
         self.assertNotIn('TypefaceSpan("monospace")', self.main)
-        self.assertNotIn("StyleSpan", self.main)
+        # Owner order 2026-11-27: the typed letters inside a matching scrip
+        # are the one bold run this console draws, and they take the real
+        # face's bold, never a legacy fallback.
+        self.assertIn("new StyleSpan(Typeface.BOLD)", self.main)
 
     def test_the_settings_paragraph_no_longer_paints_on_the_tile(self):
         # Owner order 2026-10-22 (second pass on the tile): the SETTINGS
@@ -2433,9 +2441,14 @@ class VersionTest(unittest.TestCase):
         # face, the caret at its trailing edge, the options as the volume
         # menu's own rows without a pill or a track - and the QUANT STATUS
         # seconds advance every second between relay answers.
-        # They ship as 4.5.0, versionCode 144.
-        self.assertIn('android:versionName="4.5.0"', manifest)
-        self.assertIn('android:versionCode="144"', manifest)
+        # Owner order 2026-11-27: the ORDER FLOW box takes the scrip row's
+        # own 32dp, a match is any scrip carrying the typed letters with
+        # those letters bold, the SEARCH tile is the ORDER FLOW tile until a
+        # tap, the tapped answer prints H green and L red, and the Jarvis
+        # core replaces the photographed sun.
+        # They ship as 4.5.1, versionCode 145.
+        self.assertIn('android:versionName="4.5.1"', manifest)
+        self.assertIn('android:versionCode="145"', manifest)
         # Owner order 2026-11-24: no part of either build's version reads above
         # ten, so 3.10.10 is followed by 4.0.0 and .11 never exists.
         shipped = manifest.split('android:versionName="', 1)[1].split('"', 1)[0]
@@ -2681,10 +2694,14 @@ class VersionTest(unittest.TestCase):
         # moves every second. Owner order 2026-11-26: KARACHI leaves the tile,
         # the clock steps on the tick, both search boxes type from the left
         # with no caret and a hairline over their first option, and an option
-        # carries its quote with the day range. They ship as 4.5.0, versionCode
-        # 144.
-        self.assertIn('android:versionCode="144"', manifest)
-        self.assertIn('android:versionName="4.5.0"', manifest)
+        # carries its quote with the day range. Owner order 2026-11-27: the
+        # ORDER FLOW box is the scrip row's 32dp, the searches match any
+        # scrip carrying the typed letters (bold), the SEARCH option is the
+        # scrip alone until a tap, H green and L red print on the tap, and
+        # the Jarvis core replaces the sun. They ship as 4.5.1, versionCode
+        # 145.
+        self.assertIn('android:versionCode="145"', manifest)
+        self.assertIn('android:versionName="4.5.1"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
@@ -2799,14 +2816,16 @@ class SearchPanelStabilityTest(unittest.TestCase):
         block = main[start:main.index("private void styleSearchRow(", start)]
         self.assertIn("if (q.isEmpty()) {", block)
         self.assertIn("searchResults.setVisibility(View.GONE);", block)
-        self.assertIn("if (symbol.startsWith(q)) {", block)
+        # Owner order 2026-11-27: a match is any scrip whose symbol carries
+        # the typed letters, not only the ones starting with them.
+        self.assertIn("if (symbol.toUpperCase(Locale.US).contains(q)) {", block)
         self.assertNotIn("if (q.isEmpty() || symbol.startsWith(q)) {", block)
         flow = main[main.index("private void renderFlowResults("):
                     main.index("private View flowTableRow(")]
         self.assertIn("if (query.isEmpty()) {", flow)
         self.assertNotIn("if (query.isEmpty() || row.symbol.startsWith(query)) {",
                          flow)
-        self.assertIn("row.symbol.startsWith(query)", flow)
+        self.assertIn("row.symbol.contains(query)", flow)
         # Owner order 2026-11-25 (evening): the box and its own caret are the
         # CUSTOM SCRIPS OF VOL. box's, and the tall six-row window with its
         # diamond track left the tile with the list he struck out.
@@ -2839,7 +2858,10 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertIn("appendScripQuote(sb, quote);", reveal)
         row = main[main.index("private void styleSearchRow("):
                    main.index("private GradientDrawable highlightPlate(")]
-        self.assertIn("appendSearchQuote(sb, quote);", row)
+        # Owner order 2026-11-27: the tile is the ORDER FLOW tile, so the
+        # option is the scrip alone and its details wait for the tap.
+        self.assertIn("row.setText(scripMatchSpans(symbol, q));", row)
+        self.assertNotIn("appendSearchQuote", row)
         self.assertNotIn("appendScripQuote", row)
         self.assertNotIn("PKR %,.2f", row)
         # The volume tile's own order (owner order 2026-11-25): the price and
@@ -3160,7 +3182,11 @@ class SearchBoxGapTest(unittest.TestCase):
         # increase the height of its box by another 25%") grows the
         # floor alone again, 35 * 1.25 = 43.75 floored to 43dp, the air
         # still untouched.
-        self.assertEqual(        self.box.get(f"{ANDROID_NS}paddingTop"), "3dp")
+                # Owner order 2026-11-27: "the first box where the search starts is
+        # too thick, make that box as the same height as the other boxes that
+        # contain the scrips." The field is the dropdown option's 32dp now,
+        # on both searches, so the box and its own rows read as one list.
+        self.assertEqual(self.box.get(f"{ANDROID_NS}paddingTop"), "3dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingBottom"), "3dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingLeft"), "10dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingRight"), "10dp")
@@ -3172,9 +3198,9 @@ class SearchBoxGapTest(unittest.TestCase):
         # field box carries - and no floor is named again under the
         # height it retired.
         self.assertEqual(self.box.get(f"{ANDROID_NS}layout_height"),
-                         "43dp")
+                         "32dp")
         self.assertIsNone(self.box.get(f"{ANDROID_NS}minHeight"))
-        self.assertIn('android:layout_height="43dp"',
+        self.assertIn('android:layout_height="32dp"',
                       LAYOUT.read_text(encoding="utf-8"))
 
     def test_the_hidden_rows_start_hidden_in_the_layout(self):
@@ -3593,10 +3619,12 @@ class MenuOrdersTest(unittest.TestCase):
         # appendSearchQuote, which stands ABOVE this builder; the builder
         # itself still adds none, and that builder inks the price too.
         self.assertNotIn("PKR %,.2f", search,
-                         "the option's money lives in appendSearchQuote")
-        option = self.main[self.main.index("private void appendSearchQuote("):]
-        option = option[:option.index("private void styleSearchRow(")]
-        self.assertIn("priceFrom, sb.length(), 0", option)
+                         "the option is the scrip alone, the money waits for the tap")
+        live = self.main[self.main.index(
+            "private CharSequence liveSelectedLine("):]
+        live = live[:live.index("private void paintSignalInk")]
+        self.assertIn("highFrom, highTo, 0", live)
+        self.assertIn("lowFrom, lowTo, 0", live)
         scrip = self.main[self.main.index("private void appendScripQuote("):]
         scrip = scrip[:scrip.index("private void colorQuantity")]
         self.assertIn("priceFrom, sb.length(), 0", scrip)
@@ -4212,1386 +4240,91 @@ class SearchHighlightTest(unittest.TestCase):
 
 
 class ThinkingOrbPlanTest(unittest.TestCase):
-    """Owner orders, stacked: the owner sent the reference look he wanted
-    (a living mover under the brand) and the first HUD pass's movers (the
-    diag line's words and the sweeping beam) are retired in favour of the
-    ONE mover that earns the claim: the ThinkingOrb under the brand, on
-    the SEARCH and SETTINGS pages too, running ONLY while the console is
-    resumed. Owner order 2026-10-23 (fourth pass, v1.9.13), after the
-    owner sent the v1.9.9 screenshot back: the feature is the reference's
-    constellation once more, MORE lines revolving around the core than
-    any pass before it, and the white orb at the centre is a sun-looking
-    ball of the SAME size, a lit 3D sphere that burns without pause. The
-    classic frame's tiles, rules and copy stand untouched beneath it.
-    Owner order 2026-10-23 (seventh pass, v2.2.0), on the v2.1.0
-    screenshots the owner sent back: the feature is the v1.8.9 LIVING
-    PARTICLE CLOUD again, the look he first approved, and the cloud's
-    centre is the sun ("I want the center as the sun"), so the organism
-    circles a star.
+    """Owner order 2026-11-27: the sun and its wireframe cloud are retired.
+
+    "remove this ORB feature. It's boring me... Give it a new ORB type/Jarvis
+    type feature." The station under the brand is an instrument now: a compass
+    of ticks that ignite under a radar sweep, three arc rings turning at their
+    own speeds, two orbiting satellites with their trails, a breathing reactor
+    core, a scan line crossing the field and the four corner brackets of a live
+    sight. The photograph, its sphere tables and its bloom buffers left with
+    the picture they built.
     """
 
-    def test_the_orb_sits_where_the_beam_lay(self):
-        layout = LAYOUT.read_text(encoding="utf-8")
-        self.assertIn("<pk.quantofrehan.ThinkingOrb", layout)
-        self.assertIn("@+id/thinking_orb", layout)
-        # Under the brand, ahead of both menu panels: the beam's former
-        # station. The menu page's own rule the v1.9.13 pass removed no
-        # longer divides the orb from the panel; the single brand rule
-        # under the header does.
-        self.assertLess(layout.index("@+id/thinking_orb"),
-                        layout.index("@+id/search_panel"))
-        block = layout[layout.index("@+id/thinking_orb"):
-                       layout.index("@+id/thinking_orb") + 400]
-        self.assertIn("android:importantForAccessibility=\"no\"", block)
-        # The beam and the diag line are gone, and nothing pretends to
-        # be them: the retired ids and resources may not come back.
-        self.assertNotIn("@+id/scan_beam", layout)
-        self.assertNotIn("@+id/sys_diag", layout)
+    def setUp(self):
+        self.orb = (MAIN.parent / "ThinkingOrb.java").read_text(encoding="utf-8")
+        self.main = MAIN.read_text(encoding="utf-8")
+        self.layout = LAYOUT.read_text(encoding="utf-8")
 
-    def test_the_first_pass_movers_are_retired(self):
-        main = MAIN.read_text(encoding="utf-8")
-        strings = STRINGS.read_text(encoding="utf-8")
-        styles = STYLES.read_text(encoding="utf-8")
-        # No rotating words, no sweeping beam: the class, the string array
-        # and the style that carried them are gone from the console.
-        self.assertNotIn("R.array.sys_diag_lines", main)
-        self.assertNotIn('name="sys_diag_lines"', strings)
-        self.assertNotIn('name="QorDiag"', styles)
-        res = RES / "drawable"
-        self.assertFalse((res / "scan_beam.xml").exists())
+    def test_the_sun_and_its_cloud_are_retired(self):
+        for gone in ("sunBall", "sunMap", "buildSunSphere", "buildSunCorona",
+                     "drawCloud", "projectCloud", "NODES", "CLUSTERS"):
+            with self.subTest(gone=gone):
+                self.assertNotIn(gone, self.orb)
 
-    def test_the_orb_runs_only_while_the_console_is_resumed(self):
-        main = MAIN.read_text(encoding="utf-8")
-        self.assertIn("private void startHud() {", main)
-        self.assertIn("private void stopHud() {", main)
-        self.assertIn("thinkingOrb.start();", main)
-        self.assertIn("thinkingOrb.stop();", main)
-        resume = main[main.index("protected void onResume()") :]
-        resume = resume[:resume.index("protected void onPause()")]
-        self.assertIn("startHud();", resume)
-        pause = main[main.index("protected void onPause()") :]
-        pause = pause[:pause.index("/** The foreground refresh loop. */")]
-        self.assertIn("stopHud();", pause)
-        # A hidden console holds no animation: the orb's loop is the only
-        # runner and MainActivity starts and stops it, never polls it.
-        self.assertNotIn("postDelayed(diagStep", main)
-        self.assertNotIn("ValueAnimator", main)
+    def test_the_instrument_is_a_jarvis_core(self):
+        for mark in ("private void drawTicks(", "private void drawSweep(",
+                     "private void drawArcs(", "private void drawOrbiters(",
+                     "private void drawCore(", "private void drawScan(",
+                     "private void drawBrackets(", "TICKS = 96"):
+            with self.subTest(mark=mark):
+                self.assertIn(mark, self.orb)
 
-    def test_the_orb_stays_on_the_search_and_settings_pages(self):
-        layout = LAYOUT.read_text(encoding="utf-8")
-        main = MAIN.read_text(encoding="utf-8")
-        """Owner order 2026-10-22 (v1.9.5): the orb is on the SEARCH and
-        SETTINGS pages as well, at the SAME exact placement it holds on the
-        front page. The panels open BELOW the orb, exactly where the tiles
-        sat, so the orb keeps its station under the brand on every page
-        rather than a second copy being stamped into each panel.
-        """
-        # The orb is NOT a member of consoleViews any more: a menu no
-        # longer takes its space.
-        self.assertNotIn("findViewById(R.id.thinking_orb),", main)
-        # Its station precedes both panels, which is the exact spot it
-        # holds on the front page; the menu pages' own rules are the ones
-        # the v1.9.13 pass removed, so the single brand rule under the
-        # header is the orb's only division on every page.
-        self.assertLess(layout.index("@+id/thinking_orb"),
-                        layout.index("@+id/search_panel"))
-        self.assertLess(layout.index("@+id/thinking_orb"),
-                        layout.index("@+id/settings_panel"))
-        # One orb, not a copy inside a panel: the custom view appears as a
-        # tag exactly once in the layout.
-        self.assertEqual(layout.count("pk.quantofrehan.ThinkingOrb"), 2)
+    def test_the_sweep_ignites_the_ticks_it_passes(self):
+        ticks = self.orb[self.orb.index("private void drawTicks("):]
+        ticks = ticks[:ticks.index("private void drawArcs(")]
+        self.assertIn("float behind = ((sweep - angle) % 360f + 360f) % 360f;",
+                      ticks)
+        self.assertIn("float heat = Math.max(0f, 1f - behind / 130f);", ticks)
+        self.assertIn("i % 8 == 0", ticks)
 
-    def test_the_cloud_is_the_v189_organism_around_the_sun(self):
-        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
-            encoding="utf-8")
-        """Owner order 2026-10-23 (seventh pass, v2.2.0): the feature is
-        the v1.8.9 LIVING PARTICLE CLOUD the owner first approved - NODES
-        joined by fine links, turning rigidly in yaw with a breathing
-        pitch and projected in perspective, every node breathing radially
-        on its own phase. The radial burst of v2.1.0 and the rings of
-        v1.9.13/v1.9.14 are retired, and the cloud circles its own SUN.
-        v2.3.7 retuned the gather to an even shell and the SAME owner hour
-        sent it back ("you ruined the animating feature, the LINES are
-        looking absolute horseshit, change them back"): v2.3.8 restores
-        the v1.8.9 CLUSTER law as it was. v2.3.15 keeps the gather and
-        walks its FIVE ANCHORS on the even golden-angle path instead of
-        five random spots, because the owner read the build on the
-        phone and the random anchors were the tangled lobe he sent back
-        (see the v2.3.15 tests).
-    """
-        # Populations are named constants, so the count is one decision.
-        # v2.3.8 restores CLUSTERS with the gather it owned.
-        self.assertIn("private static final int NODES = 105;", orb)
-        self.assertIn("MOTION_SCALE = 1.3f", orb)
-        self.assertIn("private static final int NODE_STRIDE = 5;", orb)
-        # The retired machinery may not come back.
-        for retired in ("RAYS", "RAY_NODES", "RAY_FRACTION",
-                        "spokeEdgeCount", "drawBurst", "drawRings",
-                        "RING_NODES", "RING_FACTOR", "RING_SPEED",
-                        "RING_TILT", "buildCloud", "restRing"):
-            self.assertNotIn(retired, orb)
-        # The cloud is built once per size, never on the frame path.
-        # v2.2.4 (owner order 2026-10-24, third pass): the tangle is out
-        # - a link is a SHORT filament inside its own neighbourhood and
-        # never a chord across the ball, the fade steepens at the ends,
-        # and the stroke narrows as a link recedes. The v2.2.1 +30% cap
-        # and the fire ink stand; the filaments simply no longer cross.
-        self.assertIn("private void buildGeometry() {", orb)
-        self.assertIn("float linkAt = 0.42f;", orb)
-        # v2.3.8 (owner order 2026-10-26, tenth pass, on the v2.3.7
-        # screenshots: "you ruined the animating feature, the LINES are
-        # looking absolute horseshit, change them back"): the even shell
-        # is RETIRED with the pass that built it, and the v1.8.9 CLUSTER
-        # law is back AS IT WAS - seeded anchors between the sun and the
-        # shell (never Math.random; the build is one decision), a jitter
-        # pulled and re-normalised against each anchor, the four- node
-        # break-outs, the escapees that keep the rim ragged.
-        self.assertIn("private static final int CLUSTERS = 5;", orb)
-        self.assertIn("anchorX[c] = s * (float) Math.cos(theta) * 0.55f;", orb)
-        self.assertIn("float pulled = (n % 4 == 0) ? 1.05f : 0.78f;", orb)
-        self.assertIn("if (n % 9 == 0) {", orb)
-        self.assertIn("long seed = 20261022L;", orb)
-        # The even walk's own machinery may not come back.
-        self.assertNotIn("radiusSeed", orb)
-        self.assertNotIn("float theta = 2.39996f * n;", orb)
-        # v2.3.3: the fade bottoms out above zero, because a link at the cap
-        # painted at alpha zero is the invisible thread that left its nodes
-        # looking like the owner's "independent dots without any lines".
-        self.assertIn("return 1f - 0.80f * clamp((dist - 0.14f) / 0.28f, "
-                      "0f, 1f);", orb)
-        # And no node may sit without a filament: every orphan joins its
-        # nearest neighbour at build time.
-        self.assertIn("boolean[] joined = new boolean[NODES];", orb)
-        self.assertIn("linkDist[linkCount] = nearestDist;", orb)
-        # v2.3.1: the stroke's own breath rides on top of the depth's
-        # narrowing, so a filament swells as well as lengthens.
-        self.assertIn("linkPaint.setStrokeWidth(linkWidth * (0.8f + 0.45f * "
-                      "toward)", orb)
-        self.assertIn("* widthBreath);", orb)
-        # The organism turns rigidly in yaw with a breathing pitch, and
-        # the perspective divide projects the far side smaller and dimmer.
-        self.assertIn("float yaw = seconds * 0.22f * MOTION_SCALE;", orb)
-        self.assertIn("float pitch = 0.16f * (float) Math.sin(", orb)
-        self.assertIn("float persp = distance / (distance - rz * orbRadius);",
-                      orb)
-        # The links brighten as their ends come forward; the nodes breathe
-        # on their own phase.
-        self.assertIn("float toward = clamp((midway - 1f) / 0.6f, 0f, 1f)",
-                      orb)
-        self.assertIn("float toward = clamp((depth[n] - 1f) / 0.6f, 0f, 1f);",
-                      orb)
-        self.assertIn("int o = n * NODE_STRIDE;", orb)
-        # v2.3.19 (owner order 2026-10-28, "the SUN looks like it is
-        # outside those revolving LINES ... the SUN should be inside
-        # those LINES"): the cloud is drawn in TWO DEPTH HALVES around
-        # the sun - the pose projected ONCE, then the behind half, the
-        # sun, the front half - so the star stands inside the revolving
-        # lines, hiding the threads it holds, the front threads over it.
-        # v2.2.3: the call order in drawScene is the pin - the photo
-        # sun's own build sits between these methods, so the definition
-        # order is no longer the draw order.
-        self.assertIn("projectCloud(seconds);", orb)
-        self.assertIn("drawCloud(canvas, seconds, wake, true);", orb)
-        self.assertIn("drawCloud(canvas, seconds, wake, false);", orb)
-        self.assertIn("drawSun(canvas, seconds, wake);", orb)
-        scene_index = orb.index("private void drawScene(")
-        scene = orb[scene_index:scene_index + 900]
-        behind = scene.index("drawCloud(canvas, seconds, wake, true);")
-        sun = scene.index("drawSun(canvas, seconds, wake);")
-        front = scene.index("drawCloud(canvas, seconds, wake, false);")
-        self.assertLess(behind, sun)
-        self.assertLess(sun, front)
-        # The wake ramp is the v1.8.9 number, so the organism grows out of
-        # the dark instead of popping in.
-        self.assertIn("WAKE_SECONDS = 4f", orb)
-        # The one sleep belongs to the sun's own render thread (v2.3.8),
-        # pacing its 60ms cadence on its own back; with that single pinned
-        # call removed, NO other sleep may appear anywhere in the file
-        # (the HUD loop stays the view's own paced invalidate), and no
-        # animator may animate the organism.
-        self.assertNotIn("Thread.sleep",
-                         orb.replace("Thread.sleep(wait);", ""))
-        self.assertNotIn("ValueAnimator", orb)
+    def test_the_core_breathes_and_the_field_is_scanned(self):
+        core = self.orb[self.orb.index("private void drawCore("):]
+        core = core[:core.index("private void drawScan(")]
+        self.assertIn("coreGradient", core)
+        self.assertIn("Color.WHITE", core)
+        scan = self.orb[self.orb.index("private void drawScan("):]
+        scan = scan[:scan.index("private void drawBrackets(")]
+        self.assertIn("seconds * 0.55f", scan)
 
-    def test_the_sun_is_his_photograph_on_a_revolving_sphere(self):
-        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
-            encoding="utf-8")
-        """Owner order 2026-10-25, sixth and seventh passes: "you made the
-        sun transparent, SUN is a solid entity, make it solid", "the very
-        left one is my own uploaded photo, and I would really love to have
-        that same exact render, and then you can make it revolve just like
-        the Earth does", then "there is this one outline on the SUN and even
-        the render of SUN looks really cheap, make it look very realistic".
+    def test_the_park_is_frozen_but_visible(self):
+        # "it will stop moving, it should not disappear completely":
+        # stop() freezes the CLOCK (the pose the loop last drew), a parked
+        # onDraw repaints that pose fully lit, and a resume replays from the
+        # frozen second, so a closed market can never blank the station.
+        for pin in ("private float lastSeconds;",
+                    "private float frozenSeconds = -1f;",
+                    "frozenSeconds = lastSeconds;",
+                    "frozenSeconds >= 0f ? frozenSeconds",
+                    "PARKED_SECONDS = 2.0f",
+                    "(long) (frozenSeconds * 1000f)"):
+            self.assertIn(pin, self.orb)
+        parked = self.orb[self.orb.index("protected void onDraw("):]
+        self.assertIn("drawScene(canvas, frozenSeconds >= 0f ? frozenSeconds",
+                      parked)
 
-        The surface is the owner's own picture (drawable-nodpi/sun.jpg), its
-        fire crop wrapped onto the sphere on a triangle wrap, and v2.3.5
-        takes his RIM and his CORONA from the same picture: one ink and one
-        height per screen angle, one alpha per angle and radius. Nothing in
-        this file is a function of the screen radius any more, because a
-        function of the screen radius is a circle by construction. The
-        sphere's poles, which converge by geometry, dissolve into their own
-        map row so the ball has no woven cap.
-        """
-        self.assertIn("private void buildSunSphere() {", orb)
-        self.assertIn("private void buildSunMap(int[] pixels, int w, int h) {",
-                      orb)
-        self.assertIn("private void buildSunRing(int[] pixels, int w, int h) {",
-                      orb)
-        self.assertIn("private void sharpenMap() {", orb)
-        self.assertIn("private void renderSunBall(float phi) {", orb)
-        self.assertIn("private int sampleMap(float u, float v) {", orb)
-        # His picture is the source, decoded from the asset.
-        self.assertIn("BitmapFactory.decodeResource(getResources(),", orb)
-        self.assertIn("R.drawable.sun", orb)
-        self.assertIn("private static int samplePhoto(int[] pixels, int w, "
-                      "int h,", orb)
-        self.assertIn("sunMap[row * SUN_MAP_W + col] =", orb)
-        self.assertIn("mapRowInk[row] = 0xFF000000", orb)
-        self.assertIn("gradeInk(samplePhoto(pixels, w, h, px, py))", orb)
-        # The drawn ring is gone, with the table and the blend that made it.
-        for retired in ("SUN_CROWN", "sunCrown", "crownInk", "sphereRim",
-                        "sphereCrown", "SUN_HALO", "buildSunHalo",
-                        "SUN_RAMP", "SUN_STOP", "sunHeat", "sampleSun",
-                        "mirrorRow", "SUN_CHURN_TURN", "sphereGain",
-                        "buildSunHeat", "buildSunSurface", "sampleDetail",
-                        "rampMix", "fbm3", "noise3", "hash3",
-                        # v2.3.5: the radius brightening, the white-hot
-                        # band and the exponential glow were the outline he
-                        # kept sending back. His own rim and corona replace
-                        # all three.
-                        "SUN_LIMB", "SUN_HOT", "SUN_GLOW", "sunGlow",
-                        "glowInk"):
-            with self.subTest(retired=retired):
-                self.assertNotIn(retired, orb)
-        # One bitmap holds the ball and its glow: the disc is 96 of its 128
-        # pixels, which is what removes every possible seam.
-        self.assertIn("SUN_RENDER = 256", orb)
-        self.assertIn("SUN_BALL = 96f", orb)
-        self.assertIn("SUN_REACH = SUN_RENDER / 2f / SUN_BALL", orb)
-        self.assertIn("float r = ballR * (SUN_RENDER / 2f) / SUN_BALL;", orb)
-        self.assertIn("sunBallPixels[k] = (cover << 24)", orb)
-        # His numbers: the disc at 0.86 of the picture's half side, the crop
-        # at 0.62 of the disc, the limb curve and the white-hot edge.
-        self.assertIn("SUN_MAP_W = 512", orb)
-        self.assertIn("SUN_MAP_H = 256", orb)
-        self.assertIn("SUN_BALL_EDGE = 0.86f", orb)
-        self.assertIn("SUN_CROP = 0.75f", orb)
-        self.assertIn("SUN_BOIL_ROW = 5f", orb)
-        self.assertIn("SUN_BOIL_MIX = 0.07f", orb)
-        self.assertIn("SUN_SHARPEN = 1.05f", orb)
-        self.assertIn("SUN_CONTRAST = 1.30f", orb)
-        # His rim: one ink and one height per screen angle, both from the
-        # picture, both turning with the surface.
-        self.assertIn("SUN_RING_IN = 0.87f", orb)
-        self.assertIn("SUN_RING = 1.55f", orb)
-        self.assertIn("SUN_RING_BASE = 0.30f", orb)
-        self.assertIn("SUN_RING_FLAME = 1.35f", orb)
-        self.assertIn("float ring = smoothstep(SUN_RING_IN, 0.995f, rn)", orb)
-        self.assertIn("ringFlame[ang]", orb)
-        self.assertIn("ringInk[ang]", orb)
-        # His rim: alpha and ink per angle, baked from his picture.
-        self.assertIn("FLAME_STEPS = 512", orb)
-        # The corona is restored THIN (v2.3.11 owner order: the entire
-        # feature removed and readded from v2.3.8, whose sun he named
-        # good; the eighth pass's 1.75 bulge was the thick orange
-        # outline, so the gain stands at the v2.3.6 blend).
-        self.assertIn("CORONA_STEPS = 28", orb)
-        self.assertIn("CORONA_REACH = 0.20f", orb)
-        self.assertIn("CORONA_GAIN = 1.45f", orb)
-        self.assertIn("CORONA_SMOOTH = 19", orb)
-        self.assertIn("buildSunCorona(photo, photoW, photoH);", orb)
-        self.assertIn("coronaInk[r * FLAME_STEPS + i] = ((alpha / n) << 24)",
-                      orb)
-        self.assertIn("sunBallPixels[k] = 0;", orb)
-        # The pole dissolve.
-        self.assertIn("SUN_POLE_IN = 0.64f", orb)
-        self.assertIn("SUN_POLE_MIX = 0.92f", orb)
-        self.assertIn("int row = mapRowInk[clampInt((int) v, 0, SUN_MAP_H - 1)];",
-                      orb)
-        # The revolve: one shared longitude shift, the owner's 10% cut
-        # kept, his 2026-10-26 order a further 15%, and his two
-        # 2026-10-27 orders a further 10% each - each cut on the rate
-        # itself, the place the earlier cuts sit:
-        # 0.35 * 0.85 * 0.9 * 0.9 = 0.240975 rad/s.
-        self.assertIn("SUN_SPIN_RATE = 0.240975f", orb)
-        self.assertIn("SUN_SLOWDOWN = 0.9f", orb)
-        self.assertIn("SUN_AXIS_TILT = 10f", orb)
-        # v2.3.8 (owner order 2026-10-26: "the SUN is still
-        # flickering/phasing"): the revolve carries the render thread's
-        # OWN elapsed time, scaled by HIS spin law, so the turn never
-        # jumps behind a stale phi line and never stop.
-        self.assertIn(
-            "* SUN_SPIN_RATE * MOTION_SCALE * SUN_SLOWDOWN;", orb)
-        self.assertIn("renderSunBall(phi);", orb)
-        self.assertIn("float spin = phi / SUN_LAP * SUN_MAP_W;", orb)
-        self.assertIn("sampleMap(sphereU[k] + spin, sphereV[k])", orb)
-        # The thread (v2.3.8): its own cadence, double buffered, parked
-        # when the market stops, warm before the first paint. v2.3.11
-        # (owner order 2026-10-26, fourteenth pass: "remove the entire
-        # feature then add it again, and fix it"): the handover is the
-        # v2.3.8 HARD SWAP again - v2.3.9's half-alpha blend was the
-        # ghosting he kept seeing - and the v2.3.10 commit gate stands:
-        # the render thread signs its bitmap and the swap runs under one
-        # monitor, so a torn half-pass can never become the picture.
-        self.assertIn("long SUN_CADENCE_MS = 60L", orb)
-        self.assertIn("sunThread.setPriority(Thread.NORM_PRIORITY - 1);", orb)
-        self.assertIn("sunThread.setDaemon(true);", orb)
-        self.assertIn("sunThread.start();", orb)
-        self.assertIn("Thread.sleep(wait);", orb)
-        self.assertIn("sunBallBack.setPixels", orb)
-        self.assertIn("p.post(this::publishSun);", orb)
-        self.assertIn("Bitmap tmp = sunBall;", orb)
-        self.assertIn("sunBall = sunBallBack;", orb)
-        self.assertIn("sunBallBack = tmp;", orb)
-        self.assertIn("private final Object sunGate = new Object();", orb)
-        self.assertEqual(orb.count("synchronized (sunGate) {"), 2,
-                         "one gate at the commit, one at the handover")
-        ball = orb[orb.index("private void renderSunBall("):
-                   orb.index("private void bloomSun()") + 2000]
-        self.assertIn("synchronized (sunGate) {", ball)
-        self.assertIn("renderSunBall(phi);", orb)
-        self.assertIn("startSunLoop();", orb)
-        self.assertIn("stopSunLoop();", orb)
-        self.assertIn("warmSunOnce();", orb)
-        self.assertIn("onDetachedFromWindow();", orb)
-        # The triangle wrap: linear across the visible half turn, mirrored
-        # behind it, so a quarter turn is a quarter turn.
-        self.assertIn("float swing = (float) Math.asin(Math.sin(longitude));",
-                      orb)
-        self.assertIn("float px = midX + swing * (2f / (float) Math.PI) "
-                      "* crop;", orb)
-        # SOLID: every pixel inside the disc is opaque (owner order: "SUN is
-        # a solid entity").
-        self.assertIn("sphereCover[k] = 255;", orb)
-        self.assertIn("sunScratch[k] = 0xFF000000", orb)
-        # The rim comes from his picture, not from a radius.
-        self.assertIn("* (SUN_RING_BASE + SUN_RING_FLAME * ringFlame[ang])",
-                      orb)
-        # The frame draws it under the standing tilt.
-        method0 = orb.index("private void drawSun(")
-        method1 = orb.index("private void renderSunBall(", method0)
-        method = orb[method0:method1]
-        self.assertIn("canvas.save();", method)
-        tilt = method.index("canvas.rotate(SUN_AXIS_TILT, cx, cy);")
-        self.assertLess(method.index("canvas.save();"), tilt)
-        self.assertGreater(method.index("canvas.restore();"), tilt)
-        self.assertIn("canvas.drawBitmap(sunBall, null, ballDst, sunPaint);",
-                      method)
-        self.assertIn("ballR = orbRadius * 0.26f", orb)
+    def test_every_vsync_carries_a_whole_picture(self):
+        # A short frame repaints the pose it last drew rather than holding
+        # the surface, so the instrument can never phase against the vsync.
+        self.assertIn("FPS_MS = 33L", self.orb)
+        self.assertIn("drawScene(canvas, lastSeconds);", self.orb)
 
-    def test_v2_2_5_the_ball_is_steady_and_the_lines_breathe(self):
-        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
-            encoding="utf-8")
-        """v2.2.5, on the sent-back v2.2.4 build: "the SUN is not
-        revolving and it's just flickering now". The flicker WAS the
-        fire's alpha pumps; v2.3.0 deleted the fire that pumped at all, so
-        the ball's ink is the wake and nothing else. The breathe is the
-        NLINES' own law: "the lines will get a bit short and then will get
-        long" - one breath period on each filament, around its own
-        midpoint, no two in step.
-        """
-        # The ball's ink is the wake alone: no fire term can pump it.
-        self.assertIn("sunPaint.setAlpha((int) (255f * wake));", orb)
-        self.assertNotIn("sunFlame", orb)
-        self.assertNotIn("0.82f + 0.18f * (float) Math.sin(", orb)
-        self.assertNotIn("0.72f + 0.28f * (float) Math.sin(", orb)
-        # The breathe: a phase per link (golden-angle step, so no two
-        # lines pulse in step), one breath period, and the swing NEVER
-        # detaches the filament from the nodes it joins.
-        self.assertIn("private final float[] linkPhase = new float[linkBudget()];",
-                      orb)
-        self.assertIn("linkPhase[linkCount] = 2.39996f * linkCount;", orb)
-        self.assertIn("seconds * 0.55f * MOTION_SCALE + linkPhase[l]", orb)
-        # v2.3.3 (owner order 2026-10-25: "the outside revolving lines are
-        # still not breathing") tripled the swing. v2.3.7 (owner order
-        # 2026-10-26: "the SUN and the LINES every thing is flickering,
-        # make it fucking stop") cut it to one fifth, and the SAME owner
-        # hour sent that back ("you ruined the animating feature"). The
-        # v2.3.8 tenth pass is the final law: the v2.3.3 swing is back
-        # over the LENGTH, and the INK breathes with the width on the one
-        # shared wave - its own factor (0.945f + 0.17f * widthBreath) -
-        # so a filament's alpha rides a narrow band above its trough and
-        # can never hollow out into the 0.1x..1.4x flashing he called
-        # flicker, however deep its side of the ball.
-        self.assertIn("float breathWave = (float) Math.sin(", orb)
-        self.assertIn("float widthBreath = 1f + 0.30f * breathWave;", orb)
-        # v2.3.14 (owner order 2026-10-27: "the moving big lines that are
-        # revolving around the sun are coming out from their dots. Make
-        # it not exceed those dots") made the length swing inward-only:
-        # the old 0.70..1.30 factor is gone. v2.3.17 (owner order
-        # 2026-10-27: "increase the length of all the LINES by 20%")
-        # lifts the swing's floor exactly 20% (0.70 * 1.2 = 0.84) and
-        # the ceiling still stays pinned at the dots it is drawn from -
-        # every line 20% longer at its trough, no end ever past its dot.
-        self.assertIn("float breath = 1f - 0.08f * (1f - breathWave);", orb)
-        self.assertIn("* (0.945f + 0.17f * widthBreath));", orb)
-        self.assertIn("* widthBreath);", orb)
-        self.assertIn("float midX = (ax + bx) / 2f;", orb)
-        self.assertIn("float midY = (ay + by) / 2f;", orb)
-        self.assertIn("midX + (ax - midX) * breath,", orb)
+    def test_the_theme_paints_the_whole_instrument(self):
+        self.assertIn("public void setThemeInk(int color) {", self.orb)
+        for paint in ("ringPaint.setColor(ink);", "arcPaint.setColor(ink);",
+                      "tickPaint.setColor(ink);", "sweepPaint.setColor(ink);",
+                      "satellitePaint.setColor(ink);", "scanPaint.setColor(ink);",
+                      "bracketPaint.setColor(ink);"):
+            with self.subTest(paint=paint):
+                self.assertIn(paint, self.orb)
 
-    def test_v2_2_5_the_theme_paints_the_inputs(self):
-        """v2.2.5 (owner order 2026-10-24, fourth pass, "when I change the
-        theme the theme changes but the drop down and the search boxes
-        are still purple, make them match the app's current theme"). One
-        place (applyThemeToInputs) paints the closed dropdown rows, the
-        menus and the search box from the theme's own plate, at selection
-        time AND on start. v2.3.19 (owner order 2026-10-28) lifts the
-        v2.2.5 exemption: the theme spinner paints its plate too. v2.3.20
-        (owner orders 2026-10-28, "when I selected another theme, relay
-        status box was still purple") paints the RELAY STATUS button
-        from the same pass, so the settings page carries the worn theme
-        end to end.
-        """
-        main = MAIN.read_text(encoding="utf-8")
-        # One place, all the paints.
-        self.assertIn("private void applyThemeToInputs(int index) {", main)
-        self.assertIn("private void paintField(View field, int index) {", main)
-        # On selection, and on the remembered theme at start.
-        self.assertIn("applyTheme(index);", main)
-        self.assertLess(main.index("applyThemeToInputs(themeIndex)"),
-                        main.index("wireDropdownArrows();"))
-        # No input is skipped, the theme box included.
-        self.assertNotIn("continue;", main[main.index(
-            "private void applyThemeToInputs("):main.index(
-            "private void paintField(View field, int index) {")])
-        # v2.3.21: the two dropdowns' closed box and open menu are ONE
-        # surface (volume_field_group / theme_field_group): the theme
-        # pass stamps the field plate on the GROUP, the box face wears
-        # nothing, and the menu is the group pulled down - the box
-        # literally expands to reveal the rows, and no second window
-        # can ever be drawn. The spinners left themedInputs with v2.3.21:
-        # a plate stamped on the box under the group's plate would draw
-        # the seam the owner keeps sending back.
-        self.assertIn("volumeFieldGroup.setBackground(fieldPlate(index));",
-                      main)
-        self.assertIn("themeFieldGroup.setBackground(fieldPlate(index));",
-                      main)
-        self.assertNotIn("volumeSplitMenu.setBackground", main)
-        self.assertNotIn("themeMenu.setBackground", main)
-        self.assertNotIn("themedInputs.add(volumeSplitSpinner);", main)
-        self.assertNotIn("themedInputs.add(themeSpinner);", main)
-        self.assertIn(
-            "volumeFieldGroup = findViewById(R.id.volume_field_group);",
-            main)
-        self.assertIn(
-            "themeFieldGroup = findViewById(R.id.theme_field_group);", main)
-        self.assertNotIn("popupPlate", main)
-        self.assertNotIn("popupResourceFor", main)
-        # The per-theme popup plates and the base one retire with their
-        # last reader (SO-11): nothing in the res tree names them.
-        self.assertEqual(
-            [p.name for p in RES.glob("**/dropdown_popup*.xml")], [])
-        # The field law's own corners travel with the theme, built once.
-        self.assertIn("private final GradientDrawable[] themeFieldPlates",
-                      main)
-        self.assertIn("cached.setCornerRadius(dp(12));", main)
-        # v2.3.19: every field box paints the theme's FIELD ink, one
-        # step off the tile, so the boxes are seen on every theme.
-        self.assertIn("private int fieldResourceFor(int index) {", main)
-        self.assertIn("R.color.theme_black_field", main)
-        self.assertIn("R.color.theme_green_field", main)
-        self.assertIn("R.color.theme_navy_field", main)
-        self.assertIn("R.color.theme_orange_field", main)
-        colors = COLORS.read_text(encoding="utf-8")
-        for name in ("theme_black_field", "theme_green_field",
-                     "theme_navy_field", "theme_orange_field"):
-            self.assertIn(f'<color name="{name}">', colors)
-        # Owner order 2026-11-21: the search box and its results are one
-        # field plate like every dropdown, so the group is painted and the
-        # box itself no longer rides the per-box list.
-        self.assertIn(
-            "searchFieldGroup = findViewById(R.id.search_field_group);", main)
-        self.assertIn("searchFieldGroup.setBackground(fieldPlate(index));",
-                      main)
-        self.assertNotIn("themedInputs.add(searchInput);", main)
-        # v2.3.20: the RELAY STATUS button is a themed field too, so its
-        # plate follows the worn theme instead of the static purple.
-        self.assertIn("View relayButton = findViewById(R.id.btn_open);", main)
-        self.assertIn("themedInputs.add(relayButton);", main)
-
-    def test_the_sectors_tile_wears_the_worn_theme(self):
-        """Owner report 2026-11-07: after a theme change the SECTORS tile was
-        still the fixed plum card. It is a themed plate, a themed heading, a
-        themed field and a rebuilt menu and reveal now."""
-        main = MAIN.read_text(encoding="utf-8")
-        theme = main[main.index("private void applyTheme(int index)"):]
-        theme = theme[:theme.index(
-            "private final GradientDrawable[] themePlates")]
-        self.assertIn("tileSectors,", theme)
-        self.assertIn("R.id.sectors_heading,", theme)
-        self.assertIn("renderSectorReveal();", theme)
-        self.assertIn("fillSectorMenu();", theme)
-        self.assertIn(
-            "sectorsFieldGroup = findViewById(R.id.sectors_field_group);",
-            main)
-        self.assertIn(
-            "sectorsFieldGroup.setBackground(fieldPlate(index));", main)
-
-    def test_total_volume_is_blue_everywhere(self):
-        """Owner order 2026-11-07: T is blue on every surface, not only the
-        leaders card. The splitters call one helper, the two span builders
-        carry the same resource, and the broker answer does too."""
-        colors = COLORS.read_text(encoding="utf-8")
-        main = MAIN.read_text(encoding="utf-8")
-        self.assertIn('<color name="blue">', colors)
-        self.assertIn("private void colorTotal(", main)
-        self.assertGreaterEqual(main.count("colorTotal(sb,"), 5)
-        self.assertGreaterEqual(main.count("R.color.blue"), 4)
-        watcher = WATCHER.read_text(encoding="utf-8")
-        self.assertIn("c.getColor(R.color.blue)", watcher)
-
-    def test_v2_2_5_no_purple_stencil_under_a_themed_input(self):
-        """v2.2.5: the volume dropdown no longer carries a purple
-        popupBackground in the layout (the popup plate is stamped from
-        Java per theme), so no themed input can keep a colour its tile
-        does not declare."""
-        layout = LAYOUT.read_text(encoding="utf-8")
-        spinner = element(layout, 'android:id="@+id/volume_split_spinner"')
-        self.assertNotIn("android:popupBackground", spinner)
-        # v2.3.20: the retired popup plate is gone from the menus too -
-        # neither inline menu paints its own background in the layout
-        # any more; the theme pass stamps the field plate on both.
-        self.assertNotIn("@drawable/dropdown_popup", layout)
-
-    def test_v2_3_18_all_three_boxes_carry_the_one_universal_height(self):
-        """Owner orders 2026-10-27, twenty-first and twenty-second passes
-        ("increase all the drop down and search box heights by 30% from
-        their current height", then "increase all the dropdown/search
-        boxes heigh by another 50% from their current height"). The
-        growth lands on the height the boxes really wear, v2.3.16's one
-        universal measure: 23 * 1.3 = 29.9 floored to 29dp, then
-        29 * 1.5 = 43.5 floored to EXACTLY 43dp, and all three field
-        boxes (the two closed dropdown boxes and the search box) are BY
-        that one height - one exact 43dp measure, the 3dp air above and
-        below the line, the leading 38dp column on the two dropdown
-        faces, the 10dp sides on the search box, one centre_vertical
-        gravity,
-        the font's own padding out of the measure. No floor is named
-        again: the box names its height in one place, layout_height,
-        and the retired 23dp/32dp/38dp/40dp/35dp measures stay retired
-        under the content they used to name (the engine-read 43dp is
-        the box's own new universal measure, not the old floor).
-        """
-        layout = LAYOUT.read_text(encoding="utf-8")
-        for view_id in ("volume_split_spinner", "theme_spinner",
-                        "search_input"):
-            with self.subTest(view_id=view_id):
-                box = element(layout, f'android:id="@+id/{view_id}"')
-                # Tile's width, one exact height, the universal numbers,
-                # the same law three times. The caret sits at the trailing
-                # edge, so every face keeps its 10dp sides.
-                left = "10dp"
-                self.assertIn('android:layout_width="match_parent"', box)
-                self.assertIn('android:layout_height="43dp"', box)
-                self.assertNotIn("minHeight", box)
-                self.assertIn('android:paddingTop="3dp"', box)
-                self.assertIn('android:paddingBottom="3dp"', box)
-                self.assertIn(f'android:paddingLeft="{left}"', box)
-                self.assertIn('android:paddingRight="10dp"', box)
-                # Owner order 2026-11-17: every closed dropdown face centres
-                # its own line, not only vertically. Owner order 2026-11-25
-                # (evening) puts the search box on that same face, so the
-                # typed ticker centres exactly like the volume caption.
-                # Owner order 2026-11-26: the SEARCH box is the exception -
-                # it types from the LEFT edge, hint and cursor alike.
-                self.assertIn(
-                    'android:gravity="%s"' % ("center_vertical|start"
-                                              if view_id == "search_input"
-                                              else "center"), box)
-                self.assertIn('android:includeFontPadding="false"', box)
-
-    def test_v2_3_16_the_dropdown_menu_opens_from_the_box_itself(self):
-        """Owner order 2026-10-27, nineteenth pass: "when I tap on
-        custom scrips of volume, another window pops up which is wrong,
-        drop down menu should appear from the same box, not as a
-        completely separate window".
-
-        The platform Spinner is retired with its popup window
-        entirely: every closed dropdown box is its own one-line
-        TextView, and every menu is a LinearLayout of the app's own
-        rows standing DIRECTLY below the box it belongs to, in the
-        page's own scroll, drawn from MainActivity's own open state -
-        no popup window, no platform spinner, no adapter, anywhere.
-        The theme menu carries the same exact setting, since the two
-        dropdowns keep one law.
-
-        v2.3.21 (owner order 2026-10-28, "the drop down menu is still
-        opening another separate window... the drop down should
-        expand itself to reveal the drop down menu"): each box and
-        its menu are wrapped in ONE group (volume_field_group,
-        theme_field_group) that carries the field plate. The box face
-        inside it wears nothing and the menu is INSIDE the group, so
-        opening is the box's own expansion: one plate covers both
-        faces and no seam, gap or second surface can ever be drawn.
-        """
-        layout = LAYOUT.read_text(encoding="utf-8")
-        main = MAIN.read_text(encoding="utf-8")
-        # The platform dropdown class is retired with its file.
-        self.assertNotIn("pk.quantofrehan.Dropdown", layout)
-        self.assertFalse(
-            (ROOT / "android" / "app" / "src" / "main" / "java"
-             / "pk" / "quantofrehan" / "Dropdown.java").exists())
-        for view_id, menu_id, group_id in (
-                ("volume_split_spinner", "volume_split_menu",
-                 "volume_field_group"),
-                ("theme_spinner", "theme_menu", "theme_field_group")):
-            with self.subTest(view_id=view_id):
-                box = element(layout, f'android:id="@+id/{view_id}"')
-                menu = element(layout, f'android:id="@+id/{menu_id}"')
-                # The closed box is a plain TextView; nothing of the
-                # platform spinner's own attributes survives on it.
-                self.assertIn("<TextView", box)
-                self.assertNotIn("popupBackground", box)
-                self.assertNotIn("android:prompt", box)
-                self.assertNotIn("extends Spinner", main)
-                # v2.3.21: the box face wears NOTHING - the plate is
-                # the group's own.
-                self.assertIn('android:background="@null"', box)
-                # The menu stands inside its box's group (the group is
-                # opened before the box, the menu sits inside it), in
-                # the page's own flow, until the state opens it
-                # (v2.3.20: no top margin and no plate of its own any
-                # more - the open menu is the box's own expansion).
-                self.assertIn("<LinearLayout", menu)
-                self.assertNotIn("android:layout_marginTop", menu)
-                self.assertNotIn("android:background", menu)
-                self.assertIn('android:visibility="gone"', menu)
-                group = element(layout, f'android:id="@+id/{group_id}"')
-                self.assertIn('android:background="@drawable/field_bg"',
-                              group)
-                self.assertIn('android:orientation="vertical"', group)
-                # ONE surface: the group's tag stands BEFORE its box,
-                # and nothing closes a container between the box and
-                # the menu - so box and menu live in one group by
-                # construction, and the open menu is that group grown.
-                self.assertLess(layout.index(f'android:id="@+id/{group_id}"'),
-                                layout.index(box))
-                between = layout[layout.index(box):layout.index(menu)]
-                self.assertNotIn("</LinearLayout>", between)
-        # The engine: rows built by the app, open states drawn between
-        # the menu's visibility, the arrow and the one-menu-at-a-time
-        # law; the adapter machinery is retired with the popup window.
-        self.assertIn("private void buildVolumeMenu() {", main)
-        self.assertIn("private void buildThemeMenu() {", main)
-        self.assertIn("private TextView menuRow(String line) {", main)
-        self.assertIn("private void showVolumeMenu(boolean open) {", main)
-        self.assertIn("private void showThemeMenu(boolean open) {", main)
-        self.assertIn("private void rotateDropdownArrow(ImageView arrow, "
-                      "boolean open) {", main)
-        self.assertNotIn("ArrayAdapter", main)
-        self.assertNotIn("AdapterView", main)
-        self.assertNotIn("android.widget.Spinner", main)
-        self.assertNotIn("styledSpinnerAdapter", main)
-        self.assertNotIn("styleSpinnerRow", main)
-        self.assertNotIn("setOnItemSelectedListener", main)
-        # Both menus open FROM their own box and their own arrow: four
-        # taps, one toggle each.
-        self.assertEqual(main.count("showVolumeMenu(!volumeMenuOpen)"), 2)
-        self.assertEqual(main.count("showThemeMenu(!themeMenuOpen)"), 2)
-        # One menu at a time, served by the states themselves.
-        self.assertIn("        if (open) {\n"
-                      "            showThemeMenu(false);\n        }", main)
-        self.assertIn("        if (open) {\n"
-                      "            showVolumeMenu(false);\n        }", main)
-
-    def test_v2_3_15_the_themes_arrow_aims_at_the_box_itself(self):
-        """Owner order 2026-10-27, eighteenth pass: "the drop down is
-        not even aligned on the centre for themes box.
-
-        The themes dropdown's own 10dp top margin sat on the Dropdown
-        INSIDE its holder, so the holder was 10dp taller than the box
-        and the arrow's center_vertical aimed at the holder - the box's
-        line sat low in its own frame and the arrow sat high beside it.
-        The margin moved onto the holder then, and v2.3.21 moved it one
-        level further onto the dropdown's group (so the group's field
-        plate hugs the box exactly): the holder and the box are BOTH
-        exactly the box now. v3.4.0 (owner order 2026-10-30) re-aims
-        the arrows onto the mount's own TOP-RIGHT station, 11dp of top
-        air, so with the open rows standing the caret rides their first
-        line and stays the roll-up tap; the box and holder carry no top
-        margin still.
-        """
-        layout = LAYOUT.read_text(encoding="utf-8")
-        for view_id, group_id in (
-                ("volume_split_spinner", "volume_field_group"),
-                ("theme_spinner", "theme_field_group")):
-            with self.subTest(view_id=view_id):
-                box = element(layout, f'android:id="@+id/{view_id}"')
-                start = layout.rindex("<FrameLayout", 0, layout.index(box))
-                holder = layout[start:layout.index("</FrameLayout>", start)]
-                # The box itself carries no top margin. v3.4.0: the mount's
-                # only top air is the caret's own 11dp station (the arrow's
-                # law, never the box's) - the closed 43dp face's own height
-                # law puts the 20dp caret at the same station the old
-                # centre put it, and with the open rows standing the caret
-                # rides their first line as the roll-up tap.
-                self.assertNotIn('android:layout_marginTop', box)
-                self.assertEqual(
-                    1, holder.count('android:layout_marginTop="11dp"'))
-                # The 10dp air sits on the GROUP now, outside the field
-                # plate it carries, so the plate starts at the box's
-                # own top edge (v2.3.21).
-                group_open = layout.rindex("<LinearLayout", 0,
-                                           layout.index(box))
-                group_tag = layout[group_open:layout.index(">", group_open)]
-                self.assertIn("@+id/" + group_id, group_tag)
-                self.assertIn('android:layout_marginTop="10dp"', group_tag)
-        # Both arrows name a plain 20dp size, so the cue is visible
-        # whatever a drawable's own intrinsic later says.
-        for view_id in ("volume_split_arrow", "theme_arrow"):
-            with self.subTest(arrow=view_id):
-                arrow = element(layout, f'android:id="@+id/{view_id}"')
-                self.assertIn('android:layout_width="20dp"', arrow)
-                self.assertIn('android:layout_height="20dp"', arrow)
-                self.assertNotIn('wrap_content', arrow)
-
-    def test_v2_3_18_the_search_box_joins_the_universal_height(self):
-        """Owner order 2026-10-27, twenty-second pass ("increase all the
-        dropdown/search boxes heigh by another 50% from their current
-        height"). The 50% lands on the height the box really wears,
-        v2.3.17's universal 29dp: 29 * 1.5 = 43.5, floored to 43dp,
-        the air reads 3dp above and below the line, and nothing of the
-        GROWN floors (35dp) survives under its own name - the engine
-        43dp the box carries is its own new universal measure, not the
-        old v2.3.15 floor.
-        """
-        box = element(LAYOUT.read_text(encoding="utf-8"),
-                      'android:id="@+id/search_input"')
-        self.assertIn('android:layout_height="43dp"', box)
-        self.assertNotIn("minHeight", box)
-        self.assertNotIn('android:layout_height="35dp"', box)
-        self.assertIn('android:paddingTop="3dp"', box)
-        self.assertIn('android:paddingBottom="3dp"', box)
-
-    def test_v2_3_22_the_open_menu_hides_the_closed_boxs_label(self):
-        """Owner order 2026-10-29: "when I tap on custom scrips of
-        volume, the window is expanding, but then it shows custom
-        scrips of volume in the drop down as well, it should not show
-        custom scrips of volume written on that drop down once I tap on
-        that custom scrips of volume, it should only show prices rising
-        fast and more buyers and less sellers, then when I tap on the
-        drop down icon again, then the window will roll up again then I
-        would see customs scrips of volume again". The v2.3.21 open
-        menu kept the closed box's own label row standing above the
-        option rows, so the open window read as "still showing custom
-        scrips of volume".
-
-        v3.1.0 owner order 2026-10-29 ("The drop down menu looking very
-        bad and not even aligned"): the label still steps out - but the
-        FACE no longer leaves. A GONE face collapsed the strip down to
-        the caret alone and the rows drew detached below it; now the
-        face keeps its 43dp and empties its text, so the label steps
-        out and the caret keeps the box's own line.
-
-        v3.2.0 owner order 2026-10-29, the photo order, SUPERSEDES the
-        anchored line: "the two menu options should now move up, because
-        you can see the space there that is empty". The open state now
-        WITHDRAWS the face itself and the plate hugs the rows alone; the
-        caret keeps its top-right anchor as the roll-up tap.
-        """
-        main = MAIN.read_text(encoding="utf-8")
-        # v3.2.0: each open state withdraws its own closed box's face, so
-        # the option rows move up into the space the face vacated; the
-        # roll-up restores the saved label word for word.
-        self.assertIn(
-            "volumeSplitSpinner.setVisibility(open ? View.GONE : View.VISIBLE);",
-            main)
-        self.assertIn(
-            "themeSpinner.setVisibility(open ? View.GONE : View.VISIBLE);",
-            main)
-        # The saved label is stamped where the box is, so the roll-up
-        # restores it word for word.
-        self.assertIn("volumeBoxLabel = dropdownLine(volumeChoices[index]);",
-            main)
-        self.assertIn(
-            "volumeBoxLabel = getString(R.string.volume_placeholder_scrips);",
-            main)
-        # The empty-text v3.1.0 law is gone with its strip: no open state
-        # blanks a face any more, it hides it.
-        self.assertNotIn('volumeSplitSpinner.setText(open ?', main)
-        self.assertNotIn('themeSpinner.setText(open ?', main)
-        # The arrows stay with the box the whole time: the dropdown icon
-        # is the roll-up, so the open states may never hide an arrow.
-        self.assertNotIn("volumeSplitArrow.setVisibility", main)
-        self.assertNotIn("themeArrow.setVisibility", main)
-
-    def test_v3_2_0_the_open_menus_rows_move_up_into_the_face_space(self):
-        """Owner order 2026-10-29, the photo order: "look at this picture,
-        custom scrips of volume, when I tap on the drop down menu, the
-        two menu options should now move up, because you can see the
-        space there that is empty, so move that up when I tap on the
-        drop down, and when I tap on the drop down again, then the
-        default custom scrips of volume should appear. you get me? do
-        the same for themes as well". The v3.1.0 anchored 43dp strip is
-        the empty space the photo points at: the open state withdraws
-        the closed face (GONE), the plate hugs the option rows alone so
-        they hold the face's ground, and the caret stands at the
-        top-right of the open window, visibly tappable - one tap on the
-        dropdown icon rolls the window back up and the DEFAULT face
-        (SELECT CUSTOM SCRIPS, or the closed THEMES box's label) comes
-        back word for word.
-        """
-        main = MAIN.read_text(encoding="utf-8")
-        # Both open states withdraw their own face, and both roll-ups
-        # restore the saved label.
-        self.assertIn(
-            "volumeSplitSpinner.setVisibility(open ? View.GONE : View.VISIBLE);",
-            main)
-        self.assertIn(
-            "themeSpinner.setVisibility(open ? View.GONE : View.VISIBLE);",
-            main)
-        self.assertIn("volumeSplitSpinner.setText(volumeBoxLabel);", main)
-        self.assertGreaterEqual(
-            main.count("themeSpinner.setText(getString(THEME_LABELS[themeIndex]));"),
-            2)   # the roll-up restore plus applyTheme's restamp
-        # The caret is the roll-up: no open state ever hides an arrow.
-        self.assertNotIn("volumeSplitArrow.setVisibility", main)
-        self.assertNotIn("themeArrow.setVisibility", main)
-
-    def test_v3_4_0_the_caret_leads_the_mount_and_the_rows_stay_thick(self):
-        """Owner order 2026-10-30, v3.4.0: "when i tap on the drop down
-        menu, on custom scrips of volume and on themes page, the drop
-        down menu got thinner and the drop down/drop up icon gets on
-        the middle, it should be on the top. also when I change the
-        theme the menu icons tile get so large that it goes so down the
-        screen and doesn't even end, also when I changed the theme to
-        navy blue and white, the icons on the menu tile changed but the
-        highlighted stayed as yellow which is wrong, it should have
-        highlighted in white for navy blue and white theme".
-
-        Three laws land:
-
-        * both caret anchors: the mount's trailing edge, 14dp in (11dp of
-          top air as the first layout's floor), aimed at the first
-          option's own text line, never the middle of the plate;
-        * every menu row is 32dp tall after the 2026-11-15 25 percent
-          cut, with 5dp vertical air;
-        * the selected highlight disc is the worn theme's own accent
-          pair (white on navy, black and orange, the shipped gold on
-          purple), and the icons tile's height is a LAW of 74dp - the
-          42dp icon + 16dp air + 16dp air - so no theme pass can ever
-          stretch the pinned bar past the screen again.
-        """
-        layout = LAYOUT.read_text(encoding="utf-8")
-        main = MAIN.read_text(encoding="utf-8")
-        for view_id in ("volume_split_arrow", "theme_arrow"):
-            with self.subTest(arrow=view_id):
-                arrow = element(layout, f'android:id="@+id/{view_id}"')
-                self.assertIn('android:layout_gravity="end|top"', arrow)
-                self.assertIn('android:layout_marginEnd="14dp"', arrow)
-                self.assertIn('android:layout_marginTop="11dp"', arrow)
-                self.assertNotIn("android:layout_marginStart", arrow)
-        # The rows' own thickness: inside menuRow, once, at the field's
-        # one height law.
-        row = main.index("private TextView menuRow(String line) {")
-        menu_end = main.index("private void showVolumeMenu", row)
-        window = main[row:menu_end]
-        # Owner order 2026-11-15: every sub menu is 25 percent shorter,
-        # 43dp to 32dp, in one place.
-        self.assertEqual(main.count("row.setMinimumHeight(dp(32));"), 1)
-        self.assertIn("row.setMinimumHeight(dp(32));", window)
-        self.assertNotIn("row.setMinimumHeight(dp(43));", main)
-        # The per-theme disc: built once per theme, the same oval law
-        # nav_circle keeps, the worn accent's fill and its brightened
-        # ring; the purple build still gets the shipped XML drawable.
-        self.assertIn(
-            "private android.graphics.drawable.Drawable navDisc() {", main)
-        self.assertIn("cached.setShape(GradientDrawable.OVAL);", main)
-        self.assertIn("(themeAccentInk & 0x00FFFFFF) | 0x4D000000", main)
-        self.assertIn("navDiscs[themeIndex - 1] = cached;", main)
-        self.assertIn("getResources().getDrawable(R.drawable.nav_circle)", main)
-        # And the pinned tile's own law: 74dp exactly, requested at the
-        # app's own start.
-        self.assertIn("navTile.getLayoutParams().height = (int) dp(74);", main)
-        self.assertIn("navTile.requestLayout();", main)
-
-    def test_v3_1_0_the_open_menu_reads_aligned_and_the_tile_lifts(self):
-        """Owner order 2026-10-29: "The drop down menu looking very bad
-        and not even aligned, just look at these two photos. Fix all
-        these features. Also move the menu bar tile 7% above from its
-        current position". Both photos showed the open window with the
-        caret stranded at the plate's top edge and the rows detached
-        below it. The v3.1.0 law: the open face holds the closed box's
-        own line so the caret stays vertically centred where it stood
-        when the box was closed, the rows type in the box's own 10dp
-        column, and the pinned menu tile surrenders 7% of the screen's
-        own height as its bottom air. Owner order 2026-10-30 (v3.3.0)
-        lowers that lift 4 points: "move the menu tile where all four
-        icons are 4% to down side" - the tile's bottom air is 3% of the
-        screen now, and the pin below is the arithmetic that reads it
-        as 4% DOWN from the 7% it was.
-        """
-        main = MAIN.read_text(encoding="utf-8")
-        # The rows' leading air is the closed box's own 10dp column again,
-        # since the caret is back at the trailing edge.
-        self.assertIn("row.setPadding(dp(14), dp(5), dp(14), dp(5));", main)
-        # The tile's lift is the screen's own share, read from the
-        # display's own metrics on the carrier the tile rides: 3% now,
-        # which is the ordered 4% below the v3.1.0 law's 7%. v3.6.1
-        # (owner order 2026-10-31): the lift is never negative - Math.max
-        # floors it at zero - and the same line lives in pinNavTile(),
-        # which the theme pass calls too, so no look can unpin it.
-        self.assertIn("findViewById(R.id.nav_carrier)", main)
-        self.assertIn("Math.max(0, (int) (screen * 0.03f));", main)
-
-    def test_v2_3_20_the_dropdown_never_reads_as_a_second_window(self):
-        """Owner order 2026-10-28: "when i tap on the drop down menu,
-        another separate window pops up, this is wrong, the drop down
-        menu should actually expand and then the drop down should show
-        me options". The v2.3.19 scroll walk was not enough: the open
-        menu still drew its OWN bordered plate (a corner, a stroke, a
-        colour of its own), with a 2dp gap under the box, and THAT is
-        the "separate window" the owner kept seeing. v2.3.21 made the
-        law structural: the box and its menu are ONE group, the theme
-        pass stamps the field plate on the GROUP, and nothing can ever
-        be drawn between the box face and its rows - no seam, no frame,
-        no second surface, on every theme.
-        """
-        layout = LAYOUT.read_text(encoding="utf-8")
-        main = MAIN.read_text(encoding="utf-8")
-        for menu_id in ("volume_split_menu", "theme_menu"):
-            with self.subTest(menu_id=menu_id):
-                menu = element(layout, f'android:id="@+id/{menu_id}"')
-                self.assertNotIn("android:background", menu)
-                self.assertNotIn("android:layout_marginTop", menu)
-        # Two sets on the GROUPS from the theme pass, both named so a
-        # future pass cannot move one and leave the other behind (and
-        # none on the menus themselves: their face is the group's own).
-        self.assertGreaterEqual(
-            main.count("FieldGroup.setBackground(fieldPlate(index));"), 2)
-        self.assertNotIn("Menu.setBackground(fieldPlate(index));", main)
-        self.assertIn(
-            "separate window pops up, this is wrong", main)
-
-    def test_v2_3_20_the_theme_never_leaves_the_yellow_and_purple(self):
-        """Owner order 2026-10-28: "When I selected another theme,
-        relay status box was still purple" and "when I have selected
-        another theme, the app always shows purple and yellow". Two
-        static survivors of the theme pass, both renamed by one law:
-        the RELAY STATUS button sits in themedInputs (its plate is the
-        field plate per theme, never the static purple btn_bg again),
-        and applyTheme restamps the closed THEMES box's label at the
-        end of EVERY pass, so the label can never lag the look the
-        console wears - not on a cold start with a remembered theme,
-        and not after a pick.
-        """
-        main = MAIN.read_text(encoding="utf-8")
-        self.assertIn("View relayButton = findViewById(R.id.btn_open);", main)
-        self.assertIn("themedInputs.add(relayButton);", main)
-        # The restamp is the pass's own tail: inside applyTheme itself,
-        # after the search rows repaint, so no caller has to remember it.
-        apply_at = main.index("private void applyTheme(int index) {")
-        self.assertIn("restampThemeText();", main[apply_at:apply_at + 6000])
-        # The comment names the owner's own words, so the law's why
-        # survives with the code (SO-3).
-        self.assertIn(
-            "the app always shows purple and yellow", main)
-
-
-        """Owner order 2026-10-27: "Decrease the sun's revolving speed by
-        another 10%". The cut lands on SUN_SPIN_RATE itself, the place
-        every earlier cut sat: 0.26775 * 0.9 = 0.240975 rad/s.
-        """
-        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
-            encoding="utf-8")
-        self.assertIn("SUN_SPIN_RATE = 0.240975f", orb)
-        self.assertNotIn("SUN_SPIN_RATE = 0.26775f", orb)
-        self.assertIn("0.26775 * 0.9 = 0.240975 rad/s", orb)
-
-    def test_v2_3_14_no_line_ever_leaves_its_dot(self):
-        """Owner order 2026-10-27: "the moving big lines that are
-        revolving around the sun are coming out from their dots. Make it
-        not exceed those dots". The v2.3.3 law synced a filament's
-        length 0.70..1.30 of the distance its two dots own, so at the
-        top of every wave each end hung up to 30% BEYOND its dot. The
-        breathing is inward-only since then, and v2.3.17 (owner order
-        2026-10-27, "increase the length of all the LINES by 20%")
-        lifts the swing's floor exactly 20% while the ceiling stays
-        pinned at the dots: the law's factor rides 0.84..1.00 over the
-        wave, so the line shrinks toward its own midpoint and stretches
-        back exactly to the dots that own it, at its longest end to end
-        and not one pixel past them.
-        """
-        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
-            encoding="utf-8")
-        # The outward-breathing factor is retired with its excuse.
-        self.assertNotIn("float breath = 1f + 0.30f * breathWave;", orb)
-        # The inward-only law is named, lifted 20% by v2.3.17, and its
-        # ceiling is still 1.00.
-        self.assertIn("float breath = 1f - 0.08f * (1f - breathWave);", orb)
-        self.assertIn("0.84..1.00", orb)
-
-    def test_v2_3_18_no_line_ends_open_every_mesh_is_whole(self):
-        """Owner order 2026-10-27, twenty-second pass: "the animating
-        LINES, some of them are open, I mean to say that while moving,
-        some of the LINES just end with the dots, all the LINES should
-        be interconnected with each other".
-
-        The four-neighbour join spends its pairs inside the
-        neighbourhoods the seed packed, so the mesh could still be
-        SEVERAL webs - a filament ending at a dot no other thread
-        carries on from is an OPEN line, and the orphan law of v2.3.3
-        only stood for the one naked dot, not for a whole island.
-        After the neighbourhood and orphan joins, the web's parts are
-        named by union-find and the SHORTEST pair across two parts
-        joins them, until ONE mesh remains: every bridge is the
-        nearest pair that still separates two parts, never a champion
-        chord, and the fade's floor keeps the longer bridge visible.
-        """
-        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
-            encoding="utf-8")
-        # The parts are named by union-find over the joins made above.
-        self.assertIn("int[] part = new int[NODES];", orb)
-        self.assertIn("private static int meshRoot(int[] part, int i) {", orb)
-        self.assertIn("part[meshRoot(part, bestI)] = meshRoot(part, bestJ);",
-                      orb)
-        # The bridge is the SHORTEST pair across two parts, named so.
-        self.assertIn(
-            "if (meshRoot(part, i) == meshRoot(part, j)) {", orb)
-        self.assertIn("linkDist[linkCount] = bestDist;", orb)
-        # The pass ends only when one mesh remains, and it runs inside
-        # the same budget the arrays were sized on.
-        self.assertIn("// one mesh: nothing is open.", orb)
-        self.assertIn("while (linkCount < linkBudget()) {", orb)
-        # The bridge carries the mesh's own phase law, no two in step.
-        self.assertIn("linkPhase[linkCount] = 2.39996f * linkCount;", orb)
-        # v2.3.19 (owner order 2026-10-28, "some of the dots are still not
-        # connected... the line is just ending with a dot"): the ONE mesh
-        # could still carry a leaf whose single filament ended there.
-        # The TWIN-FILAMENT law holds now: dots under degree 2 join their
-        # nearest thread-free neighbour until every dot wears two at
-        # least, so nothing ends at a dot.
-        self.assertIn("int[] degree = new int[NODES];", orb)
-        self.assertIn("if (degree[i] < 2) {", orb)
-        self.assertIn("break;                       // no dot ends a line dead.",
-                      orb)
-        # One mesh, one budget still: the twin joins run inside the same
-        # linkBudget() the four arrays were sized on.
-        self.assertIn("linkCount < linkBudget()", orb)
-
-    def test_v2_3_15_the_anchors_walk_an_even_path_and_the_mesh_is_a_neighbourhood(self):
-        """Owner order 2026-10-27, eighteenth pass, on the v2.3.14
-        build: "the LINES that are revolving around the SUN looks really
-        tangled and very over lapping to me, and they don't even connect
-        on one side of the entire feature".
-
-        Two causes, named and cut:
-
-        1. The v2.3.8 anchors sat on FIVE RANDOM seeded spots, so the
-           lobes were five random fists - anchors that happened to sit
-           near each other made one crowded, overlapped mass (his
-           tangled side) and the stretches between anchors had almost
-           nothing to link (his unconnected side). The anchors walk the
-           golden angle's EVEN path around the sphere now - one latitude
-           band per cluster, one 2.39996 turn apart - so the lobes stand
-           apart everywhere in every direction and the web fills all the
-           way around the sun by construction, never by luck. The nodes'
-           own seeded jitter, the break-outs and the escapees stand.
-        2. The pair sweep walked FIRST COME, FIRST SERVED and died at
-           the link budget, so wherever the nodes crowded, the budget
-           was spent there and the far side of the sweep reached no
-           pairs at all. The mesh is a NEIGHBOURHOOD mesh now: every
-           node joins K = 3 of its own nearest neighbours under the one
-           0.42 cap, each pair once, so every side of the ball carries
-           its own filaments and no lobe can spend another's links. The
-           orphan law stands; every node still wears a filament.
-        """
-        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
-            encoding="utf-8")
-        # The even anchor walk: one band per cluster, the golden angle's
-        # own turn apart, between the sun and the shell.
-        self.assertIn("float v = (c + 0.5f) / CLUSTERS * 2f - 1f;", orb)
-        self.assertIn("float theta = c * 2.39996f;", orb)
-        # The seeded gather stands: the nodes still jitter, break out and
-        # escape, one decision.
-        self.assertIn("long seed = 20261022L;", orb)
-        self.assertIn("float pulled = (n % 4 == 0) ? 1.05f : 0.78f;", orb)
-        # The neighbourhood mesh: K = 4 own nearest neighbours, each pair
-        # once, still under the one 0.42 cap. v2.3.16 (owner order 2026-10-27,
-        # nineteenth pass, "the animating lines are less as of now, make
-        # more LINES ... increase the number of LINES by 20% from the
-        # current number, across the entire animating feautre") takes the
-        # join up from 3, and the mesh's own pair budget carries the same
-        # 20% (3 per node / 1.2 = 2.5 floored to 2 net, 31/5 up
-        # granularity), so the arrays hold every pair the four-neighbour
-        # join now asks for.
-        self.assertIn("final int K = 4;", orb)
-        # The pair budget the arrays are sized on carries the same +20%
-        # (26/5 * 1.2 = 31.2, floored to 31/5), so the four-neighbour
-        # join can never outrun it.
-        self.assertIn("return NODES * 31 / 5;", orb)
-        self.assertIn("for (int take = 0; take < K; take++) {", orb)
-        self.assertIn("boolean[] linked = new boolean[NODES * NODES];", orb)
-        self.assertIn("linked[i * NODES + nearest] = true;", orb)
-        self.assertIn("linked[nearest * NODES + i] = true;", orb)
-        # The link budget the arrays are sized on is unchanged in law;
-        # v2.3.18's whole-mesh bridge pass and v2.3.19's twin-filament
-        # pass both ride inside the same budget (their own guard reads
-        # are the seventh and eighth reads).
-        self.assertEqual(orb.count("linkBudget()"), 8)
-        # The orphan law stands.
-        self.assertIn("boolean[] joined = new boolean[NODES];", orb)
-        self.assertIn("linkDist[linkCount] = nearestDist;", orb)
-
-    def test_v2_3_12_every_vsync_carries_a_whole_picture(self):
-        """Owner order 2026-10-27: "the entire animating feature is still
-        flickering, make it stop flickering/phasing". The flicker was the
-        33ms gate's own empty return: an early Choreographer frame
-        returned WITHOUT drawing, so that vsync carried whatever the
-        surface already held while the next carried a redraw, and the
-        alternation showed at the screen's own rate as phasing (the sun's
-        publish rides the same scheduler). The law: a short frame is
-        REPAINTED WHOLE at the pose the loop last drew, so every vsync
-        carries one complete picture and the picture still changes only
-        at the loop's own 33ms pace.
-        """
-        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
-            encoding="utf-8")
-        gate = orb[orb.index("if (lastFrameAt >= 0"):
-                   orb.index("lastFrameAt = now;")]
-        # The early frame paints the LAST DRAWN pose, not a held surface.
-        self.assertIn("drawScene(canvas, lastSeconds,", gate)
-        # It never returns empty, and it keeps the cadence alive.
-        self.assertLess(gate.index("drawScene(canvas, lastSeconds,"),
-                        gate.index("postInvalidateOnAnimation();"))
-        self.assertIn("return;", gate)
-        # The full frame still assigns the pose the early frames repaint.
-        full = orb[orb.index("lastFrameAt = now;"):
-                   orb.index("drawScene(canvas, seconds, wake);")]
-        self.assertIn("lastSeconds = seconds;", full)
-
-    def test_the_sun_never_flickers(self):
-        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
-            encoding="utf-8")
-        """Owner order 2026-10-25, closing sentence: "also don't flicker my
-        SUN". Flicker is a PICTURE WIDE alpha pump: a hot ball that dims
-        and brightens as a whole reads as a stutter, whatever is animating
-        inside it. The law that answers it, and that v2.3.1 keeps while it
-        adds the boil and the eruptions: every alpha on this path is the
-        wake alone, so no term can pump the ball or the glow. The motion
-        lives in the heat (the counter-turning read), in the eruptions'
-        smooth attack and decay, and in the palette lookup - never in an
-        opacity.
-        """
-        frame = orb[orb.index("private void drawSun("):
-                    orb.index("private void renderSunBall(")]
-        self.assertIn("sunPaint.setAlpha((int) (255f * wake));", frame)
-        # Every alpha written on this path is the wake's, with no other
-        # factor in it: no sine, no phase, no pulse term. v2.3.4 folds the
-        # glow into the ball's own bitmap, so there is one alpha, not two.
-        alphas = [line.strip() for line in frame.splitlines()
-                  if "setAlpha" in line]
-        self.assertEqual(len(alphas), 1, alphas)
-        for line in alphas:
-            self.assertIn("wake", line)
-            self.assertNotIn("Math.sin", line)
-            self.assertNotIn("Math.random", line)
-        self.assertNotIn("setShader", frame)
-        self.assertNotIn("PorterDuff", frame)
-        # The eruptions are deterministic and smooth: a fixed period and
-        # phase each, an attack and a decay, never a random flash.
-        step = orb[orb.index("private void stepEruptions("):
-                   orb.index("private void buildSunSphere(")]
-        self.assertIn("float attack = smoothstep(0f, 0.20f, t);", step)
-        self.assertIn("float decay = 1f - smoothstep(0.34f, 1f, t);", step)
-        self.assertNotIn("Math.random", step)
-        self.assertNotIn("Random", orb)
-        # v2.3.7 (owner order 2026-10-26: "the SUN ... is flickering"): a
-        # 256x256 surface pass with two map reads, seven eruptions, bloom
-        # and blur refiring inside every 33ms frame dropped whole frames
-        # on a busy phone, and the dropped frames are what read as the
-        # ball jumping. v2.3.8 ("the SUN is still flickering/phasing") is
-        # the final law: the pass runs on a DEDICATED thread - its own
-        # 60ms cadence, a low priority rank, double buffered - so it
-        # can never drop a UI frame and the fire's own speed is never
-        # throttled by it. The cloud keeps its 30fps.
-        self.assertIn("private static final long SUN_CADENCE_MS = 60L;", orb)
-        self.assertIn("boolean sunLoop;", orb)
-        self.assertIn("startSunLoop();", orb)
-        self.assertIn("stopSunLoop();", orb)
-        # The handover is the swap, not a re-tinted, re-graded pass: the
-        # pass fills the BACK bitmap and publishSun swaps the two whole.
-        self.assertIn("sunBallBack.setPixels", orb)
-
-    def test_the_balls_texture_is_his_picture_and_its_limb_is_his_curve(self):
-        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
-            encoding="utf-8")
-        """The owner's own sun photograph shipped on 2026-10-24
-        (drawable-nodpi/sun.jpg, the SUN ONLY of the picture he sent) and
-        has been the source of this ball ever since. v2.3.4 reads it for
-        the surface AND for the limb: his picture's radial brightening is
-        applied at render time, so the ball carries his own light instead of
-        a painted crown, and one unsharp pass keeps his filaments.
-        """
-        self.assertTrue((RES / "drawable-nodpi" / "sun.jpg").is_file())
-        self.assertIn("R.drawable.sun", orb)
-        # The crop, its grade, its sharpen and the map built from his texels.
-        self.assertIn("float disc = Math.min(w, h) / 2f * SUN_BALL_EDGE;",
-                      orb)
-        self.assertIn("float crop = disc * SUN_CROP;", orb)
-        self.assertIn("float py = midY + crop * (float) Math.sin(latitude);",
-                      orb)
-        self.assertIn("private static int gradeInk(int ink) {", orb)
-        self.assertIn("private static int gradeChannel(int value) {", orb)
-        self.assertIn("float v = (value / 255f - 0.5f) * SUN_CONTRAST "
-                      "+ 0.52f;", orb)
-        self.assertIn("private static int sharpenChannel(int value, "
-                      "int blurred) {", orb)
-        # The rim is read off his picture at build. The corona beside it
-        # stands again at the owner's newest order (2026-10-26: "remove
-        # the entire feature then add it again"): the feature is the
-        # v2.3.8 build he named good, whose corona is the thin v2.3.6
-        # blend, gain 1.45 and reach 0.20 - NOT the 1.75 bulge of
-        # 2026-10-25, which was the thick orange outline he sent back.
-        # v2.3.11 pins that difference on its own value.
-        self.assertIn("private void buildSunRing(int[] pixels, int w, int h) {",
-                      orb)
-        self.assertIn("float r = disc * RING_BANDS[b];", orb)
-        self.assertIn("CORONA_GAIN = 1.45f", orb)
-        self.assertNotIn("CORONA_GAIN = 1.75f", orb)
-        # The bake's own edge sampling reads the photo: only its NUMBERS
-        # say the threshold (the same two numbers the prototype grid
-        # sat down on), and the white surplus lift stays the prototype's
-        # per-channel clamp, never a shader.
-        self.assertIn("float surplus = alpha - clipped;", orb)
-        # A shader may not repaint his picture, and nothing may draw a ring.
-        for retired in ("setShader", "PorterDuff", "GRANULES",
-                        "SUN_LIMB_FLOOR", "SUN_EDGE_IN", "SUN_CROWN_INK",
-                        "drawCloudHeart"):
-            with self.subTest(retired=retired):
-                self.assertNotIn(retired, orb)
-
-    def test_the_painted_rays_are_deleted_with_their_book_keeping(self):
-        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
-            encoding="utf-8")
-        """Owner order 2026-10-25, third pass: "the ray that are on the sun
-        right now looks absolute fake and ugly". The twelve radial flame
-        tongues and the seven spark streaks are what that sentence caught:
-        a radial gradient blob at a fixed angle can only ever read as a
-        drawn ray, never as fire. Both are DELETED with their angles,
-        lengths, phases, rates, paints and methods, and the limb carries
-        the fire the same way the photograph's does - in the surface and
-        the ragged crown. The big straight HUD rules are untouched: they
-        are drawCloud's, and the owner exempted them by name.
-        """
-        for retired in ("FLAMES", "FLARES", "flameAngle", "flameLength",
-                        "flamePhase", "flameRate", "flareAngle",
-                        "flarePeriod", "flarePhase", "buildSun(",
-                        "drawFlames", "drawFlares", "sunFlame", "sunFlare",
-                        "SUN_RING_OUT", "SUN_RING_LIFT",
-                        "sphereRing", "sphereEdge"):
-            with self.subTest(retired=retired):
-                self.assertNotIn(retired, orb)
-        # v2.3.1's eruptions are NOT the deleted rays come back: they are
-        # heat added to the ball's own surface (the same pixel loop that
-        # folds the palette), travel with it, and never draw a shape of
-        # their own. No canvas call knows they exist.
-        self.assertIn("private static final int ERUPTIONS = 7;", orb)
-        self.assertNotIn("drawErupt", orb)
-        self.assertNotIn("eruptPaint", orb)
-        # One scene, v2.3.19's three draws: the behind half, the sun, and
-        # the front half - one pose projected once, nothing else. The
-        # four canvas reads are the signature and the three calls; the
-        # behind/sun/front ORDER is pinned by the depth-halves law above.
-        scene = orb[orb.index("private void drawScene("):
-                    orb.index("private void drawSun(")]
-        self.assertIn("projectCloud(seconds);", scene)
-        self.assertEqual(scene.count("canvas"), 4,
-                         "drawScene draws the cloud's halves and the sun, "
-                         "nothing else")
-        # The cloud and its laws stand: the rays he exempted are these.
-        self.assertIn("float linkAt = 0.42f;", orb)
-        self.assertIn("private void drawCloud(", orb)
-        self.assertNotIn("Path", orb)
-
-    def test_the_burn_reads_alone_and_the_palettes_ahead_of_it_are_retired(self):
-        orb = (MAIN.parent / "ThinkingOrb.java").read_text(
-            encoding="utf-8")
-        """Owner order 2026-10-23 (fourth pass, v1.9.13): the burn carries
-        the sun and nothing else; the stacked v1.9.6-v1.9.9 brightness
-        constants are retired with the passes that grew them.
-        """
-        # The sun draws at one woken alpha; the heart and every fire mood
-        # ride the same wake, so a closed market parks the picture whole.
-        self.assertIn("sunPaint.setAlpha((int) (255f * wake));", orb)
-        # The cloud keeps the v1.8.9 reference's icy family on the deep
-        # field, two declared constants so the palette is one decision
-        # (the v2.1.0 six-stop re-ink is retired with its burst).
-        # v2.2.1: the cloud wears the owner's fire family now - warm gold
-        # nodes and the orangish/yellow links he named - one decision each.
-        self.assertIn("NODE_COLOR = 0xFFFFD166", orb)
-        self.assertIn("LINK_COLOR = 0xFFFFA62B", orb)
-        # Owner order 2026-11-15: the revolving web wears the worn theme's
-        # second colour instead of the hardcoded yellow.
-        self.assertIn("public void setThemeInk(int color)", orb)
-        self.assertIn("linkPaint.setColor(linkColor);", orb)
-        self.assertIn("nodePaint.setColor(nodeColor);", orb)
-        self.assertNotIn("nodePaint.setColor(NODE_COLOR);", orb)
-        self.assertIn("thinkingOrb.setThemeInk(themeAccentInk);",
-                      MAIN.read_text(encoding="utf-8"))
-        self.assertNotIn("GLOW_SCALE", orb)
-        self.assertNotIn("BRIGHT_SCALE", orb)
-        self.assertNotIn("P1 = 1.3f", orb)
-        self.assertNotIn("P2 = 1.3f", orb)
-        self.assertNotIn("FIRE_MODE", orb)
-        self.assertNotIn("FIELD_COLOR", orb)
-
-    def test_the_orb_is_one_budget(self):
-        orb = (MAIN.parent / "ThinkingOrb.java").read_text(encoding="utf-8")
-        # Zero allocations on the frame path: constellation, sun geometry
-        # and inks are all built once, on the size change, never on the
-        # frame; the ball's destination rect is shared and reused, and the
-        # sphere's tables and bitmap are built beside the rest (v2.2.8).
-        self.assertIn("buildGeometry();", orb)
-        self.assertIn("buildInks();", orb)
-        # v2.3.0: the flame and spark build is gone with the rays it drew;
-        # the sphere's own bake is the sun's whole build now.
-        self.assertNotIn("buildSun();", orb)
-        self.assertIn("buildSunSphere();", orb)
-        self.assertIn("onSizeChanged", orb)
-        self.assertIn("private final RectF ballDst = new RectF();", orb)
-        self.assertIn("ballDst.set(cx - r, cy - r, cx + r, cy + r);", orb)
-        # The HUD frame loop is still the view's own paced invalidate, not
-        # a sleep or a background service: nothing HUD-side runs while the
-        # view is parked. The sun's dedicated render thread (v2.3.8) owns
-        # the file's ONE sleep - the pacing of its own 60ms cadence - and
-        # with that single pinned call removed, no other sleep is legal
-        # anywhere in this file.
-        self.assertIn("FPS_MS = 33L", orb)
-        self.assertIn("postInvalidateOnAnimation()", orb)
-        self.assertNotIn("Thread.sleep",
-                         orb.replace("Thread.sleep(wait);", ""))
-        self.assertNotIn("Service", orb)
-        # start() and stop() are the animation controls, wired to
-        # MainActivity's startHud, stopHud and the market gate; setThemeInk
-        # is the third public control, called by the theme pass.
-        self.assertEqual(orb.count("public void "), 3)
-        self.assertIn("public void setThemeInk(int color)", orb)
-
-    def test_the_orb_stops_when_the_market_stops(self):
-        # Owner order 2026-10-23 (v1.9.13): the feature stops animating
-        # whenever the market is closed or on a break. The gate is the
-        # ON badge's own boolean, read from the relay answer in the one
-        # render pass, so a closed market, a break or an unreachable
-        # relay all park the view (SO-3).
-        main = MAIN.read_text(encoding="utf-8")
-        self.assertIn("private void orbGate(boolean online) {", main)
-        self.assertIn("orbBurning = online;", main)
-        # The render pass calls the gate with the relay's truth.
-        render = main[main.index("private void render(boolean online") :]
-        render = render[:render.index("private String latestSignalDisplay(")]
-        self.assertIn("orbGate(online);", render)
-        # Owner order 2026-11-11: the orb moves every time the app is open,
-        # so neither the gate nor the resume parks it on a closed market.
-        gate = main[main.index("private void orbGate(boolean online) {"):]
-        gate = gate[:gate.index("private void stopHud()")]
-        self.assertIn("thinkingOrb.start();", gate)
-        self.assertNotIn("thinkingOrb.stop();", gate)
-        start = main[main.index("private void startHud() {"):]
-        start = start[:start.index("private void orbGate(boolean online)")]
-        self.assertIn("thinkingOrb.start();", start)
-        self.assertNotIn("if (orbBurning) {", start)
+    def test_the_station_keeps_its_seat_under_the_brand(self):
+        self.assertIn("<pk.quantofrehan.ThinkingOrb", self.layout)
+        orb = element(self.layout, 'android:id="@+id/thinking_orb"')
+        self.assertIn('android:layout_height="210dp"', orb)
+        self.assertIn("thinkingOrb.start();", self.main)
+        self.assertIn("thinkingOrb.stop();", self.main)
+        self.assertIn("thinkingOrb.setThemeInk(themeAccentInk);", self.main)
 
 
 class UniversalRuleGapTest(unittest.TestCase):
@@ -5695,9 +4428,8 @@ class V19SecondOrderTest(unittest.TestCase):
                     "private float frozenSeconds = -1f;",
                     "frozenSeconds = lastSeconds;",
                     "frozenSeconds >= 0f ? frozenSeconds",
-                    ": PARKED_SECONDS, 1f);",
                     "PARKED_SECONDS = 2.0f",
-                    "(long) (frozenSeconds * 1000f);"):
+                    "(long) (frozenSeconds * 1000f)"):
             self.assertIn(pin, self.orb)
 
     def test_the_selected_nav_icon_is_highlighted_whole(self):
@@ -5800,7 +4532,7 @@ class Build174Test(unittest.TestCase):
     def test_a_hairline_stands_over_the_first_option(self):
         main = MAIN.read_text(encoding="utf-8")
         search = main[main.index("private void renderSearchResults("):]
-        search = search[:search.index("private void appendSearchQuote(")]
+        search = search[:search.index("private CharSequence scripMatchSpans(")]
         self.assertIn("padMenu(searchResults);", search)
         self.assertLess(search.index("padMenu(searchResults);"),
                         search.index("searchResults.addView(menuDivider());"))
@@ -5810,17 +4542,24 @@ class Build174Test(unittest.TestCase):
         flow = flow[:flow.index("private View flowTableRow(")]
         self.assertIn("orderFlowResults.addView(menuDivider());", flow)
 
-    def test_a_search_option_prints_its_quote(self):
+    def test_a_search_option_is_the_scrip_alone_and_its_letters_bold(self):
+        """Owner order 2026-11-27: "as I keep typing for example I type E then
+        every scrip containing E letter would be bold, and as I keep typing all
+        the letters then each letter in the search results will get bold." The
+        matching run inside the symbol is the bold one, the rest of the scrip
+        keeps the body's weight, and no option prints a quote."""
         main = MAIN.read_text(encoding="utf-8")
-        option = main[main.index("private void appendSearchQuote("):]
-        option = option[:option.index("private void styleSearchRow(")]
-        self.assertIn('"PKR %,.2f"', option)
-        self.assertIn('"H=%,.2f & L=%,.2f"', option)
-        self.assertLess(option.index('"H=%,.2f & L=%,.2f"'),
-                        option.index('"B="'))
+        span = main[main.index("private CharSequence scripMatchSpans("):]
+        span = span[:span.index("private void styleSearchRow(")]
+        self.assertIn("new StyleSpan(Typeface.BOLD)", span)
+        self.assertIn("int to = Math.min(symbol.length(), at + query.length());",
+                      span)
+        self.assertIn("themeAccentInk", span)
         row = main[main.index("private void styleSearchRow("):]
         row = row[:row.index("private GradientDrawable highlightPlate")]
-        self.assertIn("Watcher.Quote quote = Watcher.quotes().get(symbol);", row)
+        self.assertIn("row.setText(scripMatchSpans(symbol, q));", row)
+        self.assertNotIn("Watcher.Quote quote = Watcher.quotes().get(symbol);",
+                         row)
 
 
 if __name__ == "__main__":

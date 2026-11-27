@@ -1641,6 +1641,34 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.5.1, versionCode 145.**
+
+Owner order 2026-11-27, the searches and the orb:
+
+- The ORDER FLOW box is the scrip row's own height. It typed in a 43dp plate
+  while every option under it was 32dp, so the box read thicker than the list
+  it opened; both searches take the 32dp field now, its caret rides at 6dp.
+- A search matches any scrip CARRYING the typed letters, not only the ones
+  starting with them. Typing E lists ECOP, ELSM and ELCM alike.
+- The typed run inside a matching scrip is bold and takes the theme's accent,
+  so one more keystroke bolds one more letter and the list narrows visibly
+  as he spells.
+- The SEARCH tile is the ORDER FLOW tile: its option is the scrip alone, and
+  the book, the range and the split print only for the scrip he taps. The
+  exact ticker no longer opens its answer by itself while he is still typing.
+- The tapped scrip's answer carries the day's range with H in the green of a
+  high and L in the red of a low.
+- The orb is retired. The photographed sun and its wireframe cloud are
+  replaced by a Jarvis core, an instrument rather than a picture: a compass of
+  96 ticks that ignite under a sweeping radar beam, three arc rings turning at
+  their own speeds, two satellites on their own orbits with their trails, a
+  breathing reactor core with a white heart, a scan line crossing the field
+  and the four corner brackets of a live sight. It is still one View, still
+  draws every 33ms, still parks lit and still on a closed market, and still
+  wears whichever theme's accent is on the console.
+
+The version bump is versionCode 145 / versionName 4.5.1.
+
 **Version 4.5.0, versionCode 144.**
 
 Owner order 2026-11-26, the phone pass on the clock and the two searches:
