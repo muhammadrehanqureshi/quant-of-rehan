@@ -146,22 +146,33 @@ func TestBuild187WatchKeepsOneDashInBothNetDeltaColumns(t *testing.T) {
 	a.screen = scrWatch
 	c := a.render()
 	rows := c.PlainRows()
-	_, hx := findCells(c, "NET DELTA")
-	_, px := findCells(c, "NET DELTA %")
+	// The offsets are read off the table's own heading row, because the ORDER
+	// line of chips above it carries a NET DELTA chip of its own.
+	hy, _ := findCells(c, "SCRIP")
 	ry, _ := findCells(c, "AAA")
-	if hx < 0 || px < 0 || ry < 0 {
-		t.Fatalf("the page is missing the NET DELTA columns or the scrip: heading %d, percentage %d, row %d\n%s",
-			hx, px, ry, strings.Join(rows, "\n"))
+	if hy < 0 || ry <= hy {
+		t.Fatalf("the page is missing the table heading or the scrip: heading %d, row %d\n%s",
+			hy, ry, strings.Join(rows, "\n"))
+	}
+	hx := runeAt(rows[hy], "NET DELTA")
+	px := runeAt(rows[hy], "NET DELTA %")
+	if hx < 0 || px < 0 {
+		t.Fatalf("the heading carries no NET DELTA columns: %q", rows[hy])
 	}
 	if strings.Contains(rows[ry], "--") {
 		t.Fatalf("the row still writes two dashes together: %q", rows[ry])
 	}
-	cell := func(x int) rune { return c.Cells[ry*c.W+x].Ch }
-	next := func(x int) rune { return c.Cells[ry*c.W+x+1].Ch }
-	if cell(hx) != '-' {
-		t.Fatalf("NET DELTA reads %q, want one dash: %q", string(cell(hx)), rows[ry])
+	r := []rune(rows[ry])
+	one := func(at int) bool {
+		if at < 0 || at >= len(r) || r[at] != '-' {
+			return false
+		}
+		return at+1 >= len(r) || r[at+1] != '-'
 	}
-	if cell(px) != '-' || next(px) == '-' {
-		t.Fatalf("NET DELTA %% reads %q, want one dash: %q", rows[ry], rows[ry])
+	if !one(hx) {
+		t.Fatalf("NET DELTA carries no single dash in its column %d: %q", hx, rows[ry])
+	}
+	if !one(px) {
+		t.Fatalf("NET DELTA %% carries no single dash in its column %d: %q", px, rows[ry])
 	}
 }
