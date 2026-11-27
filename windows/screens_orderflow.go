@@ -49,15 +49,9 @@ func (a *App) sortedFlow() []FlowRow {
 	}
 	rows := make([]FlowRow, len(a.of.Rows))
 	copy(rows, a.of.Rows)
-	if q := a.ofQuery; q != "" {
-		kept := rows[:0]
-		for _, r := range rows {
-			if strings.HasPrefix(r.Symbol, q) {
-				kept = append(kept, r)
-			}
-		}
-		rows = kept
-	}
+	// Owner order 2026-11-27: the search no longer empties this table. Its
+	// answers stand in a drop down under the box, exactly as the WATCH LIST
+	// shows them, so every scrip stays on the page while he types.
 	key := func(r FlowRow) (float64, bool) {
 		return flowKey(r, a.ofSort)
 	}
@@ -73,6 +67,70 @@ func (a *App) sortedFlow() []FlowRow {
 		return rows[i].Symbol < rows[j].Symbol
 	})
 	return rows
+}
+
+// flowMatches is every scrip whose ticker starts with what ORDER FLOW's box
+// holds, in ticker order. Owner order 2026-11-27: the answers are a drop down,
+// read exactly like the WATCH LIST's, and the table under it is untouched.
+func (a *App) flowMatches(q string) []FlowRow {
+	q = strings.ToUpper(strings.TrimSpace(q))
+	if q == "" || a.of == nil {
+		return nil
+	}
+	rows := make([]FlowRow, 0, 8)
+	for _, r := range a.of.Rows {
+		if strings.HasPrefix(r.Symbol, q) {
+			rows = append(rows, r)
+		}
+	}
+	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Symbol < rows[j].Symbol })
+	return rows
+}
+
+// pickFlowSymbol is what ENTER and a tap on an answer do: the scrip is
+// highlighted on the table and scrolled into view, and no other scrip leaves
+// the page.
+func (a *App) pickFlowSymbol(sym string) {
+	if sym == "" {
+		return
+	}
+	a.ofPick = sym
+	rows := a.sortedFlow()
+	for i, r := range rows {
+		if r.Symbol == sym {
+			if i < a.lvOF.off {
+				a.lvOF.off = i
+			} else if i >= a.lvOF.off+a.lvOF.view {
+				a.lvOF.off = max(0, i-a.lvOF.view+1)
+			}
+			break
+		}
+	}
+}
+
+// drawFlowMatches writes the search's answers in a drop down under the box, one
+// scrip a row, with the letters he typed hot. A row tapped picks that scrip.
+func (a *App) drawFlowMatches(c *Canvas, ix, row, iw int) int {
+	th := a.th
+	q := strings.ToUpper(strings.TrimSpace(a.ofQuery))
+	m := a.flowMatches(q)
+	if len(m) == 0 {
+		c.Text(ix, row, min(iw, 40), "No scrip starts with "+q+".", th.Soft, false)
+		return 1
+	}
+	for i, r := range m {
+		if i >= watchSuggestRows {
+			break
+		}
+		ry := row + i
+		sym := r.Symbol
+		cur := i == a.ofSuggest
+		a.selectRow(c, ix, ry, min(iw, 40), cur, func() { a.pickFlowSymbol(sym) })
+		cut := min(len(q), len(sym))
+		c.Text(ix+1, ry, max(1, iw-1), sym[:cut], th.Hot, true)
+		c.Text(ix+1+cut, ry, max(0, iw-1-cut), sym[cut:], th.Text, false)
+	}
+	return min(len(m), watchSuggestRows)
 }
 
 // flowKey is the figure one order sorts by, and whether the row carries it at
@@ -276,6 +334,12 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	row++ // one blank row above the search box
 	a.drawFlowSearch(c, ix, row, iw)
 	row++ // one blank row under the search box
+	if a.ofQuery != "" {
+		// Owner order 2026-11-27: the answers stand under the box with one
+		// blank line above them, and one blank line after them.
+		row += a.drawFlowMatches(c, ix, row, iw)
+		row++
+	}
 	row++
 
 	rows := a.sortedFlow()
@@ -283,9 +347,6 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		msg := "The relay answered with no stock rows."
 		if a.sessionDate != "" && !sameSessionDay(a.sessionDate, a.karachiNow()) {
 			msg = "No stock rows from the relay. The last stored session is " + a.storedSessionDay() + "."
-		}
-		if a.ofQuery != "" {
-			msg = fmt.Sprintf("No stock matches %q.", a.ofQuery)
 		}
 		c.Text(ix, row, iw, fit(msg, iw), th.Soft, false)
 		return
@@ -392,6 +453,11 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		pxKey := "px:" + r.Symbol
 		volKey := "vol:" + r.Symbol
 		a.zebra(c, ix, row, cw, per, i, r.Symbol)
+		if a.ofPick != "" && r.Symbol == a.ofPick {
+			// Owner order 2026-11-27: ENTER on a search's answer highlights that
+			// scrip on the table, so it is found without hiding any other row.
+			a.selectRow(c, ix, row, cw, true, nil)
+		}
 		symCol := th.Hot
 		if !r.Fresh {
 			symCol = th.Soft
@@ -712,7 +778,7 @@ func (a *App) drawFlowSearch(c *Canvas, ix, y, iw int) {
 	}
 	fw := a.searchBox(c, ix, y, bw, a.ofQuery, scripSearchHint, a.ofSearch)
 	if a.ofQuery != "" {
-		c.Text(ix+2+fw, y, 12, fmt.Sprintf("%d match", len(a.sortedFlow())), th.Soft, false)
+		c.Text(ix+2+fw, y, 12, fmt.Sprintf("%d match", len(a.flowMatches(a.ofQuery))), th.Soft, false)
 	}
 	// Owner order 2026-11-12 (latest): the ESC clears note is withdrawn from the
 	// right of the search box as well, so the line carries nothing but the box.

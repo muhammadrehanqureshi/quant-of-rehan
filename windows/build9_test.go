@@ -32,7 +32,7 @@ func TestTelemetryCarriesMarketHoursBreadthAndDelta(t *testing.T) {
 	for _, want := range []string{
 		"MARKET OPENING", "09:15", "MARKET CLOSING", "15:49",
 		"MARKET BREADTH", "BULLISH", "ADV/DEC", "2/1",
-		"NET DELTA", "300", "TOP PERFORMERS", "CCC, AAA & BBB",
+		"NET DELTA", "300", "TOP PERFORMERS", "AAA & BBB",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("telemetry is missing %q:\n%s", want, s)
@@ -179,20 +179,23 @@ func TestSphereTurnIsHalfSpeed(t *testing.T) {
 }
 
 // Owner order 2026-11-11: TOP PERFORMERS names the three best scrips of the
-// day, ties by symbol, and never a name without a measured change.
+// day and never a name without traded volume behind it. Owner order 2026-11-27:
+// the three are decided by NET DELTA VALUE, buy minus sell in shares, not by
+// the percentage, with ties by symbol.
 func TestTopPerformersAreTheDaysBestThree(t *testing.T) {
 	a := newTestApp(t)
 	a.prices = map[string]Quote{
-		"AAA":  {ChangePct: f64(1.2), Buy: i64(700), Sell: i64(300)},
-		"BBB":  {ChangePct: f64(-0.8), Buy: i64(400), Sell: i64(100)},
-		"CCC":  {ChangePct: f64(2.0), Buy: i64(500), Sell: i64(200)},
-		"DDD":  {ChangePct: f64(0.4), Buy: i64(100), Sell: i64(900)},
+		"AAA":  {ChangePct: f64(1.2), Buy: i64(700), Sell: i64(300)}, // +400
+		"BBB":  {ChangePct: f64(-0.8), Buy: i64(400), Sell: i64(100)}, // +300
+		"CCC":  {ChangePct: f64(2.0), Buy: i64(500), Sell: i64(200)}, // +300
+		"DDD":  {ChangePct: f64(0.4), Buy: i64(100), Sell: i64(900)}, // -800
 		// Owner report 2026-11-12: a scrip with a change and no traded volume
-		// must never top the list, which is what AASM did.
+		// must never top the list, which is what AASM did. A scrip with no
+		// measured pair has no net delta either.
 		"AASM": {ChangePct: f64(9.9)},
 	}
-	if got := andList(a.topPerformers()); got != "CCC, AAA & DDD" {
-		t.Fatalf("top performers read %q, want CCC, AAA & DDD", got)
+	if got := andList(a.topPerformers()); got != "AAA, BBB & CCC" {
+		t.Fatalf("top performers read %q, want AAA, BBB & CCC", got)
 	}
 	if got := andList(nil); got != "--" {
 		t.Fatalf("a day with no measured change reads %q, want --", got)

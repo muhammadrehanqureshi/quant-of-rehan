@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 172
+# Quant of Rehan for Windows (console edition), build 179
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 179
+
+* **Build 179 (version 4.4.1).** TELEMETRY's FEED row drops the answers per second figure, LINK says SYNCED, and a NET DELTA the relay has not sent reads N/A instead of a dash. The sign in banner is drawn in one single dot and nothing else, continuous from cell to cell, so no block mark stands anywhere in it. TOP PERFORMERS is decided by NET DELTA VALUE, buy minus sell in shares, so the three names keep changing through the session instead of standing on the morning's upper lock prints. The WATCH LIST's search answers stand one blank line under the box, as they do on ORDER FLOW. The blue diamond is withdrawn from every search's answers in the build, and the row the arrows are on carries its own band instead. ORDER FLOW's search is the WATCH LIST's own drop down: typing no longer empties the table, ENTER highlights the scrip he chose and scrolls it into view, and UP and DOWN walk the answers on both pages. The executable's file version is `4.4.1.0`.
 
 ## What is new in build 172
 

@@ -119,52 +119,53 @@ func TestTheLinkLineClosesWithAFullStopAndOpensSyncedWithACapital(t *testing.T) 
 			break
 		}
 	}
-	if !strings.Contains(line, "42 ms. Synced 5 s ago") {
-		t.Fatalf("the LINK line reads %q, want one space before Synced", line)
+	if !strings.Contains(line, "42 ms. SYNCED 5 s ago") {
+		t.Fatalf("the LINK line reads %q, want one space before SYNCED", line)
 	}
-	if strings.Contains(line, "ms.  Synced") {
-		t.Fatalf("the LINK line keeps two spaces before Synced: %q", line)
+	if strings.Contains(line, "ms.  SYNCED") {
+		t.Fatalf("the LINK line keeps two spaces before SYNCED: %q", line)
 	}
 }
 
 // Owner order 2026-11-26 (later): the right password shows the basmala and
 // nothing after it, and only then does the HUD take the screen.
-// hasBasmalaArt says whether the screen carries the block art of the words.
+// hasBasmalaArt says whether the screen carries the dotted art of the words.
 func hasBasmalaArt(rows string) bool {
-	return strings.ContainsAny(rows, "█▀▄")
+	return strings.ContainsRune(rows, basmalaDot)
 }
 
-// The banner is a picture of the phrase, not text in cells: every cell of it is
-// one kind of mark, a solid half or whole block, it fills the width it is given,
-// and it carries the whole phrase with ink on every line.
+// The banner is a picture of the phrase, not text in cells. Owner order
+// 2026-11-27: it is made of one single dot and nothing else, so a cell is a dot
+// or a space, the dots stand continuous from cell to cell, every line is the
+// same width, and no block mark appears anywhere in it.
 func TestTheBannerIsThePhraseDrawnWhole(t *testing.T) {
 	for _, cols := range []int{60, 100, 160} {
 		lines := basmalaArt(cols, 40)
 		if len(lines) < 4 {
 			t.Fatalf("%d cells: the art is %d lines", cols, len(lines))
 		}
+		want := runeLen(lines[0])
 		for i, line := range lines {
-			if runeLen(line) != cols {
-				t.Fatalf("%d cells: line %d is %d cells wide", cols, i, runeLen(line))
+			if runeLen(line) != want {
+				t.Fatalf("%d cells: line %d is %d cells wide, want %d", cols, i, runeLen(line), want)
+			}
+			if want > cols {
+				t.Fatalf("%d cells: the art is %d cells wide", cols, want)
 			}
 			blank := true
 			for _, r := range line {
 				switch r {
-				case '█', '▀', '▄':
+				case basmalaDot:
 					blank = false
 				case ' ':
 				default:
-					t.Fatalf("%d cells: line %d carries %U, not a block mark", cols, i, r)
+					t.Fatalf("%d cells: line %d carries %U, not the one dot", cols, i, r)
 				}
 			}
 			if blank {
 				t.Fatalf("%d cells: line %d is empty", cols, i)
 			}
 		}
-	}
-	// The picture is one line of four words, so the art is wide and short.
-	if lines := basmalaArt(160, 40); len(lines) < 8 || len(lines) > 20 {
-		t.Fatalf("160 cells gives %d lines, want the four words on one line", len(lines))
 	}
 }
 
@@ -198,7 +199,7 @@ func TestTheBannerIsHalfTheWidthOfTheWindow(t *testing.T) {
 	for _, row := range a.render().PlainRows() {
 		n := 0
 		for _, r := range row {
-			if r == '█' || r == '▀' || r == '▄' {
+			if r == basmalaDot {
 				n++
 			}
 		}
@@ -247,16 +248,20 @@ func TestEverySubMenuKeepsTheSameQuoteFields(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-26 (later): the FEED row carries the freshest tick and
-// the answers per second, and no "typical" age at all.
+// Owner order 2026-11-26 (later): the FEED row carries the freshest tick and no
+// "typical" age at all. Owner order 2026-11-27: the answers per second figure
+// is withdrawn from the tile as well.
 func TestTheTelemetryRowCarriesNoTypicalAge(t *testing.T) {
 	a := demoApp(t, 122, 40)
 	rows := plain(a)
 	if strings.Contains(rows, "typical") {
 		t.Fatalf("the TELEMETRY tile still counts a typical stock:\n%s", rows)
 	}
-	if !strings.Contains(rows, "/s") {
-		t.Fatalf("the FEED row lost its answers per second:\n%s", rows)
+	if strings.Contains(rows, "/s") {
+		t.Fatalf("the FEED row still prints answers per second:\n%s", rows)
+	}
+	if !strings.Contains(rows, " s old") {
+		t.Fatalf("the FEED row lost the freshest tick's age:\n%s", rows)
 	}
 }
 
