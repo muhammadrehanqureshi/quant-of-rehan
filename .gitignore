@@ -62,3 +62,7 @@ web/dist/
 # The owner's orb source zip is handed over, not committed (7.7 MB of build
 # helpers). Its ring layers are already in windows/assets/ring.
 windows/assets/orb-source/
+
+# Local APK build output, never committed: the release APKs ride a GitHub
+# release, not the tree.
+android/package/
