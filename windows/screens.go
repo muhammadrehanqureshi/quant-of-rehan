@@ -760,8 +760,10 @@ func (a *App) topPerformers() []string {
 			if !q.Fresh {
 				continue
 			}
-			if q.Buy != nil && q.Sell != nil {
-				delta[sym] = *q.Buy - *q.Sell
+			// The live feed's own cumulative pair is MeasuredBuy and MeasuredSell,
+			// the same shares the ALERTS boards side.
+			if q.MeasuredBuy != nil && q.MeasuredSell != nil {
+				delta[sym] = *q.MeasuredBuy - *q.MeasuredSell
 			}
 			if q.Volume > 0 {
 				traded[sym] = q.Volume
