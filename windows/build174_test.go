@@ -129,16 +129,16 @@ func TestTheLinkLineClosesWithAFullStopAndOpensSyncedWithACapital(t *testing.T) 
 
 // Owner order 2026-11-26 (later): the right password shows the basmala and
 // nothing after it, and only then does the HUD take the screen.
-// hasBasmala says whether the screen carries the phrase, in the joined forms
-// the banner draws.
+// hasBasmala says whether the screen carries the banner: the mark drawn as the
+// ligature's own shape, or the ligature itself when no shape can be drawn.
 func hasBasmala(rows string) bool {
-	return strings.Contains(rows, basmalaBanner)
+	return basmalaOn(rows)
 }
 
-// Owner order 2026-11-27: "write these words exactly in the one dotted line ...
-// make it written in only one single continuous line." The banner is the phrase
-// itself now: the words stand on ONE row, in their own letters, nothing is
-// sampled into dots, and no other row carries the phrase.
+// Owner order 2026-11-27, kept as the gate's own fallback: when the ligature's
+// shape cannot be drawn, the ligature itself stands on ONE row, in the terminal's
+// own Arabic face, and no other row carries it. Build 182 draws the mark large
+// when a shape is available; see build182_test.go.
 func TestTheBannerIsTheWordsOnOneLine(t *testing.T) {
 	for _, sz := range [][2]int{{60, 20}, {100, 30}, {200, 40}} {
 		a := lockedApp(t, sz[0], sz[1])
@@ -182,8 +182,8 @@ func TestThePasswordShowsTheBasmalaAloneThenTheHud(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-27: the words are one centred line, so the air on the
-// left of the phrase is the air on its right, on the gate's middle row.
+// Owner order 2026-11-27, the same fallback: the ligature is one centred line,
+// so the air on its left is the air on its right, on the gate's middle row.
 func TestTheBannerIsCentredOnOneRow(t *testing.T) {
 	a := lockedApp(t, 200, 40)
 	typeRunes(a, wantUnlockPassword)

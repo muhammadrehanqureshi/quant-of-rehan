@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 181
+# Quant of Rehan for Windows (console edition), build 182
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 182
+
+* **Build 182 (version 4.4.4).** The sign in banner is the ligature itself, the one character U+FDFD, which is what `chcp 65001` and `Write-Output ([char]0xFDFD)` put on his screen, and it takes about 40% of the gate. A console cell holds one glyph at one size, so no single character can fill two fifths of the window: the gate therefore asks Windows' own text engine for the ligature's shape, samples that shape into the half blocks a cell carries, and draws it centred at about 40% of the gate's rows. When the shape cannot be drawn the ligature stands on the gate's middle row, so the mark is never missing and the gate never fails to open. Nothing is drawn after it either way. The executable's file version is `4.4.4.0`.
 
 ## What is new in build 181
 
