@@ -319,11 +319,17 @@ const appVersion = "4.0.21"
 // and answers while the picture is made. The picture itself stands at 65% of
 // the size it stood at on 185, whichever of its file, the console's width or
 // the screen's work area decided that size.
+// Build 187 is 4.4.9, the owner's order of 2026-11-27: on TELEMETRY's FLOW row
+// only the three values keep an ink, green for B, red for S and yellow for U,
+// while the letters, both equals signs, the ampersand and the commas wear
+// FLOW's own soft ink; the WATCH LIST writes the average change of its scrips
+// four blank rows under the last of them; and a row with no figure keeps one
+// dash in each of its NET DELTA columns instead of two in the second.
 //
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.4.8"
+const hudBuild = "4.4.9"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

@@ -383,9 +383,15 @@ func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 			c.Text(ix+cols[9].x, ry, cols[9].w, watchVol(r.Volume), totalBlue, true)
 			if iw-barX >= barFieldW && r.Measured() && *r.Buy+*r.Sell > 0 {
 				a.shareBar(c, ix+barX, ry, barFieldW, *r.Buy, *r.Sell)
+			} else if iw-barX >= barFieldW {
+				// Owner order 2026-11-27 (build 187): a row whose bar is not drawn
+				// keeps its NET DELTA column, with the page's one dash.
+				c.Text(ix+barX+barFieldW-shareNetW, ry, shareNetW, "-", th.Soft, true)
 			}
 			if showNetPct {
-				txt, ink := "--", th.Soft
+				// Owner order 2026-11-27 (build 187): one dash, not two, so both
+				// NET DELTA columns read alike when there is no figure.
+				txt, ink := "-", th.Soft
 				if pct, ok := netDeltaPct(r); ok {
 					txt = fmt.Sprintf("%.2f%%", math.Abs(pct))
 					switch {
@@ -415,5 +421,47 @@ func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 		})
 		row += per
 	}
+	// Owner order 2026-11-27 (build 187): the average change of the list stands
+	// four blank rows under its last scrip, while it still fits above the page's
+	// own footer.
+	if len(rows) > 1 {
+		if avgRow := row + 4; avgRow <= iy+ih-2 {
+			a.drawWatchAverage(c, ix, avgRow, iw, rows)
+		}
+	}
 	a.scrollbar(c, x+w-2, top, a.lvWatch.view*per, &a.lvWatch)
+}
+
+// watchAverage is the average CHANGE of the list, taken over the scrips the
+// relay has a percentage for. A scrip it has not sent yet takes no part in it.
+func watchAverage(rows []FlowRow) (float64, bool) {
+	sum, n := 0.0, 0
+	for _, r := range rows {
+		if r.ChangePct != nil {
+			sum += *r.ChangePct
+			n++
+		}
+	}
+	if n == 0 {
+		return 0, false
+	}
+	return sum / float64(n), true
+}
+
+// drawWatchAverage writes the average change of the list under its rows. Owner
+// order 2026-11-27 (build 187): "The average change of the above scrips is
+// ▲ "5%"" four spaces below the last scrip, the sentence in the page's soft ink
+// and only the arrow and the quoted figure in the direction's green or red.
+func (a *App) drawWatchAverage(c *Canvas, x, y, w int, rows []FlowRow) {
+	avg, ok := watchAverage(rows)
+	if !ok || w < 1 {
+		return
+	}
+	ink := a.dirColor(avg)
+	pct := fmt.Sprintf("%q", fmt.Sprintf("%.0f%%", math.Abs(avg)))
+	c.Spans(x, y, w, []Span{
+		{"The average change of the above scrips is ", a.th.Soft, false},
+		{arrow(avg) + " ", ink, true},
+		{pct, ink, true},
+	})
 }

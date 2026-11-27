@@ -671,10 +671,14 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		}
 	}
 	if buy+sell+unclear > 0 || a.cfg.BigBuy || a.cfg.BigSell {
+		// Owner order 2026-11-27 (build 187): only the three values carry an ink
+		// of their own, green for B, red for S and yellow for U. The letters, both
+		// equals signs, the ampersand and the commas wear FLOW's own soft ink, so
+		// the row reads as one label with three coloured figures in front of it.
 		label(8, "FLOW", []Span{
-			{"B=", th.Good, true}, {compactNum(float64(buy)), th.Text, false},
-			{",", th.Good, true}, {"  S=", th.Bad, true}, {compactNum(float64(sell)), th.Text, false},
-			{",", th.Bad, true}, {"  & U=", th.Warn, true}, {compactNum(float64(unclear)), th.Text, false},
+			{"B=", th.Soft, true}, {compactNum(float64(buy)), th.Good, false},
+			{",", th.Soft, true}, {"  S=", th.Soft, true}, {compactNum(float64(sell)), th.Bad, false},
+			{",", th.Soft, true}, {"  & U=", th.Soft, true}, {compactNum(float64(unclear)), th.Warn, false},
 		})
 	} else {
 		label(8, "FLOW", []Span{{"OFF", th.Bad, true}})
