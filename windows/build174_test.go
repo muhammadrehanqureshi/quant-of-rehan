@@ -129,9 +129,10 @@ func TestTheLinkLineClosesWithAFullStopAndOpensSyncedWithACapital(t *testing.T) 
 
 // Owner order 2026-11-26 (later): the right password shows the basmala and
 // nothing after it, and only then does the HUD take the screen.
-// hasBasmala says whether the screen carries the phrase in its own words.
+// hasBasmala says whether the screen carries the phrase, in the joined forms
+// the banner draws.
 func hasBasmala(rows string) bool {
-	return strings.Contains(rows, basmalaWords)
+	return strings.Contains(rows, basmalaBanner)
 }
 
 // Owner order 2026-11-27: "write these words exactly in the one dotted line ...
@@ -146,7 +147,7 @@ func TestTheBannerIsTheWordsOnOneLine(t *testing.T) {
 		rows := a.render().PlainRows()
 		found := 0
 		for _, row := range rows {
-			if strings.Contains(row, basmalaWords) {
+			if strings.Contains(row, basmalaBanner) {
 				found++
 			}
 		}
@@ -189,11 +190,11 @@ func TestTheBannerIsCentredOnOneRow(t *testing.T) {
 	a.onKey(Key{Kind: KEnter})
 	rows := a.render().PlainRows()
 	for _, row := range rows {
-		at := strings.Index(row, basmalaWords)
+		at := strings.Index(row, basmalaBanner)
 		if at < 0 {
 			continue
 		}
-		after := runeLen(row) - at - runeLen(basmalaWords)
+		after := runeLen(row) - at - runeLen(basmalaBanner)
 		if diff := at - after; diff > 1 || diff < -1 {
 			t.Fatalf("the phrase is not centred: %d cells before it, %d after", at, after)
 		}

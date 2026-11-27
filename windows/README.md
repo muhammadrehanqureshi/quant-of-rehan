@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 180
+# Quant of Rehan for Windows (console edition), build 181
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 181
+
+* **Build 181 (version 4.4.3).** The sign in banner is the phrase in its joined Arabic forms. A console hands the terminal one cell at a time, so the plain letters arrived separate, with air between them and their join strokes missing. The banner now carries the presentation forms, BEH INITIAL through MEEM FINAL, so every letter wears the shape its own neighbours give it, on one centred line with nothing after it. The executable's file version is `4.4.3.0`.
 
 ## What is new in build 180
 

@@ -288,7 +288,7 @@ const appVersion = "4.0.21"
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.4.2"
+const hudBuild = "4.4.3"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

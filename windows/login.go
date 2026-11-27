@@ -169,8 +169,8 @@ func (a *App) drawLogin(c *Canvas) {
 // typed it, with no art pass, no wrap and nothing after it.
 func (a *App) drawSplash(c *Canvas) {
 	th := a.th
-	if c.W < runeLen(basmalaWords)+2 || c.H < 3 {
+	if c.W < runeLen(basmalaBanner)+2 || c.H < 3 {
 		return
 	}
-	c.Text(max(0, (c.W-runeLen(basmalaWords))/2), c.H/2, c.W, basmalaWords, th.Hot, true)
+	c.Text(max(0, (c.W-runeLen(basmalaBanner))/2), c.H/2, c.W, basmalaBanner, th.Hot, true)
 }
