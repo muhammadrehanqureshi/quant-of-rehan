@@ -1311,8 +1311,9 @@ func (a *App) onKey(k Key) {
 	}
 	switch k.Kind {
 	case KEsc:
-		if a.screen == scrOrderFlow && (a.ofSearch || a.ofQuery != "") {
-			a.ofQuery, a.ofSearch = "", false
+		if a.screen == scrOrderFlow && (a.ofSearch || a.ofQuery != "" || a.ofPick != "") {
+			a.ofQuery, a.ofSearch, a.ofPick = "", false, ""
+			a.ofSuggest = 0
 			a.lvOF.top()
 		} else if a.screen == scrAlerts && (a.alertLogSearch || (a.alertQuery != "" && a.alertFocus == 2)) {
 			a.alertQuery, a.alertLogSearch = "", false
