@@ -2441,14 +2441,15 @@ class VersionTest(unittest.TestCase):
         # face, the caret at its trailing edge, the options as the volume
         # menu's own rows without a pill or a track - and the QUANT STATUS
         # seconds advance every second between relay answers.
-        # Owner order 2026-11-27: the ORDER FLOW box takes the scrip row's
-        # own 32dp, a match is any scrip carrying the typed letters with
-        # those letters bold, the SEARCH tile is the ORDER FLOW tile until a
-        # tap, the tapped answer prints H green and L red, and the Jarvis
-        # core replaces the photographed sun.
-        # They ship as 4.5.1, versionCode 145.
-        self.assertIn('android:versionName="4.5.1"', manifest)
-        self.assertIn('android:versionCode="145"', manifest)
+        # Owner order 2026-11-27: the SEARCH tile is the ORDER FLOW tile until
+        # a tap, the tapped answer prints H green and L red, and the Jarvis
+        # core replaces the photographed sun. Second pass that day: both
+        # search boxes take their 43dp plate back, a match is a scrip that
+        # STARTS with the typed letters, the frames and the scan line leave
+        # the orb, and the greeting wears the tagline's face.
+        # They ship as 4.5.2, versionCode 146.
+        self.assertIn('android:versionName="4.5.2"', manifest)
+        self.assertIn('android:versionCode="146"', manifest)
         # Owner order 2026-11-24: no part of either build's version reads above
         # ten, so 3.10.10 is followed by 4.0.0 and .11 never exists.
         shipped = manifest.split('android:versionName="', 1)[1].split('"', 1)[0]
@@ -2695,13 +2696,14 @@ class VersionTest(unittest.TestCase):
         # the clock steps on the tick, both search boxes type from the left
         # with no caret and a hairline over their first option, and an option
         # carries its quote with the day range. Owner order 2026-11-27: the
-        # ORDER FLOW box is the scrip row's 32dp, the searches match any
-        # scrip carrying the typed letters (bold), the SEARCH option is the
-        # scrip alone until a tap, H green and L red print on the tap, and
-        # the Jarvis core replaces the sun. They ship as 4.5.1, versionCode
-        # 145.
-        self.assertIn('android:versionCode="145"', manifest)
-        self.assertIn('android:versionName="4.5.1"', manifest)
+        # SEARCH option is the scrip alone until a tap, H green and L red
+        # print on the tap, and the Jarvis core replaces the sun. Second pass
+        # that day: the two boxes are 43dp, only a scrip STARTING with the
+        # typed letters matches, the orb loses its frames and its scan line,
+        # and the greeting wears the PSX's KMIALL INDEX face. They ship as
+        # 4.5.2, versionCode 146.
+        self.assertIn('android:versionCode="146"', manifest)
+        self.assertIn('android:versionName="4.5.2"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
@@ -2816,16 +2818,17 @@ class SearchPanelStabilityTest(unittest.TestCase):
         block = main[start:main.index("private void styleSearchRow(", start)]
         self.assertIn("if (q.isEmpty()) {", block)
         self.assertIn("searchResults.setVisibility(View.GONE);", block)
-        # Owner order 2026-11-27: a match is any scrip whose symbol carries
-        # the typed letters, not only the ones starting with them.
-        self.assertIn("if (symbol.toUpperCase(Locale.US).contains(q)) {", block)
-        self.assertNotIn("if (q.isEmpty() || symbol.startsWith(q)) {", block)
+        # Owner order 2026-11-27 (second pass): a match is a scrip whose
+        # symbol STARTS with the typed letters, so PR lists the PR names and
+        # never FPRM.
+        self.assertIn("if (symbol.toUpperCase(Locale.US).startsWith(q)) {", block)
+        self.assertNotIn("symbol.toUpperCase(Locale.US).contains(q)", block)
         flow = main[main.index("private void renderFlowResults("):
                     main.index("private View flowTableRow(")]
         self.assertIn("if (query.isEmpty()) {", flow)
-        self.assertNotIn("if (query.isEmpty() || row.symbol.startsWith(query)) {",
-                         flow)
-        self.assertIn("row.symbol.contains(query)", flow)
+        self.assertIn("row.symbol.toUpperCase(Locale.US).startsWith(query)",
+                      flow)
+        self.assertNotIn("row.symbol.contains(query)", flow)
         # Owner order 2026-11-25 (evening): the box and its own caret are the
         # CUSTOM SCRIPS OF VOL. box's, and the tall six-row window with its
         # diamond track left the tile with the list he struck out.
@@ -3182,10 +3185,11 @@ class SearchBoxGapTest(unittest.TestCase):
         # increase the height of its box by another 25%") grows the
         # floor alone again, 35 * 1.25 = 43.75 floored to 43dp, the air
         # still untouched.
-                # Owner order 2026-11-27: "the first box where the search starts is
-        # too thick, make that box as the same height as the other boxes that
-        # contain the scrips." The field is the dropdown option's 32dp now,
-        # on both searches, so the box and its own rows read as one list.
+        # Owner order 2026-11-27 (second pass): "you have reduced the height
+        # of search boxes for SEARCH and ORDER FLOW tiles." The 32dp drop of
+        # that morning read as a shortened box, so the 43dp field plate is
+        # back on both searches, the height every other field carries, with
+        # the same 3dp air above and below the line.
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingTop"), "3dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingBottom"), "3dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingLeft"), "10dp")
@@ -3198,9 +3202,9 @@ class SearchBoxGapTest(unittest.TestCase):
         # field box carries - and no floor is named again under the
         # height it retired.
         self.assertEqual(self.box.get(f"{ANDROID_NS}layout_height"),
-                         "32dp")
+                         "43dp")
         self.assertIsNone(self.box.get(f"{ANDROID_NS}minHeight"))
-        self.assertIn('android:layout_height="32dp"',
+        self.assertIn('android:layout_height="43dp"',
                       LAYOUT.read_text(encoding="utf-8"))
 
     def test_the_hidden_rows_start_hidden_in_the_layout(self):
@@ -3392,6 +3396,13 @@ class MenuOrdersTest(unittest.TestCase):
         # It is a line, not a heading: the body's one size.
         greeting = element(self.layout, 'android:id="@+id/greeting"')
         self.assertIn('style="@style/QorValue"', greeting)
+        # Owner order 2026-11-27 (second pass): "change the greeting font to
+        # the same font that is for the PSX'S KMIALL INDEX" - LEMON MILK
+        # Light, the tagline's face, and only the face: same 26.1sp, same
+        # seam, same ink.
+        self.assertIn('android:fontFamily="@font/lemonmilk_light"', greeting)
+        self.assertNotIn('@font/bonskin', greeting)
+        self.assertIn('android:textSize="26.1sp"', greeting)
         block = self.main[self.main.index("private void refreshGreeting()"):]
         block = block[:block.index("private void buildThemeMenu()")]
         for resource in ("greeting_morning", "greeting_afternoon"):
@@ -4245,10 +4256,12 @@ class ThinkingOrbPlanTest(unittest.TestCase):
     "remove this ORB feature. It's boring me... Give it a new ORB type/Jarvis
     type feature." The station under the brand is an instrument now: a compass
     of ticks that ignite under a radar sweep, three arc rings turning at their
-    own speeds, two orbiting satellites with their trails, a breathing reactor
-    core, a scan line crossing the field and the four corner brackets of a live
-    sight. The photograph, its sphere tables and its bloom buffers left with
-    the picture they built.
+    own speeds, two orbiting satellites with their trails and a breathing
+    reactor core. Owner order 2026-11-27 (second pass) stripped the frame off
+    it: the scan line and the four corner brackets are gone, both satellites
+    travel the same way round, and the compass circle rides the exact radius
+    the ticks begin on. The photograph, its sphere tables and its bloom
+    buffers left with the picture they built.
     """
 
     def setUp(self):
@@ -4265,8 +4278,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
     def test_the_instrument_is_a_jarvis_core(self):
         for mark in ("private void drawTicks(", "private void drawSweep(",
                      "private void drawArcs(", "private void drawOrbiters(",
-                     "private void drawCore(", "private void drawScan(",
-                     "private void drawBrackets(", "TICKS = 96"):
+                     "private void drawCore(", "TICKS = 96"):
             with self.subTest(mark=mark):
                 self.assertIn(mark, self.orb)
 
@@ -4278,14 +4290,49 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("float heat = Math.max(0f, 1f - behind / 130f);", ticks)
         self.assertIn("i % 8 == 0", ticks)
 
-    def test_the_core_breathes_and_the_field_is_scanned(self):
+    def test_the_core_breathes(self):
         core = self.orb[self.orb.index("private void drawCore("):]
-        core = core[:core.index("private void drawScan(")]
+        core = core[:core.index("private float dp(float value)")]
         self.assertIn("coreGradient", core)
         self.assertIn("Color.WHITE", core)
-        scan = self.orb[self.orb.index("private void drawScan("):]
-        scan = scan[:scan.index("private void drawBrackets(")]
-        self.assertIn("seconds * 0.55f", scan)
+
+    def test_the_frames_and_the_scan_line_are_retired(self):
+        # "the four corners/picture frames you got on the ORB, remove them"
+        # and "there is a line type thing that is going above and below on the
+        # ORB remove that line": both readings are gone from the source, and
+        # the scene draws neither of them any more.
+        for gone in ("drawBrackets", "bracketPaint", "drawScan", "scanPaint"):
+            with self.subTest(gone=gone):
+                self.assertNotIn(gone, self.orb)
+        scene = self.orb[self.orb.index("private void drawScene("):]
+        scene = scene[:scene.index("private void drawRing(")]
+        self.assertIn("drawCore(canvas, wake, pulse, seconds);", scene)
+        self.assertNotIn("drawScan(", scene)
+        self.assertNotIn("drawBrackets(", scene)
+
+    def test_both_satellites_travel_the_same_way_round(self):
+        # "one is moving forward and one is moving backward, make the
+        # backwards moving sperm move forward as well": neither orbit turns
+        # against the clock any more, each keeps its own speed.
+        orbiters = self.orb[self.orb.index("private void drawOrbiters("):]
+        orbiters = orbiters[:orbiters.index("private void orbit(")]
+        self.assertIn("seconds * 26f", orbiters)
+        self.assertIn("seconds * 44f", orbiters)
+        self.assertNotIn("-seconds", orbiters)
+
+    def test_the_compass_circle_rides_the_start_of_every_tick(self):
+        # "the circle at the very outside of the ORB is not sitting exactly on
+        # the small lines, make that outside circle sit on the exact starting
+        # of the little lines": one radius, tickInner, serves both the circle
+        # and the first point of every tick.
+        ring = self.orb[self.orb.index("private void drawRing("):]
+        ring = ring[:ring.index("private void drawTicks(")]
+        self.assertIn("canvas.drawCircle(cx, cy, tickInner, ringPaint);", ring)
+        self.assertNotIn("canvas.drawCircle(cx, cy, reach, ringPaint);", ring)
+        ticks = self.orb[self.orb.index("private void drawTicks("):]
+        ticks = ticks[:ticks.index("private void drawArcs(")]
+        self.assertIn("float from = tickInner;", ticks)
+        self.assertIn("float to = from + dp(major ? 11f : 6f);", ticks)
 
     def test_the_park_is_frozen_but_visible(self):
         # "it will stop moving, it should not disappear completely":
@@ -4313,8 +4360,7 @@ class ThinkingOrbPlanTest(unittest.TestCase):
         self.assertIn("public void setThemeInk(int color) {", self.orb)
         for paint in ("ringPaint.setColor(ink);", "arcPaint.setColor(ink);",
                       "tickPaint.setColor(ink);", "sweepPaint.setColor(ink);",
-                      "satellitePaint.setColor(ink);", "scanPaint.setColor(ink);",
-                      "bracketPaint.setColor(ink);"):
+                      "satellitePaint.setColor(ink);"):
             with self.subTest(paint=paint):
                 self.assertIn(paint, self.orb)
 
