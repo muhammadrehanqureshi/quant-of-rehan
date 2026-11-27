@@ -79,6 +79,17 @@ on:
       seconds:
         description: "how long to run the loop, in seconds (default 3600)"
         default: "3600"
+      # Owner report 2026-11-27: the post-close window must also bank the day.
+      # The relay names the window when it dispatches one (post for the
+      # 15:32 and 16:32 windows, band otherwise), so the job knows its own
+      # purpose without inferring it from a length the relay adjusts.
+      purpose:
+        description: "window kind: band, or post when this is the post-close window"
+        type: choice
+        options:
+          - "band"
+          - "post"
+        default: "band"
 
 permissions:
   actions: read
@@ -277,6 +288,48 @@ jobs:
           if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
             python scripts/ops_alert.py --text \
               "Quant of Rehan: the KMIALL session loop stopped early (exit ${status}) after $(grep -c 'cycle ' /tmp/kmi_session.log || true) log lines. The next band retries it; nothing is fabricated and nothing is dropped." || true
+          fi
+
+      # Owner report 2026-11-27: the post-market record stopped reaching the
+      # app. The day's finalize was left to intraday-capture.yml's 15:47 and
+      # 16:47 crons, GitHub delivered the 15:47 fire at 00:48 the next
+      # morning, and the sleep gate then refused a finalize whose day had
+      # already rolled over (measured on run 45886408518: every step after
+      # the gate was skipped, so no record landed). The post-close window
+      # this job already runs ends after the exchange's last print, on a
+      # runner that holds the day's own files, so it banks the day here. The
+      # scheduled finalize stays as the backstop: a countable record is
+      # immutable on the relay, so a second finalize cannot relabel the day.
+      - name: Bank the day at the end of the post-close window
+        if: >-
+          steps.gate.outputs.should_run == 'true' &&
+          (inputs.purpose == 'post' ||
+           steps.window.outputs.seconds == '1020' ||
+           github.event.schedule == '32 10 * * 1-4' ||
+           github.event.schedule == '32 11 * * 5')
+        run: |
+          # The runner already holds this window's capture; the day's earlier
+          # tape and paper state live in R2 under the same two secrets the
+          # capture workflow uses, so restore them first and the finalize
+          # values the day from the whole session, never from the last 17
+          # minutes alone.
+          set +e
+          python -m src.data.band_state --restore > /tmp/kmi_finalize_restore.log 2>&1
+          tail -n 6 /tmp/kmi_finalize_restore.log
+          python scripts/intraday_pipeline.py --finalize > /tmp/kmi_finalize.log 2>&1
+          status=$?
+          set -e
+          tail -n 20 /tmp/kmi_finalize.log
+          {
+            echo "## Post-close finalize (exit ${status})"
+            echo ""
+            echo '```'
+            tail -n 12 /tmp/kmi_finalize.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -ne 0 ]; then
+            reason=$(tr -d '\r' < /tmp/kmi_finalize.log | grep -v '^$' | tail -n 4)
+            python scripts/ops_alert.py --text "Quant of Rehan: the post-close finalize failed (exit ${status}). Reason: ${reason} Nothing is fabricated and the scheduled finalize retries it." || true
           fi
 
       - name: Keep the band's record

@@ -782,6 +782,32 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertNotIn("ackUpsert", prices)
         self.assertIn("ackRowsForDay(env, ackDay)", prices)
 
+    def test_the_days_durable_object_spend_is_measured_and_braked(self):
+        """Owner report 2026-11-27: the dashboard reached 90 percent of the
+        free plan's 100,000 Durable Object requests in one day and nothing in
+        the relay could say which read spent them. /health, polled by the
+        phone every five seconds, read three diagnostics with no memory of
+        their own. The hub now counts the requests it answers, /health carries
+        the measured number, and past the warning line a poll repeats a read
+        for five seconds instead of one.
+        """
+        self.assertIn("const HEALTH_STATS_MEMO_MS = 30000;", self.source)
+        self.assertIn("const BUDGET_REQUESTS_PER_DAY = 100000;", self.source)
+        self.assertIn("const BUDGET_BRAKE_AT = 80000;", self.source)
+        self.assertIn("const BUDGET_BRAKE_MEMO_MS = 5000;", self.source)
+        self.assertIn("async function healthDiagnostics(env) {", self.source)
+        self.assertIn('this.statePut("REQ:STATS", JSON.stringify({',
+                      self.source)
+        self.assertIn("noteRequest() {", self.source)
+        self.assertIn("do_requests: diagnostics.doRequests,", self.source)
+        self.assertIn("do_requests_limit: BUDGET_REQUESTS_PER_DAY,",
+                      self.source)
+        self.assertIn(
+            "budgetSpent(await budgetStats(env)) >= BUDGET_BRAKE_AT",
+            self.source)
+        self.assertIn("await this.loadRequestStats();", self.source)
+        self.assertIn("this.noteRequest();", self.source)
+
     def test_friday_break_and_reopen_follow_the_session_boundaries(self):
         self.assertIn('edge.condition === "BREAK"', self.source)
         self.assertIn('edge.phase === "POST_CLOSE"', self.source)
@@ -820,7 +846,11 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("new AbortController()", self.source)
         self.assertIn("/actions/workflows/", self.source)
         self.assertIn("/dispatches", self.source)
-        self.assertIn('inputs: { seconds: String(seconds) }', self.source)
+        # Owner report 2026-11-27: the dispatch also names the window's kind,
+        # so the post-close job knows it must bank the day after its loop.
+        self.assertIn('inputs: { seconds: String(seconds), purpose }',
+                      self.source)
+        self.assertIn('? "post" : "band";', self.source)
         self.assertIn("const key = `SCAN:DISPATCH:", self.source)
         # A failed dispatch must not claim the band: only a 204 records the key.
         self.assertIn("note.ok = response.status === 204;", self.source)

@@ -89,23 +89,47 @@ jobs:
               )
               raise SystemExit(0)
 
+          messages = []
+
           budget = health.get("flow_budget") or {}
           rows = budget.get("rows_written_today")
           limit = budget.get("row_budget")
-          if (not isinstance(rows, (int, float))
-                  or not isinstance(limit, (int, float))
-                  or limit <= 0):
+          if (isinstance(rows, (int, float))
+                  and isinstance(limit, (int, float)) and limit > 0
+                  and (rows >= limit * 0.8 or budget.get("exhausted"))):
+              messages.append(
+                  "Quant of Rehan relay flow backup budget is at "
+                  f"{rows}/{limit} rows today ({rows / limit:.0%}). The live "
+                  "feed remains untouched, but flow state backups may pause. "
+                  f"Cloudflare day {budget.get('day')}; last flush "
+                  f"{budget.get('last_flush')}. This alert repeats at most "
+                  "once per day."
+              )
+
+          # Owner report 2026-11-27: the Durable Object budget reached 90
+          # percent of the free plan's 100,000 requests in one day. The hub
+          # now counts every request it answers and /health carries the
+          # measured number, so this guard warns at 70 percent, while there is
+          # still a session left to save.
+          do_requests = health.get("do_requests") or {}
+          spent = do_requests.get("requests_today")
+          do_limit = health.get("do_requests_limit")
+          if (isinstance(spent, (int, float))
+                  and isinstance(do_limit, (int, float)) and do_limit > 0
+                  and spent >= do_limit * 0.7):
+              messages.append(
+                  "Quant of Rehan relay Durable Objects budget is at "
+                  f"{spent}/{do_limit} requests today "
+                  f"({spent / do_limit:.0%}) of the free plan's daily cap. "
+                  "The relay brakes its own reads at 80 percent; at the cap "
+                  "the feed stops until 00:00 UTC. Cloudflare day "
+                  f"{do_requests.get('day')}. This alert repeats at most once "
+                  "per day."
+              )
+
+          if not messages:
               raise SystemExit(0)
-          if rows < limit * 0.8 and not budget.get("exhausted"):
-              raise SystemExit(0)
-          print(
-              "Quant of Rehan relay flow backup budget is at "
-              f"{rows}/{limit} rows today ({rows / limit:.0%}). The live "
-              "feed remains untouched, but flow state backups may pause. "
-              f"Cloudflare day {budget.get('day')}; last flush "
-              f"{budget.get('last_flush')}. This alert repeats at most "
-              "once per day."
-          )
+          print(" ".join(messages))
           PY
           if [ -s /tmp/relay_budget_message ]; then
             python - <<'PY'

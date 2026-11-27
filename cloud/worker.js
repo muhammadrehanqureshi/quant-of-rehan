@@ -71,12 +71,33 @@ const TRANSITION_MEMO_MS = 20000;
 const WINLOSS_MEMO_MS = 30000;
 let snapshotMemo = { at: 0, value: null };
 let ackMemo = { day: "", at: 0, rows: null };
+let healthStatsMemo = { at: 0, value: null };
+let budgetStatsMemo = { at: 0, value: null };
 let transitionMemo = { at: 0, value: null };
 let winLossMemo = { at: 0, value: null };
 // A chart redraw is not a new question: the same symbol, day and limit
 // answered within five seconds is served from this isolate's own memory, so a
 // desktop repainting a candle cannot spend the Durable Objects request budget
 // on every frame.
+// Owner report 2026-11-27 ("Cloudflare's Durable Object reached 90% of the
+// daily limit yesterday, that should never happen"): /health is polled by the
+// phone every five seconds and by every workflow watchdog, and it read THREE
+// store keys with no memory of its own (the flow error, the flow budget and
+// the snapshot persistence error), so one diagnostic poll cost three Durable
+// Object requests while the values behind it change on a ten minute flush.
+// They now share one thirty second memory, which takes about 16,000 requests
+// off a session day at the phone's pace.
+const HEALTH_STATS_MEMO_MS = 30000;
+// The same report: the day's spend is now a MEASURED number. The quote hub
+// counts every request it answers and publishes it as REQ:STATS, /health
+// carries it, and the relay brakes itself instead of discovering the cap when
+// it is already spent. Workers Free allows 100,000 Durable Object requests a
+// day, reset at 00:00 UTC, so 80,000 is the day's warning line and the point
+// where a poll repeats a read for five seconds instead of one.
+const REQ_STATS_MEMO_MS = 60000;
+const BUDGET_REQUESTS_PER_DAY = 100000;
+const BUDGET_BRAKE_AT = 80000;
+const BUDGET_BRAKE_MEMO_MS = 5000;
 const HISTORY_MEMO_MS = 5000;
 const HISTORY_MEMO_MAX = 32;
 let historyMemo = new Map();
@@ -696,6 +717,17 @@ async function dispatchBandScan(env, now, band = null, source = "cron", options 
 
   const close = band[1][0] * 60 + band[1][1];
   const seconds = Math.max(60, (close - minutesOf(k)) * 60);
+  // Owner report 2026-11-27: the post-close window is the one window whose
+  // job must also bank the day, because the finalize that used to follow it
+  // depended on GitHub's own cron and arrived after midnight. The window is
+  // named here, once, so the workflow never has to infer it from a length.
+  const lastBand = bandsFor(k);
+  const lastBandClose = lastBand.length
+    ? lastBand[lastBand.length - 1][1][0] * 60
+      + lastBand[lastBand.length - 1][1][1]
+    : -1;
+  const purpose = lastBandClose > 0 && band[0][0] * 60 + band[0][1] >= lastBandClose
+    ? "post" : "band";
   const repo = String(env.GH_REPO || SCAN_REPO_DEFAULT).trim();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SCAN_DISPATCH_TIMEOUT_MS);
@@ -714,7 +746,8 @@ async function dispatchBandScan(env, now, band = null, source = "cron", options 
           "x-github-api-version": "2022-11-28",
           "user-agent": "quant-of-rehan-relay",
         },
-        body: JSON.stringify({ ref: "master", inputs: { seconds: String(seconds) } }),
+        body: JSON.stringify({ ref: "master",
+          inputs: { seconds: String(seconds), purpose } }),
       },
     );
     note.status = response.status;
@@ -2141,12 +2174,47 @@ function normalizeQuoteSnapshot(raw) {
   return snapshot;
 }
 
+// The day's measured Durable Object spend, read from the hub at most once a
+// minute per isolate. A null answer is "not measured yet", never zero spend.
+async function budgetStats(env) {
+  const now = Date.now();
+  if (now - budgetStatsMemo.at < REQ_STATS_MEMO_MS) {
+    return budgetStatsMemo.value;
+  }
+  let stats = null;
+  try {
+    const raw = await quoteHubValue(env, "REQ:STATS");
+    if (raw) stats = JSON.parse(raw);
+  } catch (_) {
+    stats = null;
+  }
+  // A missing figure is cached too: before the hub has written its first
+  // stats row, an uncached miss would cost one store read per poll, which is
+  // the very spend this meter exists to prevent.
+  budgetStatsMemo = { at: now, value: stats };
+  return stats;
+}
+
+// A count from a previous UTC day is yesterday's spend, not today's.
+function budgetSpent(stats) {
+  if (!stats) return 0;
+  if (String(stats.day || "") !== new Date().toISOString().slice(0, 10)) {
+    return 0;
+  }
+  return Math.max(0, Number(stats.requests_today) || 0);
+}
+
 async function readQuoteSnapshot(env) {
   // One snapshot read a second serves every route on this isolate, so
   // /market, /prices, /stock and /flow can never each buy their own copy
   // with a Durable Object request (owner order 2026-11-05, the budget).
+  // Owner report 2026-11-27: past the day's warning line the same read is
+  // reused for five seconds, so a day that is running hot slows the card by
+  // a few seconds instead of running the account into the cap.
   const stamp = Date.now();
-  if (snapshotMemo.value && stamp - snapshotMemo.at < SNAPSHOT_MEMO_MS) {
+  const memoMs = budgetSpent(await budgetStats(env)) >= BUDGET_BRAKE_AT
+    ? BUDGET_BRAKE_MEMO_MS : SNAPSHOT_MEMO_MS;
+  if (snapshotMemo.value && stamp - snapshotMemo.at < memoMs) {
     return snapshotMemo.value;
   }
   try {
@@ -2832,6 +2900,46 @@ function adminOk(request, env) {
   return env.RELAY_ADMIN_TOKEN && got === env.RELAY_ADMIN_TOKEN;
 }
 
+// Owner report 2026-11-27 (the 90 percent day): the three diagnostics /health
+// carries are written on a ten minute flush or on a storage error, so reading
+// them once per poll spent three Durable Object requests a poll for values
+// that had not changed. One thirty second memory answers them instead.
+async function healthDiagnostics(env) {
+  const now = Date.now();
+  if (healthStatsMemo.value && now - healthStatsMemo.at < HEALTH_STATS_MEMO_MS) {
+    return healthStatsMemo.value;
+  }
+  let flowError = null;
+  try {
+    const rawFlowError = await quoteHubValue(env, "FLOW:LAST_ERROR");
+    if (rawFlowError) flowError = JSON.parse(rawFlowError);
+  } catch (_) {
+    flowError = null;
+  }
+  let flowBudget = null;
+  try {
+    const rawFlowBudget = await quoteHubValue(env, "FLOW:STATS");
+    if (rawFlowBudget) flowBudget = JSON.parse(rawFlowBudget);
+  } catch (_) {
+    flowBudget = null;
+  }
+  // Owner order 2026-11-05: when the day's rows-written budget or any
+  // storage error makes the hub hold the snapshot in memory alone, the
+  // card keeps answering fresh numbers and /health says why, so a
+  // degraded-but-alive day can never look like a healthy one (SO-3).
+  let snapshotPersistError = null;
+  try {
+    const rawPersistError = await quoteHubValue(env, "SNAPSHOT:PERSIST_ERROR");
+    if (rawPersistError) snapshotPersistError = JSON.parse(rawPersistError);
+  } catch (_) {
+    snapshotPersistError = null;
+  }
+  const doRequests = await budgetStats(env);
+  const value = { flowError, flowBudget, snapshotPersistError, doRequests };
+  healthStatsMemo = { at: now, value };
+  return value;
+}
+
 async function healthPayload(env) {
   const now = new Date();
   const k = karachiView(now.getTime());
@@ -2870,37 +2978,20 @@ async function healthPayload(env) {
   } catch (_) {
     lastDispatch = null;
   }
-  let flowError = null;
-  try {
-    const rawFlowError = await quoteHubValue(env, "FLOW:LAST_ERROR");
-    if (rawFlowError) flowError = JSON.parse(rawFlowError);
-  } catch (_) {
-    flowError = null;
-  }
-  let flowBudget = null;
-  try {
-    const rawFlowBudget = await quoteHubValue(env, "FLOW:STATS");
-    if (rawFlowBudget) flowBudget = JSON.parse(rawFlowBudget);
-  } catch (_) {
-    flowBudget = null;
-  }
-  // Owner order 2026-11-05: when the day's rows-written budget or any
-  // storage error makes the hub hold the snapshot in memory alone, the
-  // card keeps answering fresh numbers and /health says why, so a
-  // degraded-but-alive day can never look like a healthy one (SO-3).
-  let snapshotPersistError = null;
-  try {
-    const rawPersistError = await quoteHubValue(env, "SNAPSHOT:PERSIST_ERROR");
-    if (rawPersistError) snapshotPersistError = JSON.parse(rawPersistError);
-  } catch (_) {
-    snapshotPersistError = null;
-  }
+  // Owner report 2026-11-27 (the 90 percent day): these three diagnostics
+  // change on a ten minute flush, so one thirty second read serves every
+  // /health poll on this isolate instead of three store requests per poll.
+  const diagnostics = await healthDiagnostics(env);
   return {
     ok: true,
     service: "quant-of-rehan-relay",
-    flow_last_error: flowError,
-    flow_budget: flowBudget,
-    snapshot_persist_error: snapshotPersistError,
+    flow_last_error: diagnostics.flowError,
+    flow_budget: diagnostics.flowBudget,
+    snapshot_persist_error: diagnostics.snapshotPersistError,
+    // The measured Durable Object spend of the UTC day the free plan resets
+    // on, counted by the hub that answers every quote read and every push.
+    do_requests: diagnostics.doRequests,
+    do_requests_limit: BUDGET_REQUESTS_PER_DAY,
     // The commit this script was built from. The deploy workflow sets it from
     // GITHUB_SHA and then asks /health for it, so a deploy that uploaded
     // nothing (or uploaded to another account) cannot pass as a success.
@@ -4770,8 +4861,53 @@ export class QuoteHub {
   // to a JSON refusal the publisher retries and the phone survives; columns
   // or limits reset at 00:00 UTC and the memory-held snapshot keeps the
   // answers moving meanwhile.
+  // Owner report 2026-11-27 ("Cloudflare's Durable Object reached 90% of the
+  // daily limit yesterday, that should never happen"): the dashboard showed
+  // the spend but nothing in the relay could say where it went. This object
+  // answers every quote read and every push, so it counts what it serves and
+  // publishes the figure as REQ:STATS, which /health, the budget guard and
+  // the owner then read. The count is persisted once per sixty requests, so a
+  // full day costs about 1,600 rows written instead of one per request.
+  async loadRequestStats() {
+    if (this.requestStatsLoaded) return;
+    this.requestStatsLoaded = true;
+    try {
+      const raw = await this.stateGet("REQ:STATS");
+      if (!raw) return;
+      const stats = JSON.parse(raw);
+      if (String(stats.day || "") === new Date().toISOString().slice(0, 10)) {
+        this.requestDay = String(stats.day || "");
+        this.requestCount = Math.max(0, Number(stats.requests_today) || 0);
+      }
+    } catch (_) { /* a first run has no stats yet */ }
+  }
+
+  noteRequest() {
+    const day = new Date().toISOString().slice(0, 10);
+    if (this.requestDay !== day) {
+      this.requestDay = day;
+      this.requestCount = 0;
+      this.requestSinceWrite = 0;
+    }
+    this.requestCount += 1;
+    this.requestSinceWrite = (this.requestSinceWrite || 0) + 1;
+    if (this.requestSinceWrite < 60) return;
+    this.requestSinceWrite = 0;
+    try {
+      this.statePut("REQ:STATS", JSON.stringify({
+        day,
+        requests_today: this.requestCount,
+        limit: BUDGET_REQUESTS_PER_DAY,
+        at: new Date().toISOString(),
+      }), 0).catch(() => {});
+    } catch (_) { /* the count is a courtesy, never a reason to fail a read */ }
+  }
+
   async fetch(request) {
     try {
+      await this.ready;
+      await this.loadRequestStats();
+      this.noteRequest();
       return await this.handle(request);
     } catch (error) {
       try {
