@@ -25,7 +25,7 @@ func TestBuild184TheBannerShowsThePicturesOwnPixels(t *testing.T) {
 	}
 	want := [][4]uint8{
 		{255, 255, 255, 255}, // white ink stays white
-		{4, 8, 12, 255},      // a clear pixel takes the gate's background
+		{12, 8, 4, 255},      // a clear pixel takes the gate's background
 		{30, 10, 200, 255},   // B, G, R: the ink's own blue, green and red
 	}
 	for i, p := range want {
