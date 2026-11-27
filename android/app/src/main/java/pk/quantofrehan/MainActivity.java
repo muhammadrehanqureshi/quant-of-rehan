@@ -12,7 +12,9 @@ import android.text.SpannableString;
 import android.text.SpannableStringBuilder;
 import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
+import android.text.style.StyleSpan;
 import android.text.style.TypefaceSpan;
+import android.graphics.Typeface;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -3632,18 +3634,14 @@ public class MainActivity extends Activity {
             }
             return;
         }
-        for (Watcher.FlowRow row : flowRows) {
-            if (row.symbol.equals(query)) {
-                // The whole ticker he typed: its own book, no list to read.
-                selectFlow(query);
-                return;
-            }
-        }
-        // Only the matches of what he typed, and no more than the eight the
-        // rest of the console lists (owner order 2026-11-23).
+        // Owner order 2026-11-27: the list is every scrip whose symbol
+        // carries the letters he typed, wherever they stand inside it, and a
+        // full ticker is still only a row on that list. Nothing opens by
+        // itself: the answer prints when he taps a scrip, never while he is
+        // still typing.
         List<Watcher.FlowRow> visible = new ArrayList<>();
         for (Watcher.FlowRow row : flowRows) {
-            if (row.symbol.startsWith(query)
+            if (row.symbol.contains(query)
                     && visible.size() < FLOW_RESULTS_SHOWN) {
                 visible.add(row);
             }
@@ -3696,7 +3694,9 @@ public class MainActivity extends Activity {
      * four-column header went with the quote columns it named.
      */
     private View flowTableRow(Watcher.FlowRow row, String query) {
-        TextView line = menuRow(row.symbol);
+        // Owner order 2026-11-27: the letters he has typed stand bold inside
+        // the scrip, so one more letter bolds one more of them.
+        TextView line = menuRow(scripMatchSpans(row.symbol, query));
         line.setOnClickListener(v -> pickFlow(row.symbol));
         // Owner order 2026-11-25: the option wears nothing of its own, the
         // CUSTOM SCRIPS OF VOL. menu's own row. The grey pills are gone.
@@ -4628,7 +4628,10 @@ public class MainActivity extends Activity {
         // eight of them, exactly the law the tile carried before build 155.
         List<String> filtered = new java.util.ArrayList<>();
         for (String symbol : symbols) {
-            if (symbol.startsWith(q)) {
+            // Owner order 2026-11-27: every scrip carrying the typed letters
+            // is a match, the ORDER FLOW list's own law. Typing E lists every
+            // scrip with an E in it, wherever the E stands.
+            if (symbol.toUpperCase(Locale.US).contains(q)) {
                 filtered.add(symbol);
             }
         }
@@ -4714,58 +4717,36 @@ public class MainActivity extends Activity {
      * print only when the relay carries them, and a scrip with no quote at
      * all is listed bare.
      */
-    private void appendSearchQuote(SpannableStringBuilder sb,
-                                   Watcher.Quote quote) {
-        sb.append("  ");
-        int priceFrom = sb.length();
-        sb.append(String.format(Locale.US, "PKR %,.2f", quote.price));
-        int moveInk = getColor(quote.changePct != null && quote.changePct < 0
-                ? R.color.red : R.color.green);
-        sb.setSpan(new ForegroundColorSpan(moveInk), priceFrom, sb.length(), 0);
-        if (quote.changePct != null) {
-            sb.append(' ');
-            int from = sb.length();
-            sb.append(String.format(Locale.US, "%s %.2f%%",
-                    quote.changePct >= 0 ? "\u25B2" : "\u25BC",
-                    Math.abs(quote.changePct)));
-            sb.setSpan(new ForegroundColorSpan(moveInk), from, sb.length(), 0);
-            sb.setSpan(new TypefaceSpan(ARROW_FACE), from, from + 1, 0);
+    /**
+     * Owner order 2026-11-27: "as I keep typing for example I type E then
+     * every scrip containing E letter would be bold, and as I keep typing all
+     * the letters then each letter in the search results will get bold." The
+     * typed run inside the symbol takes the bold face and the theme's own
+     * accent ink; the letters he has not typed yet keep the body's weight and
+     * the body's ink. One more keystroke bolds one more letter.
+     */
+    private CharSequence scripMatchSpans(String symbol, String query) {
+        SpannableString sp = new SpannableString(symbol);
+        if (query == null || query.isEmpty()) {
+            return sp;
         }
-        if (quote.high != null && quote.low != null) {
-            sb.append('\n').append(String.format(Locale.US,
-                    "H=%,.2f & L=%,.2f", quote.high, quote.low));
+        int at = symbol.toUpperCase(Locale.US)
+                .indexOf(query.toUpperCase(Locale.US));
+        if (at < 0) {
+            return sp;
         }
-        if (quote.buy != null && quote.sell != null) {
-            sb.append('\n').append("B=");
-            colorQuantity(sb, quote.buy, R.color.green);
-            sb.append(", S=");
-            colorQuantity(sb, quote.sell, R.color.red);
-            if (quote.unclassified != null) {
-                sb.append(", U=");
-                int unclearFrom = sb.length();
-                sb.append(String.format(Locale.US, "%,d", quote.unclassified));
-                sb.setSpan(new ForegroundColorSpan(getColor(R.color.yellow)),
-                        unclearFrom, sb.length(), 0);
-            }
-        } else if (quote.unclassified != null) {
-            sb.append('\n').append("U=");
-            int unclearFrom = sb.length();
-            sb.append(String.format(Locale.US, "%,d", quote.unclassified));
-            sb.setSpan(new ForegroundColorSpan(getColor(R.color.yellow)),
-                    unclearFrom, sb.length(), 0);
-        }
+        int to = Math.min(symbol.length(), at + query.length());
+        sp.setSpan(new StyleSpan(Typeface.BOLD), at, to, 0);
+        sp.setSpan(new ForegroundColorSpan(themeAccentInk), at, to, 0);
+        return sp;
     }
 
     /** Colour one search row from its own live quote and its typed match. */
     private void styleSearchRow(TextView row, String symbol, String q) {
-        // Owner order 2026-11-26: the option carries the scrip and its own
-        // live quote, on the three lines appendSearchQuote builds.
-        Watcher.Quote quote = Watcher.quotes().get(symbol);
-        SpannableStringBuilder sb = new SpannableStringBuilder(symbol);
-        if (quote != null) {
-            appendSearchQuote(sb, quote);
-        }
-        row.setText(sb);
+        // Owner order 2026-11-27: the SEARCH tile IS the ORDER FLOW tile, so
+        // its option is the scrip alone, its typed letters bold. The price,
+        // the range and the split print only for the scrip he taps.
+        row.setText(scripMatchSpans(symbol, q));
         // Owner order 2026-10-21 (15:15): a result row is body text, so it
         // carries the same 13sp as every other non-heading line, the size the
         // signal tile's own sentence uses. Its tracking is its own, a list of
@@ -5058,6 +5039,22 @@ public class MainActivity extends Activity {
                 totalTo = sb.length();
             }
         }
+        // Owner order 2026-11-27: the tapped scrip's day range joins its
+        // answer, H in the green of a high and L in the red of a low.
+        int highFrom = -1;
+        int highTo = -1;
+        int lowFrom = -1;
+        int lowTo = -1;
+        if (quote.high != null && quote.low != null) {
+            sb.append("\nH=");
+            highFrom = sb.length();
+            sb.append(String.format(Locale.US, "%,.2f", quote.high));
+            highTo = sb.length();
+            sb.append(" & L=");
+            lowFrom = sb.length();
+            sb.append(String.format(Locale.US, "%,.2f", quote.low));
+            lowTo = sb.length();
+        }
         int tailFrom = sb.length();
         sb.append(String.format(Locale.US, "\nPKR %,.2f", quote.price));
         int moveFrom = -1;
@@ -5087,6 +5084,12 @@ public class MainActivity extends Activity {
             sp.setSpan(new ForegroundColorSpan(getColor(
                             delta >= 0 ? R.color.green : R.color.red)),
                     netFrom, netTo, 0);
+        }
+        if (highFrom >= 0) {
+            sp.setSpan(new ForegroundColorSpan(getColor(R.color.green)),
+                    highFrom, highTo, 0);
+            sp.setSpan(new ForegroundColorSpan(getColor(R.color.red)),
+                    lowFrom, lowTo, 0);
         }
         if (moveFrom >= 0) {
             sp.setSpan(new ForegroundColorSpan(getColor(

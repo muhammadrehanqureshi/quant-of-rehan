@@ -650,11 +650,17 @@
      put one hairline between the typed letter and their first instant
      option; and a SEARCH option prints the scrip with its current price and
      percentage, then "H=... & L=...", then B, S and U.
-     Ships as 4.5.0, versionCode 144. -->
+     Ships as 4.5.0, versionCode 144.
+     Owner order 2026-11-27: the ORDER FLOW box is the scrip row's own 32dp,
+     a match is any scrip CARRYING the typed letters with those letters bold,
+     the SEARCH tile is the ORDER FLOW tile (the scrip alone until a tap),
+     the tapped answer prints H in green and L in red, and the photographed
+     sun with its wireframe cloud is replaced by a Jarvis core.
+     Ships as 4.5.1, versionCode 145. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="144"
-    android:versionName="4.5.0">
+    android:versionCode="145"
+    android:versionName="4.5.1">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
