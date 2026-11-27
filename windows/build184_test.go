@@ -40,11 +40,12 @@ func TestBuild184TheBannerIsPlacedWholeAndNeverCut(t *testing.T) {
 	console := image.Rect(100, 50, 1900, 850)
 	work := image.Rect(0, 0, 1920, 1040)
 
-	// A screen that holds the picture shows it at the file's own size, centred
-	// on the console and kept inside the screen's edges.
+	// A screen that holds the picture shows it at the file's own size with the
+	// owner's 35% taken off (build 186), centred on the console and kept inside
+	// the screen's edges.
 	r := welcomePictureRect(console, work, 1447, 493)
-	if r.Dx() != 1447 || r.Dy() != 493 {
-		t.Fatalf("a screen that holds the picture drew it %dx%d, want 1447x493", r.Dx(), r.Dy())
+	if r.Dx() != 940 || r.Dy() != 320 {
+		t.Fatalf("a screen that holds the picture drew it %dx%d, want 940x320", r.Dx(), r.Dy())
 	}
 	if r.Min.X < work.Min.X || r.Min.Y < work.Min.Y || r.Max.X > work.Max.X || r.Max.Y > work.Max.Y {
 		t.Fatalf("the picture %v left the work area %v", r, work)
@@ -53,19 +54,21 @@ func TestBuild184TheBannerIsPlacedWholeAndNeverCut(t *testing.T) {
 		t.Fatalf("the picture's centre row is %d, want the console's 450", cy)
 	}
 
-	// Owner order 2026-11-27 (build 185): a console narrower than the picture
-	// holds it to the console's own width, so the banner never stands wider
-	// than the window the gate is drawn in, and it is still shrunk whole.
+	// Owner order 2026-11-27 (build 186): "reduce the banner's image size by
+	// 35% from it's current size." The picture is placed as 185 placed it, the
+	// console's own width holding it first when that is narrower, and then it
+	// stands at 65% of that size.
 	r = welcomePictureRect(image.Rect(100, 50, 1300, 850), work, 1447, 493)
-	if r.Dx() != 1200 || r.Dy() != 408 {
-		t.Fatalf("a 1200 wide console drew the picture %dx%d, want 1200x408", r.Dx(), r.Dy())
+	if r.Dx() != 780 || r.Dy() != 265 {
+		t.Fatalf("a 1200 wide console drew the picture %dx%d, want 780x265", r.Dx(), r.Dy())
 	}
 
-	// A screen too small for it shrinks it whole, keeping its shape.
+	// A screen too small for it shrinks it whole, keeping its shape, and the
+	// same 35% comes off what is left.
 	small := image.Rect(0, 0, 800, 600)
 	r = welcomePictureRect(image.Rectangle{}, small, 1447, 493)
-	if r.Dx() != 736 || r.Dy() != 250 {
-		t.Fatalf("the picture drew %dx%d on an 800x600 screen, want 736x250", r.Dx(), r.Dy())
+	if r.Dx() != 478 || r.Dy() != 162 {
+		t.Fatalf("the picture drew %dx%d on an 800x600 screen, want 478x162", r.Dx(), r.Dy())
 	}
 
 	if r := welcomePictureRect(console, work, 4, 4); !r.Empty() {

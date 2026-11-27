@@ -309,11 +309,21 @@ const appVersion = "4.0.21"
 // Windows no longer calls the programme hung; it measures in screen pixels, so
 // Windows' display scaling no longer widens it; and it never stands wider than
 // the window the gate is drawn in.
+// Build 186 is 4.4.8, the owner's report on 185: "these are the changes for the
+// windows build, the application still got hung for about 1 or 2 seconds,
+// reduce the banner's image size by 35% from it's current size." The picture is
+// 4417 by 1282 pixels, and reading it, laying its 5.7 million pixels over the
+// gate's colour and making and painting its window all ran on the gate's own
+// thread before its first frame: that was the second or two the programme stood
+// still. Every step of it happens on a thread of its own now, so the gate draws
+// and answers while the picture is made. The picture itself stands at 65% of
+// the size it stood at on 185, whichever of its file, the console's width or
+// the screen's work area decided that size.
 //
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.4.7"
+const hudBuild = "4.4.8"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
