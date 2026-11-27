@@ -1168,9 +1168,13 @@ func (a *App) onTick(now time.Time) {
 	a.now = now
 	if a.loginOpens(now) {
 		a.locked = false
-		a.passText, a.passMsg, a.passOK, a.passFocus = "", "", false, false
-		// The HUD paints every row of its first frame, not the gate's.
-		a.prevRows = nil
+					a.passText, a.passMsg, a.passOK, a.passFocus = "", "", false, false
+			// Owner order 2026-11-27 (build 184): the welcome picture is a window
+			// of its own over the gate, so the HUD takes the screen from a clean
+			// one: the picture comes down as the first HUD frame goes up.
+			hideWelcomePicture()
+			// The HUD paints every row of its first frame, not the gate's.
+			a.prevRows = nil
 	}
 	a.syncReqCount()
 	// Owner order 2026-11-18: every market day's stored session is cleared at

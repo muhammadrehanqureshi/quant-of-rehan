@@ -168,8 +168,17 @@ func (a *App) drawLogin(c *Canvas) {
 // into cells, centred on the gate and sized to about 40% of the gate's rows.
 // When the shape cannot be drawn the character itself stands on the middle row,
 // so the mark is never missing; either way nothing is drawn after it.
+//
+// Owner order 2026-11-27 (build 184): the welcome image is the picture itself,
+// not a block version of it, so the picture's own window goes up over the gate
+// and the cells stay empty behind it. The block banner below is the fallback
+// for a platform with no such window, and for a run whose window cannot be
+// made, so the welcome always carries the mark.
 func (a *App) drawSplash(c *Canvas) {
 	th := a.th
+	if welcomePictureUp(th.BG) {
+		return
+	}
 	if rows := splashBanner(c.W, c.H); len(rows) > 0 {
 		x := max(0, (c.W-runeLen(rows[0]))/2)
 		y := max(0, (c.H-len(rows))/2)
