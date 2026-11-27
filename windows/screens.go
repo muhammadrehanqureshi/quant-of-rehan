@@ -548,15 +548,18 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	case !a.link:
 		label(0, "LINK", []Span{{"UNREACHABLE", th.Bad, true}})
 	default:
-		sync := ""
-		if !a.lastMarketOK.IsZero() {
-			// Owner order 2026-11-26 (later): one space stands between the full
-			// stop and the word. Owner order 2026-11-27: the word reads SYNCED.
-			sync = " SYNCED " + strconv.Itoa(max(0, int(a.now.Sub(a.lastMarketOK).Seconds()))) + " s ago"
-		}
 		// Owner order 2026-11-26: the latency closes with a full stop and the
 		// word opens with a capital.
-		label(0, "LINK", []Span{{"UP", th.Good, true}, {"  " + strconv.Itoa(int(a.rtt.Milliseconds())) + " ms." + sync, th.Text, false}})
+		link := []Span{{"UP", th.Good, true}, {"  " + strconv.Itoa(int(a.rtt.Milliseconds())) + " ms.", th.Text, false}}
+		if !a.lastMarketOK.IsZero() {
+			// Owner order 2026-11-26 (later): one space stands between the full
+			// stop and the word. Owner order 2026-11-27: SYNCED is the tile's one
+			// green bold word, so the age runs on after it in the body ink.
+			link = append(link,
+				Span{" SYNCED ", th.Good, true},
+				Span{strconv.Itoa(max(0, int(a.now.Sub(a.lastMarketOK).Seconds()))) + " s ago", th.Text, false})
+		}
+		label(0, "LINK", link)
 	}
 	// FEED: how old the freshest tick is, counting up each second, and how
 	// many answers per second are arriving.
@@ -1777,7 +1780,9 @@ func (a *App) drawMarket(c *Canvas, x, y, w, h int) {
 	if len(board) > 0 && limit < end-len(notes) {
 		sp := []Span{{"BUYING NOW  ", th.Soft, false}}
 		for _, b := range board {
-			sp = append(sp, Span{b.Symbol + " ", th.Hot, true}, Span{compactNum(b.BuyValue) + "   ", th.Good, false})
+			// Owner order 2026-11-27: the scrip's value is as bold as its name on
+			// this line, so the three names and their money read as one group.
+			sp = append(sp, Span{b.Symbol + " ", th.Hot, true}, Span{compactNum(b.BuyValue) + "   ", th.Good, true})
 		}
 		c.Spans(ix, limit, iw, sp)
 	}

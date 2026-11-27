@@ -52,6 +52,11 @@ func scale(c RGB, k float64) RGB {
 // order 2026-11-11: GREEN & YELLOW and ORANGE & WHITE are deleted. Owner order
 // 2026-11-21: NAVY BLUE & WHITE is deleted too, so the Windows palette is the
 // same three the phone already shows.
+// inkWhite is the page's plain white. Owner order 2026-11-27: on SETTINGS the
+// right hand side reads white on every theme, so the colour is named once here
+// rather than borrowed from a theme that tints its own Text ink.
+var inkWhite = hexc("#ffffff")
+
 type Theme struct {
 	Name   string
 	BG     RGB // screen

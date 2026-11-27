@@ -21,6 +21,17 @@ func (a *App) relayStatus() (string, RGB) {
 	return "ONLINE", a.th.Good
 }
 
+// whiteInk returns the same spans in the page's white. Owner order 2026-11-27:
+// the right hand side of SETTINGS is white, so a state's own green or red is
+// replaced here rather than at each of the eight rows.
+func whiteInk(sp []Span) []Span {
+	out := make([]Span, len(sp))
+	for i, s := range sp {
+		out[i] = Span{s.S, inkWhite, s.Bold}
+	}
+	return out
+}
+
 func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 	th := a.th
 	settingsH := settingsItems + 2 // the eight switch rows, plus the frame
@@ -60,8 +71,11 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		}
 		// Owner order 2026-11-11: the setting cursor is blue, not white.
 		c.Set(ix+1, row, mark, th.Accent, bg, true)
-		c.Text(ix+3, row, 22, left, th.Text, cur)
-		c.Spans(ix+26, row, rowW-26, right)
+		// Owner order 2026-11-27: the left hand side of SETTINGS wears the same
+		// ink as the small print beside the switches (th.Soft), while every
+		// value on the right hand side is white, whatever state it reports.
+		c.Text(ix+3, row, 22, left, th.Soft, cur)
+		c.Spans(ix+26, row, rowW-26, whiteInk(right))
 		row++
 	}
 	onoff := func(b bool, extra string) []Span {
@@ -101,8 +115,10 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		// cursor, so the two tiles read down one line. The chips take the
 		// column the SETTINGS values take.
 		// Owner order 2026-11-11: the theme cursor is blue, not white.
+		// Owner order 2026-11-27: the theme names take the left hand ink too,
+		// and the theme that is ON stays the tile's one bold name.
 		c.Set(tx+1, trow, mark, th.Accent, bg, true)
-		c.Text(tx+3, trow, 22, t.Name, th.Text, a.cfg.Theme == themeNo)
+		c.Text(tx+3, trow, 22, t.Name, th.Soft, a.cfg.Theme == themeNo)
 		for k, col := range []RGB{t.BG, t.Panel, t.Line, t.Accent, t.Hot} {
 			c.Set(tx+26+k*2, trow, '█', col, bg, false)
 			c.Set(tx+27+k*2, trow, '█', col, bg, false)
@@ -122,8 +138,10 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		// Owner order 2026-11-13: the facts read on the SETTINGS and THEMES
 		// cells exactly, key three cells in and value on the column those two
 		// tiles put their values on, so all three tiles line up.
+		// Owner order 2026-11-27: keys keep the left hand ink and every fact on
+		// the right hand side is white, the page's one law.
 		c.Text(bx+3, brow, 22, k, th.Soft, false)
-		c.Text(bx+26, brow, max(1, bw-26), fit(v, max(1, bw-26)), col, false)
+		c.Text(bx+26, brow, max(1, bw-26), fit(v, max(1, bw-26)), inkWhite, false)
 		brow++
 	}
 	// Owner order 2026-11-12: VERSION stands before RELAY in the facts tile.
