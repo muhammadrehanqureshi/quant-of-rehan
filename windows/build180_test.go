@@ -42,22 +42,8 @@ func TestBuild180SettingsReadsLeftSoftAndRightWhite(t *testing.T) {
 		t.Fatalf("the NOTIFICATIONS label wears %v, want the small print ink %v",
 			got, a.th.Soft)
 	}
-	white := false
-	for i := x + 20; i < c.W; i++ {
-		cell := c.Cells[y*c.W+i]
-		if cell.Ch == ' ' {
-			continue
-		}
-		if cell.FG != inkWhite {
-			t.Fatalf("the value on the right of NOTIFICATIONS wears %v, want white %v",
-				cell.FG, inkWhite)
-		}
-		white = true
-		break
-	}
-	if !white {
-		t.Fatalf("the NOTIFICATIONS row carries no value on its right")
-	}
+	// Owner order 2026-11-27 (build 183): the switch's ON is green now, so the
+	// white law is checked where it still holds, on the sentence after it.
 	dy, dx := findCells(c, "Windows pop-ups")
 	if dy < 0 {
 		t.Fatalf("the switch's small print is gone")
