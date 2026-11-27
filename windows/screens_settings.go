@@ -26,13 +26,14 @@ func (a *App) relayStatus() (string, RGB) {
 // replaced here rather than at each of the eight rows.
 //
 // Owner order 2026-11-27 (build 183): ONLINE, ON and the big order size are
-// green, so a value already wearing the theme's good ink keeps it and only the
-// rest of the right hand side is turned white.
+// green, so a state that already wears the theme's good or bad ink keeps it and
+// only the rest of the right hand side is turned white. A switch that is ON
+// therefore reads green and one that is OFF still reads red beside it.
 func (a *App) whiteInk(sp []Span) []Span {
 	out := make([]Span, len(sp))
 	for i, s := range sp {
 		ink := inkWhite
-		if s.FG == a.th.Good {
+		if s.FG == a.th.Good || s.FG == a.th.Bad {
 			ink = s.FG
 		}
 		out[i] = Span{s.S, ink, s.Bold}
