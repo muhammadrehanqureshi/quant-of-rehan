@@ -663,11 +663,17 @@
      greeting wears the PSX's KMIALL INDEX face, the two search boxes take
      their 43dp plate back, and a search matches only the scrips that START
      with the typed letters, so PR can never list FPRM.
-     Ships as 4.5.2, versionCode 146. -->
+     Ships as 4.5.2, versionCode 146.
+     Owner order 2026-11-27 (third pass): the greeting is 30% smaller
+     (26.1sp to 18.3sp), the ORB's compass circle moves to the OUTSIDE start
+     of the little circular lines, the SECTORS tile opens on all eight
+     sectors instead of cutting the eighth off, and the SEARCH and ORDER
+     FLOW boxes take the 32dp height of the scrips they list.
+     Ships as 4.5.3, versionCode 147. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="146"
-    android:versionName="4.5.2">
+    android:versionCode="147"
+    android:versionName="4.5.3">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 

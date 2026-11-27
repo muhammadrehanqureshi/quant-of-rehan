@@ -67,8 +67,13 @@ public class ThinkingOrb extends View {
     private float cx;
     private float cy;
     private float reach;
-    /** Where every tick begins, and so the radius of the compass circle. */
-    private float tickInner;
+    /**
+     * Where every tick FINISHES, and so the radius of the compass circle.
+     * Owner order 2026-11-27 (third pass): the circle used to stand on the
+     * ticks' inner ends; it takes their outer end now, so it is read from
+     * outside the little lines at the exact point they start on.
+     */
+    private float tickOuter;
 
     private int ink = DEFAULT_INK;
     private RadialGradient coreGradient;
@@ -168,7 +173,10 @@ public class ThinkingOrb extends View {
         cx = w / 2f;
         cy = h / 2f;
         reach = Math.min(w, h) / 2f - dp(9f);
-        tickInner = reach - dp(9f);
+        // The circle's radius is the point the majors used to reach,
+        // reach + 2dp: the compass keeps the exact band of the field it
+        // always covered, and only the circle's side of that band moved.
+        tickOuter = reach + dp(2f);
         outerArc.set(cx - reach * 0.86f, cy - reach * 0.86f,
                 cx + reach * 0.86f, cy + reach * 0.86f);
         middleArc.set(cx - reach * 0.72f, cy - reach * 0.72f,
@@ -235,14 +243,16 @@ public class ThinkingOrb extends View {
     }
 
     /**
-     * The faint compass circle, drawn on the exact radius every tick begins
-     * on, so the circle and the first point of every little line are one
-     * edge (owner order 2026-11-27: "make that outside circle sit on the
-     * exact starting of the little lines that are making a circle").
+     * The faint compass circle, drawn on the exact radius every tick starts
+     * on when the ticks are read from OUTSIDE the compass (owner order
+     * 2026-11-27, third pass: "you got the biggest circle inside those small
+     * little circular lines. make the circle sit at the exact starting of
+     * those little lines ... on the exact starting point from outside those
+     * little lines").
      */
     private void drawRing(Canvas canvas, float wake) {
         ringPaint.setAlpha((int) (70f * wake));
-        canvas.drawCircle(cx, cy, tickInner, ringPaint);
+        canvas.drawCircle(cx, cy, tickOuter, ringPaint);
         ringPaint.setAlpha((int) (26f * wake));
         canvas.drawCircle(cx, cy, reach * 0.52f, ringPaint);
     }
@@ -258,12 +268,14 @@ public class ThinkingOrb extends View {
             float heat = Math.max(0f, 1f - behind / 130f);
             float alpha = (0.22f + 0.78f * heat * heat) * wake;
             boolean major = i % 8 == 0;
-            // Owner order 2026-11-27: every tick STARTS on the compass
-            // circle and runs outward from it, the majors reaching the
-            // field's own edge, so the circle sits exactly on the start of
-            // all 96 little lines instead of standing off their tips.
-            float from = tickInner;
-            float to = from + dp(major ? 11f : 6f);
+            // Owner order 2026-11-27 (third pass): the circle sits on the
+            // OUTSIDE start of the little lines, so every tick runs INWARD
+            // from it - from tickOuter, its own 11dp (major) or 6dp (minor)
+            // long - and the majors finish on the radius the circle itself
+            // used to stand on. The lines cover the same band as before;
+            // only which end of them the circle joins has changed.
+            float to = tickOuter;
+            float from = to - dp(major ? 11f : 6f);
             double rad = Math.toRadians(angle - 90f);
             float cos = (float) Math.cos(rad);
             float sin = (float) Math.sin(rad);
@@ -289,7 +301,10 @@ public class ThinkingOrb extends View {
         canvas.drawArc(innerArc, seconds * 47f + 160f, 30f, false, arcPaint);
     }
 
-    /** The radar beam: a bright leading line and the wake behind it. */
+    /** The radar beam: a bright leading line and the wake behind it. It
+     *  reaches the compass circle itself - the field's outer edge since the
+     *  circle moved to the ticks' far end (owner order 2026-11-27, third
+     *  pass), so the beam still sweeps the whole instrument it lights. */
     private void drawSweep(Canvas canvas, float wake, float sweep) {
         for (int k = 0; k < 26; k++) {
             float angle = sweep - k * 1.6f;
@@ -298,14 +313,14 @@ public class ThinkingOrb extends View {
             float cos = (float) Math.cos(rad);
             float sin = (float) Math.sin(rad);
             sweepPaint.setAlpha((int) (fade * fade * 130f * wake));
-            canvas.drawLine(cx, cy, cx + cos * reach * 0.9f,
-                    cy + sin * reach * 0.9f, sweepPaint);
+            canvas.drawLine(cx, cy, cx + cos * tickOuter,
+                    cy + sin * tickOuter, sweepPaint);
         }
         double lead = Math.toRadians(sweep - 90f);
         sweepPaint.setAlpha((int) (200f * wake));
         canvas.drawLine(cx, cy,
-                cx + (float) Math.cos(lead) * reach * 0.9f,
-                cy + (float) Math.sin(lead) * reach * 0.9f, sweepPaint);
+                cx + (float) Math.cos(lead) * tickOuter,
+                cy + (float) Math.sin(lead) * tickOuter, sweepPaint);
     }
 
     /**

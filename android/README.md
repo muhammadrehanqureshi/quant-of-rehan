@@ -1641,6 +1641,31 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.5.3, versionCode 147.**
+
+Owner order 2026-11-27 (third pass), the greeting, the orb, the sectors and
+the two searches:
+
+- The greeting is 30% smaller: 26.1sp cut to 18.3sp (26.1 x 0.70 = 18.27,
+  rounded to one decimal). The face, the seam and the ink are unchanged; only
+  the size came down.
+- The ORB's compass circle moves to the OUTSIDE start of the little circular
+  lines. It stood on their inner ends; it now sits on the exact radius every
+  tick starts on when the ticks are read from outside, and every tick runs
+  inward from it - the majors 11dp, the minors 6dp - so the compass covers
+  the same band of the field it always did and only the circle's side of that
+  band moved. The radar beam reaches the circle, so it still sweeps the whole
+  instrument it lights.
+- The SECTORS tile opens on all eight of the broker's sectors instead of the
+  six-row window that cut the eighth one off. The diamond scroller stays for a
+  list longer than eight, and hides itself when there is nothing beyond the
+  window.
+- The SEARCH and ORDER FLOW boxes are the scrip row's own 32dp: with the list
+  open the 43dp plate read thicker than every option under it, and the box and
+  its first option are now one height by construction (menuRow's 32dp floor).
+
+The version bump is versionCode 147 / versionName 4.5.3.
+
 **Version 4.5.2, versionCode 146.**
 
 Owner order 2026-11-27 (second pass), the orb and the two searches:

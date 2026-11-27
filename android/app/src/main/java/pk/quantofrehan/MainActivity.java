@@ -210,8 +210,13 @@ public class MainActivity extends Activity {
     /** The 3dp the board's text view puts between two prints. */
     private static final int BIG_PRINTS_ROW_AIR_DP = 3;
     /** Owner order 2026-11-13: the SECTORS window shows six rows before it
-     *  scrolls, like the big prints board's own fixed window. */
-    private static final int SECTOR_ROWS = 6;
+     *  scrolls, like the big prints board's own fixed window.
+     *  Owner order 2026-11-27 (third pass): the window is the list ITSELF,
+     *  never a fixed six - "make the SECTORS tile display all 8 sectors
+     *  name properly, right now the 8th one is getting cut off". Eight is
+     *  the floor the empty list falls back to; a longer list opens on all of
+     *  its rows and leaves the diamond with nothing to reach. */
+    private static final int SECTOR_ROWS = 8;
 
     /**
      * The dim end of the breath, as a fraction of full opacity. It never
@@ -4314,12 +4319,19 @@ public class MainActivity extends Activity {
         return line;
     }
 
-    /** Six rows in the window, the rest a scroll away. */
+    /** Every sector in the window. Owner order 2026-11-27 (third pass): the
+     *  window opened on six rows while the list held eight, so the eighth
+     *  sector was cut off; it now measures every row the list carries, so no
+     *  sector is ever out of sight. */
     private void fitSectorWindow() {
         if (sectorsScroll == null || sectorsMenu == null || !sectorMenuOpen) {
             return;
         }
-        int rows = Math.min(SECTOR_ROWS, sectorRows.size());
+        // Owner order 2026-11-27 (third pass): every sector the list holds is
+        // in the window, so no sector can be cut off by a row count; the
+        // loop still stops at the last child, so the floor only stands in
+        // for a list that has not arrived yet.
+        int rows = Math.max(SECTOR_ROWS, sectorRows.size());
         int height = 0;
         int seen = 0;
         for (int i = 0; i < sectorsMenu.getChildCount() && seen < rows; i++) {

@@ -256,10 +256,13 @@
                      six-row window and its diamond are retired with the
                      tall list the owner struck out.
 
-                     Owner order 2026-11-27: the box is 43dp again, the
-                     field plate every other field on the console wears,
-                     because the drop to the row's 32dp read as a box that
-                     had been shortened. -->
+                     Owner order 2026-11-27 (third pass): the box is the
+                     ROW's own 32dp again, because with its list open he
+                     read the 43dp face standing thicker than every option
+                     under it - "make that space's height same as the
+                     height of the search results scrips". The row law is
+                     menuRow's own 32dp floor, so the box and its first
+                     option are one height by construction. -->
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
@@ -267,7 +270,7 @@
                     <EditText
                         android:id="@+id/search_input"
                         android:layout_width="match_parent"
-                        android:layout_height="43dp"
+                        android:layout_height="32dp"
                         android:background="@null"
                         android:gravity="center_vertical|start"
                         android:hint="@string/search_hint"
@@ -361,8 +364,9 @@
 
                 <!-- Owner order 2026-11-25: the ORDER FLOW box wears the
                      CUSTOM SCRIPS OF VOL. box's own face, caret and menu,
-                     exactly as the SEARCH box does. Owner order 2026-11-27:
-                     and its 43dp height comes back with the SEARCH box's. -->
+                     exactly as the SEARCH box does. Owner order 2026-11-27
+                     (third pass): and its height is the SEARCH box's own
+                     32dp row, the height of the scrips it lists. -->
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
@@ -370,7 +374,7 @@
                     <EditText
                         android:id="@+id/order_flow_input"
                         android:layout_width="match_parent"
-                        android:layout_height="43dp"
+                        android:layout_height="32dp"
                         android:background="@null"
                         android:gravity="center_vertical|start"
                         android:hint="@string/order_flow_hint"
@@ -625,7 +629,13 @@
                         android:layout_height="wrap_content">
 
                         <!-- Owner order 2026-11-13: six sectors fit the open
-                             box, and the diamond scroller reaches the rest. -->
+                             box, and the diamond scroller reaches the rest.
+                             Owner order 2026-11-27 (third pass): the window
+                             is the broker's whole list now (eight is its
+                             floor), because the eighth sector was cut off
+                             by the six-row window; the diamond keeps its
+                             station and hides when nothing is out of
+                             sight. -->
                         <ScrollView
                             android:id="@+id/sectors_scroll"
                             android:layout_width="match_parent"
@@ -916,9 +926,14 @@
              the body still the one 13sp.
 
              Owner order 2026-11-27: the greeting wears the face of the
-             PSX's KMIALL INDEX line above it, LEMON MILK Light, and
-             nothing else about it changes: same size, same seam, same
-             colour. -->        <TextView
+             PSX's KMIALL INDEX line above it, LEMON MILK Light.
+
+             Owner order 2026-11-27 (third pass): the greeting is 30%
+             smaller than it stood, 26.1sp cut to 18.3sp (26.1 x 0.70 =
+             18.27, rounded to one decimal), the fifth change of this
+             line and the first one that shrinks it; the body is still
+             the one 13sp, the face, the seam and the ink unchanged. -->
+        <TextView
             android:id="@+id/greeting"
             style="@style/QorValue"
             android:fontFamily="@font/lemonmilk_light"
@@ -927,7 +942,7 @@
             android:layout_marginTop="12dp"
             android:gravity="center"
             android:text="@string/greeting_morning"
-            android:textSize="26.1sp"/>
+            android:textSize="18.3sp"/>
 
         <!-- Owner order 2026-11-01: the greeting and the QUANT STATUS tile
              are divided by the same diamond rule every other change of
