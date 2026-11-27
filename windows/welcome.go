@@ -55,9 +55,9 @@ func welcomePicturePixels(img image.Image, bg RGB) ([]uint8, int, int) {
 			r, g, bl, a := img.At(b.Min.X+x, b.Min.Y+y).RGBA()
 			ar := int(a >> 8)
 			i := (y*w + x) * 4
-			px[i+0] = uint8(int(bl>>8) + bg.B*(255-ar)/255)
-			px[i+1] = uint8(int(g>>8) + bg.G*(255-ar)/255)
-			px[i+2] = uint8(int(r>>8) + bg.R*(255-ar)/255)
+			px[i+0] = uint8(int(bl>>8) + int(bg.B)*(255-ar)/255)
+			px[i+1] = uint8(int(g>>8) + int(bg.G)*(255-ar)/255)
+			px[i+2] = uint8(int(r>>8) + int(bg.R)*(255-ar)/255)
 			px[i+3] = 0xff
 		}
 	}
