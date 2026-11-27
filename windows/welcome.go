@@ -75,6 +75,12 @@ func welcomePictureRect(console, work image.Rectangle, imgW, imgH int) image.Rec
 		return image.Rectangle{}
 	}
 	maxW, maxH := work.Dx()*92/100, work.Dy()*92/100
+	// Owner order 2026-11-27 (build 185): the picture is no wider than the
+	// window the gate is drawn in, so it reads as that window's banner instead
+	// of spilling across the screen.
+	if !console.Empty() {
+		maxW = min(maxW, console.Dx())
+	}
 	if maxW < 8 || maxH < 8 {
 		return image.Rectangle{}
 	}

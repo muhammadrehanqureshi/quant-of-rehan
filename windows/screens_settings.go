@@ -125,10 +125,11 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		// cursor, so the two tiles read down one line. The chips take the
 		// column the SETTINGS values take.
 		// Owner order 2026-11-11: the theme cursor is blue, not white.
-		// Owner order 2026-11-27: the theme names take the left hand ink too,
-		// and the theme that is ON stays the tile's one bold name.
+		// Owner order 2026-11-27 (build 185): every theme name is white, the
+		// page's one law for a value, and the theme that is ON stays the tile's
+		// one bold name.
 		c.Set(tx+1, trow, mark, th.Accent, bg, true)
-		c.Text(tx+3, trow, 22, t.Name, th.Soft, a.cfg.Theme == themeNo)
+		c.Text(tx+3, trow, 22, t.Name, inkWhite, a.cfg.Theme == themeNo)
 		for k, col := range []RGB{t.BG, t.Panel, t.Line, t.Accent, t.Hot} {
 			c.Set(tx+26+k*2, trow, '█', col, bg, false)
 			c.Set(tx+27+k*2, trow, '█', col, bg, false)

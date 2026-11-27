@@ -302,11 +302,18 @@ const appVersion = "4.0.21"
 // The sampled blocks are gone from the welcome: the picture itself is shown in
 // a window of its own over the gate, every pixel the file's own, and the cell
 // banner is only the fallback for a platform or a run without that window.
+// Build 185 is 4.4.7, the owner's report on 184: "you have made the picture too
+// wide and also, the program crashed after just showing the banner", with the
+// theme names white and the SECTORS list's PKR placed as CUSTOM SCRIPS OF
+// VOLUME places its own. The picture's window now answers its messages, so
+// Windows no longer calls the programme hung; it measures in screen pixels, so
+// Windows' display scaling no longer widens it; and it never stands wider than
+// the window the gate is drawn in.
 //
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.4.6"
+const hudBuild = "4.4.7"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

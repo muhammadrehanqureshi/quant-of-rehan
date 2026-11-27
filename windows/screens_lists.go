@@ -1072,7 +1072,11 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 			// Owner order 2026-11-19: PKR holds one column, the price its own
 			// field, and the arrow keeps one cell before the percentage, exactly
 			// as the quote group does on every other tile.
-			a.drawQuote(c, priceX, ry, priceW, commaFloat(q.Price, 2), q.ChangePct, "px:"+sym)
+			// Owner order 2026-11-27 (build 185): PKR and its price read exactly
+			// as they do on the CUSTOM SCRIPS OF VOLUME tile, the word hard
+			// against its figure and the arrow and percentage from the price
+			// field's own end.
+			a.drawQuoteLeft(c, priceX, ry, priceW, commaFloat(q.Price, 2), q.ChangePct, "px:"+sym)
 		}
 	}
 	a.scrollbar(c, ix+iw-1, iy+3, a.lvSectorStk.view, &a.lvSectorStk)

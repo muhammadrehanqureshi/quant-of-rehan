@@ -1,10 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 184
+# Quant of Rehan for Windows (console edition), build 185
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
 
-## What is new in build 184
+## What is new in build 185
 
+* **Build 185 (version 4.4.7).** The owner's report on build 184: "you have made the picture too wide and also, the program crashed after just showing the banner", with two further changes of his on the same order: theme names white, and the SECTORS list's PKR placed as CUSTOM SCRIPS OF VOLUME places its own. The picture's window now runs on a thread that answers its messages, so Windows no longer puts its "is not responding" panel over the banner; the programme is DPI aware, so Windows' display scaling no longer widens the picture; and the picture never stands wider than the window the gate is drawn in, shrinking whole if it must. On SETTINGS every theme name is white, the page's one law for a value, and the theme that is on is still the tile's one bold name. An opened sector's row places PKR hard against its price, with the arrow and percentage from the price field's own end, exactly as the CUSTOM SCRIPS OF VOLUME tile does. The executable's file version is `4.4.7.0`.
 * **Build 184 (version 4.4.6).** The welcome banner is his picture itself, on his correction of build 183: "this is not right. this is right image ... only use this image as the welcome image, DO NOT RENDER IT, just have this exact image as the welcome banner." The gate no longer samples the artwork into half blocks: the picture is shown in a borderless window of its own, laid over the console's middle for as long as the welcome lasts, at the picture's own size and in its own colours, one screen pixel for each pixel the file holds. It needs no message loop, takes no click and no focus, keeps out of the task bar, and comes down as the HUD's first frame goes up. A screen too small for it shrinks the whole picture evenly instead of cropping it, and the window stays inside the screen's work area. Where no such window can be made, the cell banner of build 183 still stands in, so the welcome always carries the mark. The executable's file version is `4.4.6.0`.
 
 ## What is new in build 183
