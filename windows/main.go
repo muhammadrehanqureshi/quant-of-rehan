@@ -35,6 +35,11 @@ func main() {
 		}
 	}()
 
+	// The gate's banner is the ligature's own shape, asked of Windows' text
+	// engine. Only a real run asks for it, so a failure here leaves the gate on
+	// the character itself and the tests on a fixed, drawable banner.
+	ligatureGlyph = platformLigatureGlyph
+
 	var (
 		relayURL  = flag.String("relay", "", "relay address for this run only (the default is the relay built into the app)")
 		theme     = flag.Int("theme", -1, "theme number, 0 to 2, for this run only (choose one in Settings to keep it)")

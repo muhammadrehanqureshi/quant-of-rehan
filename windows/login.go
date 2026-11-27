@@ -28,8 +28,8 @@ const (
 	unlockTaunt       = "Nice try, buddy. Get your punk ahh out of here. HAHAHA!"
 	unlockMaxChars    = 16
 	// Owner order 2026-11-26 (later): the right password shows the basmala and
-	// nothing after it, and then the HUD takes the screen. The words and their
-	// picture live in basmala.go, drawn as braille dots so no cell cuts a letter.
+	// nothing after it, and then the HUD takes the screen. The ligature and the
+	// mark the gate draws for it live in basmala.go and ligature.go.
 	unlockWelcomeFor = 2500 * time.Millisecond
 )
 
@@ -161,14 +161,23 @@ func (a *App) drawLogin(c *Canvas) {
 
 // drawSplash is what the gate becomes once the password is right. Owner order
 // 2026-11-26 (later): the banner carries the basmala and nothing else, and the
-// HUD takes the screen after it and after nothing else. The words come from
-// basmala.go as text, never as a picture: one line, the phrase exactly as he
-// typed it, read right to left by the terminal's own Arabic shaping.
-// Owner order 2026-11-27: the words are written, not pictured, and they stand
-// on ONE line: the phrase is centred on the gate's middle row exactly as he
-// typed it, with no art pass, no wrap and nothing after it.
+// HUD takes the screen after it and after nothing else.
+//
+// Owner order 2026-11-27: the banner is the ligature U+FDFD and it "should take
+// about 40% of the screen". The ligature is drawn as its own shape, sampled
+// into cells, centred on the gate and sized to about 40% of the gate's rows.
+// When the shape cannot be drawn the character itself stands on the middle row,
+// so the mark is never missing; either way nothing is drawn after it.
 func (a *App) drawSplash(c *Canvas) {
 	th := a.th
+	if rows := splashBanner(c.W, c.H); len(rows) > 0 {
+		x := max(0, (c.W-runeLen(rows[0]))/2)
+		y := max(0, (c.H-len(rows))/2)
+		for i, row := range rows {
+			c.Text(x, y+i, c.W, row, th.Hot, false)
+		}
+		return
+	}
 	if c.W < runeLen(basmalaBanner)+2 || c.H < 3 {
 		return
 	}

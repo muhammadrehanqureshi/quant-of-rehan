@@ -285,10 +285,18 @@ const appVersion = "4.0.21"
 // is white, the CUSTOM SCRIPS quote group is measured on the whole table so all
 // six sub menus line up, PKR keeps one space before a two digit price, and the
 // WATCH LIST's search answers in its own box.
+// Build 182 is 4.4.4, the owner's 2026-11-27 order after two rejected banners:
+// "these are not even the words as I told you. do this type "chcp 65001" type
+// "echo ﷽" ... make bigger, the banner should take about 40% of the screen."
+// The banner is the one ligature character U+FDFD, and the gate draws its own
+// shape, asked of Windows' text engine, as solid blocks across about 40% of the
+// gate's rows; if that shape cannot be drawn the ligature itself stands on the
+// middle row. Nothing else is drawn on the gate either way.
+//
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.4.3"
+const hudBuild = "4.4.4"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
