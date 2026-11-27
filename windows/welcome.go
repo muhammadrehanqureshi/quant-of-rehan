@@ -22,18 +22,24 @@ import "image"
 var welcomePictureAllowed bool
 
 // welcomePictureUp puts the picture on the screen and says whether the gate may
-// leave its cell banner out. It is asked on every frame of the welcome; the
-// picture is decoded, and its window made, only the first time.
+// leave its cell banner out. It is asked on every frame of the welcome and
+// answers at once: the picture's window belongs to the platform, and Windows
+// does the picture's work away from the gate's own thread (build 186), so no
+// frame of the gate waits for a decode or for a window.
 func welcomePictureUp(bg RGB) bool {
 	if !welcomePictureAllowed {
 		return false
 	}
-	img, ok := bannerPictureImage()
-	if !ok {
-		return false
-	}
-	return showWelcomePicture(img, bg)
+	return showWelcomePicture(bg)
 }
+
+// welcomePicturePercent is the share of its 185 size the picture stands at.
+//
+// Owner order 2026-11-27 (build 186): "reduce the banner's image size by 35%
+// from it's current size." The picture takes 65% of whichever size it stood at
+// on 185, the size its own file, the console's width or the screen's work area
+// decided.
+const welcomePicturePercent = 65
 
 // welcomePicturePixels lays the picture over the gate's own background colour
 // and returns top down BGRA rows ready for the screen, one opaque pixel each.
@@ -66,7 +72,8 @@ func welcomePicturePixels(img image.Image, bg RGB) ([]uint8, int, int) {
 
 // welcomePictureRect places the picture over the gate. It is shown at its own
 // size whenever the screen holds it, so every pixel is the file's own; a screen
-// too small for it shrinks it whole, keeping its shape. It is centred on the
+// too small for it shrinks it whole, keeping its shape; and what stands is 65%
+// of that size, the owner's 35% off the banner (build 186). It is centred on the
 // console the gate is drawn in, and kept inside the screen's work area so no
 // part of it is ever cut off by an edge or by the taskbar. An empty rectangle
 // means the picture cannot be placed at all.
@@ -93,6 +100,12 @@ func welcomePictureRect(console, work image.Rectangle, imgW, imgH int) image.Rec
 		w = max(1, w*maxH/h)
 		h = maxH
 	}
+	// Owner order 2026-11-27 (build 186): the picture stands at 65% of the size
+	// it stood at on 185, so the 35% comes off whatever that size was: a screen
+	// that held it whole, a console narrower than it, or a work area too small
+	// for it. It is still centred, still whole and still never cut.
+	w = max(1, w*welcomePicturePercent/100)
+	h = max(1, h*welcomePicturePercent/100)
 	if w < 8 || h < 8 {
 		return image.Rectangle{}
 	}

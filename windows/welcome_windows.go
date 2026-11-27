@@ -135,14 +135,26 @@ var (
 	welcomeMu        sync.Mutex
 	welcomeWin       *welcomeWindow
 	welcomeTried     bool // a window has been asked for in this run
+	welcomeStarting  bool // the picture is being prepared and its window made
+	welcomeHidden    bool // the gate asked for the picture before it stood
 	welcomeDead      bool // no window can be made: the gate keeps its cells
 	welcomeClassOnce sync.Once
 	welcomeClassOK   bool
 )
 
-// showWelcomePicture paints the picture and shows it over the console. It
-// reports whether the picture is on the screen.
-func showWelcomePicture(img image.Image, bg RGB) bool {
+// showWelcomePicture starts the picture on its way and answers at once. It
+// reports whether the gate may leave its cells out: true while the picture is
+// up, and true while it is still being prepared, so the gate never flashes its
+// block banner in the meantime.
+//
+// Owner order 2026-11-27 (build 186): "the application still got hung for about
+// 1 or 2 seconds". The picture is 4417 by 1282 pixels: reading it, laying its
+// 5.7 million pixels over the gate's colour and making and painting its window
+// all happened on the gate's own thread, before its first frame, and the gate
+// stood still for as long as that took. The work is done on a thread of its own
+// now, so the gate goes on drawing and answering its keys while the picture is
+// made, and the picture takes the screen as soon as it is whole.
+func showWelcomePicture(bg RGB) bool {
 	welcomeMu.Lock()
 	if win := welcomeWin; win != nil && win.shown {
 		welcomeMu.Unlock()
@@ -153,14 +165,30 @@ func showWelcomePicture(img image.Image, bg RGB) bool {
 		return false
 	}
 	welcomeTried = true
+	welcomeStarting = true
 	welcomeMu.Unlock()
 
+	go prepareWelcomePicture(bg)
+	return true
+}
+
+// prepareWelcomePicture reads the picture, lays it over the gate's colour, finds
+// its place and has its window made and painted, all off the gate's thread. It
+// ends the run's attempt at a window when any step fails, so the gate falls back
+// to its cell banner; and it takes the picture down again if the gate asked for
+// it back while it was still being made.
+func prepareWelcomePicture(bg RGB) {
+	img, ok := bannerPictureImage()
+	if !ok {
+		markWelcomeDead()
+		return
+	}
 	bits, w, h := welcomePicturePixels(img, bg)
 	console, work := welcomeScreenRects()
 	rect := welcomePictureRect(console, work, w, h)
 	if w < 8 || h < 8 || len(bits) == 0 || rect.Empty() || !registerWelcomeClass() {
 		markWelcomeDead()
-		return false
+		return
 	}
 	// The window is made and painted on its own thread, which then answers its
 	// messages; the answer arrives once the picture is on the screen, so the
@@ -170,27 +198,38 @@ func showWelcomePicture(img image.Image, bg RGB) bool {
 	hwnd := <-ready
 	if hwnd == 0 {
 		markWelcomeDead()
-		return false
+		return
 	}
 	welcomeMu.Lock()
-	welcomeWin = &welcomeWindow{hwnd: hwnd, shown: true, bits: bits, w: w, h: h}
+	welcomeStarting = false
+	hidden := welcomeHidden
+	if !hidden {
+		welcomeWin = &welcomeWindow{hwnd: hwnd, shown: true, bits: bits, w: w, h: h}
+	}
 	welcomeMu.Unlock()
-	return true
+	if hidden {
+		pPostMessageW.Call(hwnd, wmWelcomeHide, 0, 0)
+	}
 }
 
 func markWelcomeDead() {
 	welcomeMu.Lock()
 	welcomeDead = true
+	welcomeStarting = false
 	welcomeMu.Unlock()
 }
 
 // hideWelcomePicture takes the picture off the screen when the HUD opens. The
 // window's own thread closes it and ends with it, so nothing of the picture is
-// left behind to answer for.
+// left behind to answer for. A picture that is still being prepared is taken
+// down the moment it stands, so the HUD never opens under it.
 func hideWelcomePicture() {
 	welcomeMu.Lock()
 	win := welcomeWin
 	if win == nil || !win.shown {
+		if welcomeStarting {
+			welcomeHidden = true
+		}
 		welcomeMu.Unlock()
 		return
 	}

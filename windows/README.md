@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 185
+# Quant of Rehan for Windows (console edition), build 186
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 186
+
+* **Build 186 (version 4.4.8).** The owner's report on build 185: "these are the changes for the windows build, the application still got hung for about 1 or 2 seconds, reduce the banner's image size by 35% from it's current size." The picture is 4417 by 1282 pixels, and every step of putting it on the screen ran on the gate's own thread before the gate's first frame: reading the file, laying its 5.7 million pixels over the gate's colour, finding its place and making and painting its window, which the gate then waited on. That wait was the second or two the programme stood still. All of it happens on a thread of its own now, so the gate draws and answers its keys while the picture is made, its cells left empty rather than filled with the block banner he ordered away; the picture takes the screen as soon as it is whole, and the cell banner still stands in only when no picture can be had. The picture itself is placed as build 185 placed it, with the console's own width holding it first when that is the narrower window, and then stands at 65% of that size: the 35% comes off the picture wherever it stood, on every screen and at every console width, and it stays whole, centred and inside the work area. The executable's file version is `4.4.8.0`.
 
 ## What is new in build 185
 
