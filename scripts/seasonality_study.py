@@ -308,6 +308,12 @@ def render_markdown(report: dict, green: float, years: float) -> str:
         f"{cov['first']} to {cov['last']}, {span_years:.1f} years, "
         f"{cov['sessions']} sessions, {cov['symbols']} KMIALL scrips.")
     add("")
+    if report.get("source_run"):
+        add(f"Source run: GitHub Actions run {report['source_run']} of the "
+            f"`backtest` workflow, task `seasonality`. The panel itself is "
+            f"gitignored by law, so the numbers travel as this document and "
+            f"its JSON evidence file.")
+        add("")
     add("## The question, and the answer")
     add("")
     add(f"A session counts as GREEN for a scrip when its close is at least "
@@ -389,15 +395,38 @@ def render_markdown(report: dict, green: float, years: float) -> str:
             f"{pct(r['first_half_rate'])} | {pct(r['second_half_rate'])} |")
     add("")
     if st["survivors"] == 0:
-        add("**None of these clears the Bonferroni threshold.** With roughly "
-            "five hundred pairs tested at once, a p value of a few thousandths "
-            "is what luck produces. Treat the table as the shortlist to watch, "
-            "not as a law to trade.")
+        add(f"**None of these clears the Bonferroni threshold.** With "
+            f"{st['tests']} pairs tested at once, a p value of a few "
+            f"thousandths is what luck produces. Treat the table as the "
+            f"shortlist to watch, not as a law to trade.")
     else:
         add(f"**{st['survivors']} pair(s) clear the Bonferroni threshold.** "
             f"Even so, a survivor is a hypothesis for the next five years, not "
             f"a promise, because the window is the same one it was found in.")
     add("")
+
+    stable = stable_shortlist(report)
+    add("## The rows that hold up in both halves")
+    add("")
+    add("A pattern that only exists in one half of the window is the one most "
+        "likely to be noise. These are the pairs whose green rate beats their "
+        "own base rate in the first half AND in the second half, ranked by the "
+        "weaker of the two halves. It is the fairest shortlist this data can "
+        "give, and it is still a description of the past.")
+    add("")
+    if not stable:
+        add("No pair beats its base rate in both halves. On this data there is "
+            "no weekday effect worth carrying forward.")
+        add("")
+    else:
+        add("| # | Scrip | Weekday | Rate | Own base rate | First half | Second half | Of sessions | p |")
+        add("|---|---|---|---|---|---|---|---|---|")
+        for i, r in enumerate(stable, 1):
+            add(f"| {i} | {r['symbol']} | {r['weekday']} | {pct(r['green_rate'])} | "
+                f"{pct(r['base_rate'])} | {pct(r['first_half_rate'])} | "
+                f"{pct(r['second_half_rate'])} | {r['sessions']} | "
+                f"{r['p_value']:.2e} |")
+        add("")
 
     add("## The evidence, date by date")
     add("")
@@ -440,6 +469,24 @@ def render_markdown(report: dict, green: float, years: float) -> str:
         f"session is a gross move; the repository's own law charges about 1.1 "
         f"percent round trip before any tax.")
     add("")
+    add("## Appendix: every scrip, every weekday")
+    add("")
+    add("Green rate per weekday for every scrip that carried at least the "
+        "minimum sessions of that weekday. A dash means the scrip did not have "
+        "enough sessions of that weekday to be measured. Sorted by the best "
+        "weekday's lead over the scrip's own base rate.")
+    add("")
+    add("| Scrip | Sessions | Base | MON | TUE | WED | THU | FRI | Best day | Lead |")
+    add("|---|---|---|---|---|---|---|---|---|---|")
+    for m in matrix_rows(report):
+        cells = []
+        for day in DAY_NAMES:
+            cell = m["days"].get(day)
+            cells.append(pct(cell["rate"]) if cell else "-")
+        add(f"| {m['symbol']} | {m['sessions']} | {pct(m['base_rate'])} | "
+            + " | ".join(cells)
+            + f" | {m['best_day']} | {m['lead'] * 100:+.1f} pts |")
+    add("")
     add("## Reproduce it")
     add("")
     add("```")
@@ -458,6 +505,46 @@ def render_markdown(report: dict, green: float, years: float) -> str:
         "task `seasonality`.")
     add("")
     return "\n".join(lines)
+
+
+def stable_shortlist(report: dict, limit: int = 10) -> list[dict]:
+    """Rows that beat their own base rate in both halves, weakest half first."""
+    kept: list[dict] = []
+    for r in report["rows"]:
+        first, second = r.get("first_half_rate"), r.get("second_half_rate")
+        if first is None or second is None:
+            continue
+        if first <= r["base_rate"] or second <= r["base_rate"]:
+            continue
+        kept.append(r)
+    kept.sort(key=lambda r: (min(r["first_half_rate"], r["second_half_rate"])
+                             - r["base_rate"], r["green_rate"]), reverse=True)
+    return kept[:limit]
+
+
+def matrix_rows(report: dict) -> list[dict]:
+    """One row per scrip: its green rate on each weekday, and its best day."""
+    table = report["coverage"]["table"]
+    by: dict[str, dict] = {}
+    for r in report["rows"]:
+        m = by.get(r["symbol"])
+        if m is None:
+            m = {"symbol": r["symbol"],
+                 "sessions": table.get(r["symbol"], {}).get("sessions", 0),
+                 "base_rate": r["base_rate"],
+                 "days": {}}
+            by[r["symbol"]] = m
+        m["days"][r["weekday"]] = {"sessions": r["sessions"],
+                                    "rate": r["green_rate"]}
+    out: list[dict] = []
+    for m in by.values():
+        best_day, best = max(m["days"].items(),
+                             key=lambda kv: kv[1]["rate"] - m["base_rate"])
+        m["best_day"] = best_day
+        m["lead"] = best["rate"] - m["base_rate"]
+        out.append(m)
+    out.sort(key=lambda m: m["lead"], reverse=True)
+    return out
 
 
 # ---------- entry point ----------
