@@ -4,6 +4,7 @@ package main
 
 import (
 	"image"
+	"runtime"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -18,10 +19,12 @@ import (
 // It is painted once from the file's own pixels, at their own size, and hidden
 // again when the HUD takes the screen.
 //
-// The window needs no message loop: it has the system's own window procedure,
-// it is painted directly into its device context, and hiding it is all the
-// handling it ever asks for. If any step here fails the gate draws its cell
-// banner instead, so this file can never be the reason the gate does not open.
+// The window lives on a thread of its own that answers its messages, because a
+// window whose thread never pumps makes Windows call the programme hung and put
+// its "is not responding" panel over the picture. The thread paints the picture,
+// pumps until the gate asks for it back, and is gone with the window. If any
+// step here fails the gate draws its cell banner instead, so this file can never
+// be the reason the gate does not open.
 
 var user32 = syscall.NewLazyDLL("user32.dll")
 
@@ -29,6 +32,13 @@ var (
 	pRegisterClassExW     = user32.NewProc("RegisterClassExW")
 	pCreateWindowExW      = user32.NewProc("CreateWindowExW")
 	pDefWindowProcW       = user32.NewProc("DefWindowProcW")
+	pDestroyWindow        = user32.NewProc("DestroyWindow")
+	pGetMessageW          = user32.NewProc("GetMessageW")
+	pTranslateMessage     = user32.NewProc("TranslateMessage")
+	pDispatchMessageW     = user32.NewProc("DispatchMessageW")
+	pPostMessageW         = user32.NewProc("PostMessageW")
+	pSetDpiAwareness      = user32.NewProc("SetProcessDpiAwarenessContext")
+	pSetDPIAware          = user32.NewProc("SetProcessDPIAware")
 	pSetWindowPos         = user32.NewProc("SetWindowPos")
 	pShowWindow           = user32.NewProc("ShowWindow")
 	pGetDC                = user32.NewProc("GetDC")
@@ -62,6 +72,16 @@ const (
 
 	spiGetWorkArea = 0x0030
 	halftoneMode   = 4
+
+	// Owner order 2026-11-27 (build 185): the window answers its messages.
+	// build 184 never pumped them, so Windows took the programme for a hung one
+	// and put its "is not responding" panel over the picture.
+	wmWelcomeHide = 0x8001 // WM_APP + 1: take the picture down
+
+	// DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, so the picture is measured and
+	// drawn in screen pixels. build 184 showed it through Windows' 125% scaling
+	// and the picture came out a fifth wider than the file's own width.
+	dpiPerMonitorV2 = ^uintptr(3)
 	dibRGBColors   = 0
 	srcCopyRop     = 0x00cc0020
 )
@@ -90,8 +110,20 @@ type welcomeWinPoint struct {
 	x, y int32
 }
 
-// welcomeWindow is the one window the gate makes, kept for the whole run so a
-// second welcome reuses it rather than making another.
+// welcomeMsg is MSG.
+type welcomeMsg struct {
+	hwnd     uintptr
+	message  uint32
+	wParam   uintptr
+	lParam   uintptr
+	time     uint32
+	pt       welcomeWinPoint
+	lPrivate uint32
+}
+
+// welcomeWindow is the window the gate makes for the welcome, held while it is
+// up so the gate can ask after it. Its thread closes and frees it when the HUD
+// opens, so a second welcome makes a fresh one.
 type welcomeWindow struct {
 	hwnd  uintptr
 	shown bool
@@ -102,6 +134,8 @@ type welcomeWindow struct {
 var (
 	welcomeMu        sync.Mutex
 	welcomeWin       *welcomeWindow
+	welcomeTried     bool // a window has been asked for in this run
+	welcomeDead      bool // no window can be made: the gate keeps its cells
 	welcomeClassOnce sync.Once
 	welcomeClassOK   bool
 )
@@ -110,69 +144,116 @@ var (
 // reports whether the picture is on the screen.
 func showWelcomePicture(img image.Image, bg RGB) bool {
 	welcomeMu.Lock()
-	defer welcomeMu.Unlock()
-
-	// The gate asks on every frame of the welcome, and the picture is already
-	// the file's own pixels at the right place, so there is nothing to redo.
 	if win := welcomeWin; win != nil && win.shown {
+		welcomeMu.Unlock()
 		return true
 	}
+	if welcomeDead || welcomeTried {
+		welcomeMu.Unlock()
+		return false
+	}
+	welcomeTried = true
+	welcomeMu.Unlock()
 
 	bits, w, h := welcomePicturePixels(img, bg)
-	if w < 8 || h < 8 || len(bits) == 0 {
-		return false
-	}
 	console, work := welcomeScreenRects()
 	rect := welcomePictureRect(console, work, w, h)
-	if rect.Empty() {
+	if w < 8 || h < 8 || len(bits) == 0 || rect.Empty() || !registerWelcomeClass() {
+		markWelcomeDead()
 		return false
 	}
-
-	if win := welcomeWin; win != nil {
-		win.bits, win.w, win.h = bits, w, h
-		pSetWindowPos.Call(win.hwnd, hwndTopmost,
-			uintptr(rect.Min.X), uintptr(rect.Min.Y),
-			uintptr(rect.Dx()), uintptr(rect.Dy()),
-			swpNoActivate|swpShowWindow)
-		if !paintWelcome(win, rect.Dx(), rect.Dy()) {
-			return false
-		}
-		win.shown = true
-		return true
-	}
-
-	if !registerWelcomeClass() {
+	// The window is made and painted on its own thread, which then answers its
+	// messages; the answer arrives once the picture is on the screen, so the
+	// gate holds its cell banner back only when the picture is really there.
+	ready := make(chan uintptr, 1)
+	go runWelcomeWindow(bits, w, h, rect, ready)
+	hwnd := <-ready
+	if hwnd == 0 {
+		markWelcomeDead()
 		return false
 	}
+	welcomeMu.Lock()
+	welcomeWin = &welcomeWindow{hwnd: hwnd, shown: true, bits: bits, w: w, h: h}
+	welcomeMu.Unlock()
+	return true
+}
+
+func markWelcomeDead() {
+	welcomeMu.Lock()
+	welcomeDead = true
+	welcomeMu.Unlock()
+}
+
+// hideWelcomePicture takes the picture off the screen when the HUD opens. The
+// window's own thread closes it and ends with it, so nothing of the picture is
+// left behind to answer for.
+func hideWelcomePicture() {
+	welcomeMu.Lock()
+	win := welcomeWin
+	if win == nil || !win.shown {
+		welcomeMu.Unlock()
+		return
+	}
+	win.shown = false
+	welcomeMu.Unlock()
+	pPostMessageW.Call(win.hwnd, wmWelcomeHide, 0, 0)
+}
+
+// enableWelcomeDPI makes this programme measure its own windows in screen
+// pixels, so the picture is drawn at the file's own width instead of being
+// scaled by Windows' display setting. It must stand before the first window is
+// made; the processes that do not answer it keep the system's own choice.
+func enableWelcomeDPI() {
+	if ok, _, _ := pSetDpiAwareness.Call(dpiPerMonitorV2); ok != 0 {
+		return
+	}
+	pSetDPIAware.Call()
+}
+
+// runWelcomeWindow makes the window on a thread of its own, paints the picture
+// into it, shows it, and answers its messages until the gate asks for it back.
+func runWelcomeWindow(bits []uint8, w, h int, rect image.Rectangle, ready chan<- uintptr) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	hwnd := createWelcomeWindow(rect)
 	if hwnd == 0 {
-		return false
+		ready <- 0
+		return
 	}
 	win := &welcomeWindow{hwnd: hwnd, bits: bits, w: w, h: h}
-	welcomeWin = win
 	// Shown first and painted right after, because a surface painted while the
 	// window is hidden is not the surface the screen composites.
 	if ok, _, _ := pSetWindowPos.Call(hwnd, hwndTopmost, 0, 0, 0, 0,
 		swpNoMove|swpNoSize|swpNoActivate|swpShowWindow); ok == 0 {
-		return false
-	}
-	if !paintWelcome(win, rect.Dx(), rect.Dy()) {
-		return false
-	}
-	win.shown = true
-	return true
-}
-
-// hideWelcomePicture takes the picture off the screen when the HUD opens. The
-// window itself is kept, hidden, until the process ends.
-func hideWelcomePicture() {
-	welcomeMu.Lock()
-	defer welcomeMu.Unlock()
-	if welcomeWin == nil || !welcomeWin.shown {
+		pDestroyWindow.Call(hwnd)
+		ready <- 0
 		return
 	}
-	pShowWindow.Call(welcomeWin.hwnd, swHide)
-	welcomeWin.shown = false
+	if !paintWelcome(win, rect.Dx(), rect.Dy()) {
+		pDestroyWindow.Call(hwnd)
+		ready <- 0
+		return
+	}
+	ready <- hwnd
+	welcomePump()
+	pDestroyWindow.Call(hwnd)
+}
+
+// welcomePump answers the window's messages, which is what keeps Windows from
+// calling the programme hung, until the gate posts the word to take it down.
+func welcomePump() {
+	var msg welcomeMsg
+	for {
+		r, _, _ := pGetMessageW.Call(uintptr(unsafe.Pointer(&msg)), 0, 0, 0)
+		if int32(r) <= 0 {
+			return
+		}
+		if msg.message == wmWelcomeHide {
+			return
+		}
+		pTranslateMessage.Call(uintptr(unsafe.Pointer(&msg)))
+		pDispatchMessageW.Call(uintptr(unsafe.Pointer(&msg)))
+	}
 }
 
 // registerWelcomeClass names the window's class once for the run. The system's

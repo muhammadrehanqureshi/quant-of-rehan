@@ -128,6 +128,11 @@ func main() {
 		app.enableDemo(time.Now())
 	}
 
+	// Owner order 2026-11-27 (build 185): the programme measures in screen
+	// pixels before it makes any window, so the welcome picture is drawn at the
+	// file's own width whatever the display's scaling is set to.
+	enableWelcomeDPI()
+
 	// Owner order 2026-11-21: a build started from a shell's console opens a
 	// console of its own, so its taskbar button carries its own icon. The shell
 	// keeps its window and its prompt.

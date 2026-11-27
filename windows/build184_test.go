@@ -37,7 +37,7 @@ func TestBuild184TheBannerShowsThePicturesOwnPixels(t *testing.T) {
 }
 
 func TestBuild184TheBannerIsPlacedWholeAndNeverCut(t *testing.T) {
-	console := image.Rect(100, 50, 1300, 850)
+	console := image.Rect(100, 50, 1900, 850)
 	work := image.Rect(0, 0, 1920, 1040)
 
 	// A screen that holds the picture shows it at the file's own size, centred
@@ -51,6 +51,14 @@ func TestBuild184TheBannerIsPlacedWholeAndNeverCut(t *testing.T) {
 	}
 	if cy := r.Min.Y + r.Dy()/2; cy != 450 {
 		t.Fatalf("the picture's centre row is %d, want the console's 450", cy)
+	}
+
+	// Owner order 2026-11-27 (build 185): a console narrower than the picture
+	// holds it to the console's own width, so the banner never stands wider
+	// than the window the gate is drawn in, and it is still shrunk whole.
+	r = welcomePictureRect(image.Rect(100, 50, 1300, 850), work, 1447, 493)
+	if r.Dx() != 1200 || r.Dy() != 408 {
+		t.Fatalf("a 1200 wide console drew the picture %dx%d, want 1200x408", r.Dx(), r.Dy())
 	}
 
 	// A screen too small for it shrinks it whole, keeping its shape.

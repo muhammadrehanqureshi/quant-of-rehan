@@ -10,3 +10,7 @@ import "image"
 func showWelcomePicture(img image.Image, bg RGB) bool { return false }
 
 func hideWelcomePicture() {}
+
+// enableWelcomeDPI is Windows' own: elsewhere Windows' display setting does not
+// scale a window of ours.
+func enableWelcomeDPI() {}

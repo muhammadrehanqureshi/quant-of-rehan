@@ -53,9 +53,9 @@ func TestBuild180SettingsReadsLeftSoftAndRightWhite(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-27: the THEMES names take the left hand ink too, and the
-// theme that is ON is the tile's one bold name.
-func TestBuild180ThemesTakeTheLeftInkAndTheChosenIsBold(t *testing.T) {
+// Owner order 2026-11-27 (build 185): the THEMES names take the page's white
+// value ink, and the theme that is ON is the tile's one bold name.
+func TestBuild180ThemesTakeTheWhiteInkAndTheChosenIsBold(t *testing.T) {
 	a := demoApp(t, 140, 44)
 	a.screen = scrSettings
 	c := a.render()
@@ -64,8 +64,8 @@ func TestBuild180ThemesTakeTheLeftInkAndTheChosenIsBold(t *testing.T) {
 	if y < 0 {
 		t.Fatalf("the theme %q is not on the page", name)
 	}
-	if got := c.Cells[y*c.W+x].FG; got != a.th.Soft {
-		t.Fatalf("the chosen theme wears %v, want the left hand ink %v", got, a.th.Soft)
+	if got := c.Cells[y*c.W+x].FG; got != inkWhite {
+		t.Fatalf("the chosen theme wears %v, want the white %v", got, inkWhite)
 	}
 	if !c.Cells[y*c.W+x].Bold {
 		t.Fatalf("the theme that is ON is not bold: %q", strings.Join(c.PlainRows(), "\n"))
@@ -78,8 +78,8 @@ func TestBuild180ThemesTakeTheLeftInkAndTheChosenIsBold(t *testing.T) {
 	if c.Cells[oy*c.W+ox].Bold {
 		t.Fatalf("the theme that is OFF is bold as well: %q", other)
 	}
-	if got := c.Cells[oy*c.W+ox].FG; got != a.th.Soft {
-		t.Fatalf("the off theme wears %v, want the left hand ink %v", got, a.th.Soft)
+	if got := c.Cells[oy*c.W+ox].FG; got != inkWhite {
+		t.Fatalf("the off theme wears %v, want the white %v", got, inkWhite)
 	}
 }
 
