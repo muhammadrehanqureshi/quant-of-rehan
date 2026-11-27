@@ -80,11 +80,13 @@ func TestTheMarkIsTheShapeNotTheWords(t *testing.T) {
 	if strings.Contains(joined, basmalaWords) {
 		t.Fatalf("the mark is the words retyped:\n%s", joined)
 	}
-	for _, r := range joined {
-		switch r {
-		case ' ', '▀', '▄', '█':
-		default:
-			t.Fatalf("the mark carries %q, which is not a half block: %s", r, joined)
+	for _, row := range rows {
+		for _, r := range row {
+			switch r {
+			case ' ', '▀', '▄', '█':
+			default:
+				t.Fatalf("the mark carries %q, which is not a half block:\n%s", r, joined)
+			}
 		}
 	}
 	if !strings.ContainsAny(joined, "▀▄█") {
@@ -113,12 +115,16 @@ func TestTheGateShowsTheMarkAlone(t *testing.T) {
 	if first < 0 {
 		t.Fatalf("the gate drew no mark:\n%s", strings.Join(rows, "\n"))
 	}
+	// The shape's box is centred; its ink need not touch every row of the box,
+	// so the lit rows are checked to stand inside the box's own rows.
 	want := splashBanner(100, 30)
-	if n := last - first + 1; n != len(want) {
-		t.Fatalf("the gate drew %d rows of mark, want %d", n, len(want))
+	top := (30 - len(want)) / 2
+	if first < top || last > top+len(want)-1 {
+		t.Fatalf("the mark's ink stands on rows %d to %d, outside its box on rows %d to %d",
+			first, last, top, top+len(want)-1)
 	}
-	if before, after := first, 30-1-last; before-after > 1 || after-before > 1 {
-		t.Fatalf("the mark is not centred: %d rows above it, %d below", before, after)
+	if mid, box := (first+last)/2, top+len(want)/2; mid-box > 1 || box-mid > 1 {
+		t.Fatalf("the mark is not centred: its ink's middle is row %d, its box's is row %d", mid, box)
 	}
 	if strings.Contains(strings.Join(rows, "\n"), "QUANT OF REHAN") {
 		t.Fatalf("the gate carries a name after the mark:\n%s", strings.Join(rows, "\n"))
