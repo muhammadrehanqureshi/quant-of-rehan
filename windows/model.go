@@ -296,11 +296,17 @@ const appVersion = "4.0.21"
 // JPEG pictures as the display banner if I give you?", with his own artwork in
 // windows/assets/banner taking the gate instead of any glyph rebuilt from a
 // font, and ONLINE, ON and the big order size green on SETTINGS.
+// Build 184 is 4.4.6, the owner's 2026-11-27 correction of that banner: "this
+// is not right. this is right image ... only use this image as the welcome
+// image, DO NOT RENDER IT, just have this exact image as the welcome banner."
+// The sampled blocks are gone from the welcome: the picture itself is shown in
+// a window of its own over the gate, every pixel the file's own, and the cell
+// banner is only the fallback for a platform or a run without that window.
 //
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.4.5"
+const hudBuild = "4.4.6"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

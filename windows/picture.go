@@ -123,19 +123,31 @@ func pictureMask(img image.Image) (ligatureMask, bool) {
 }
 
 // readBannerPicture finds the picture the gate should show: a file beside the
-// exe first, then the artwork embedded from assets/banner.
+// exe first, then the artwork embedded from assets/banner. Its ink is what the
+// cell banner is rebuilt from, and that is the fallback now.
 func readBannerPicture() (ligatureMask, bool) {
+	img, ok := bannerPictureImage()
+	if !ok {
+		return ligatureMask{}, false
+	}
+	return pictureMask(img)
+}
+
+// readBannerPictureImage decodes the picture itself, the same search order as
+// the mask. The banner window shows this image as it is, so every pixel on the
+// screen is the file's own rather than a sample of its ink.
+func readBannerPictureImage() (image.Image, bool) {
 	if exe, err := os.Executable(); err == nil {
 		dir := filepath.Dir(exe)
 		for _, name := range bannerFileNames {
-			if m, ok := pictureFile(filepath.Join(dir, name)); ok {
-				return m, true
+			if img, ok := pictureFileImage(filepath.Join(dir, name)); ok {
+				return img, true
 			}
 		}
 	}
 	names, err := fs.Glob(bannerAssets, "assets/banner/*")
 	if err != nil {
-		return ligatureMask{}, false
+		return nil, false
 	}
 	sort.Strings(names)
 	for _, name := range names {
@@ -148,12 +160,46 @@ func readBannerPicture() (ligatureMask, bool) {
 		if err != nil {
 			continue
 		}
-		if m, ok := pictureFromBytes(data); ok {
-			return m, true
+		if img, ok := pictureImageFromBytes(data); ok {
+			return img, true
 		}
 	}
-	return ligatureMask{}, false
+	return nil, false
 }
+
+// pictureImageFromBytes decodes one picture, without reading its ink.
+func pictureImageFromBytes(data []byte) (image.Image, bool) {
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, false
+	}
+	return img, true
+}
+
+// pictureFileImage reads a picture file as the picture itself.
+func pictureFileImage(path string) (image.Image, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false
+	}
+	return pictureImageFromBytes(data)
+}
+
+// cachedPicture decodes a picture once and keeps it: the gate asks for the
+// banner on every frame of the welcome, and decoding it per frame would stall
+// the gate.
+func cachedPicture(f func() (image.Image, bool)) func() (image.Image, bool) {
+	var once sync.Once
+	var img image.Image
+	var ok bool
+	return func() (image.Image, bool) {
+		once.Do(func() { img, ok = f() })
+		return img, ok
+	}
+}
+
+// bannerPictureImage is the banner's picture, decoded once.
+var bannerPictureImage = cachedPicture(readBannerPictureImage)
 
 // cachedMark reads a mark once and keeps it: the gate asks for the banner on
 // every frame of the welcome, and decoding a picture per frame would stall it.

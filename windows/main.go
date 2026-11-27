@@ -138,6 +138,10 @@ func main() {
 	// Owner order 2026-11-23: the window opens on the password box before the
 	// HUD. Snapshots, --selftest, --feedwatch and --version above never see it.
 	app.locked = true
+	// Owner order 2026-11-27 (build 184): the welcome image is the picture
+	// itself, shown in its own window. A snapshot or a test draws the cell
+	// banner instead and never opens one.
+	welcomePictureAllowed = true
 
 	t := newTerm()
 	if err := app.run(t); err != nil {

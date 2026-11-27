@@ -1,0 +1,103 @@
+package main
+
+import "image"
+
+// The gate's banner, the picture itself.
+//
+// Owner order 2026-11-27 (build 184): "only use this image as the welcome
+// image, DO NOT RENDER IT, just have this exact image as the welcome banner."
+// A console lays one cell at a time and cannot put a picture on the screen, so
+// the banner is no longer rebuilt from the picture's ink into blocks: the
+// picture is shown in a window of its own, laid over the gate's middle for as
+// long as the welcome lasts, every pixel the file's own and in the picture's
+// own colours.
+//
+// The banner of cells stays as the fallback for a platform with no such window,
+// and for a run whose window cannot be made, so the gate never opens without
+// its mark. build183_test.go still covers that banner, because it is still what
+// a snapshot and a test draw.
+//
+// welcomePictureAllowed is set by main for a real interactive run, so a
+// snapshot, a self test and a test never open a window.
+var welcomePictureAllowed bool
+
+// welcomePictureUp puts the picture on the screen and says whether the gate may
+// leave its cell banner out. It is asked on every frame of the welcome; the
+// picture is decoded, and its window made, only the first time.
+func welcomePictureUp(bg RGB) bool {
+	if !welcomePictureAllowed {
+		return false
+	}
+	img, ok := bannerPictureImage()
+	if !ok {
+		return false
+	}
+	return showWelcomePicture(img, bg)
+}
+
+// welcomePicturePixels lays the picture over the gate's own background colour
+// and returns top down BGRA rows ready for the screen, one opaque pixel each.
+// A picture's transparency takes the colour of the screen behind it, exactly as
+// the picture looks on its own dark backdrop; its own pixels are left alone.
+func welcomePicturePixels(img image.Image, bg RGB) ([]uint8, int, int) {
+	if img == nil {
+		return nil, 0, 0
+	}
+	b := img.Bounds()
+	w, h := b.Dx(), b.Dy()
+	if w <= 0 || h <= 0 {
+		return nil, 0, 0
+	}
+	px := make([]uint8, w*h*4)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			// RGBA is already multiplied by the pixel's alpha.
+			r, g, bl, a := img.At(b.Min.X+x, b.Min.Y+y).RGBA()
+			ar := int(a >> 8)
+			i := (y*w + x) * 4
+			px[i+0] = uint8(int(bl>>8) + int(bg.B)*(255-ar)/255)
+			px[i+1] = uint8(int(g>>8) + int(bg.G)*(255-ar)/255)
+			px[i+2] = uint8(int(r>>8) + int(bg.R)*(255-ar)/255)
+			px[i+3] = 0xff
+		}
+	}
+	return px, w, h
+}
+
+// welcomePictureRect places the picture over the gate. It is shown at its own
+// size whenever the screen holds it, so every pixel is the file's own; a screen
+// too small for it shrinks it whole, keeping its shape. It is centred on the
+// console the gate is drawn in, and kept inside the screen's work area so no
+// part of it is ever cut off by an edge or by the taskbar. An empty rectangle
+// means the picture cannot be placed at all.
+func welcomePictureRect(console, work image.Rectangle, imgW, imgH int) image.Rectangle {
+	if imgW < 8 || imgH < 8 {
+		return image.Rectangle{}
+	}
+	maxW, maxH := work.Dx()*92/100, work.Dy()*92/100
+	if maxW < 8 || maxH < 8 {
+		return image.Rectangle{}
+	}
+	w, h := imgW, imgH
+	if w > maxW {
+		h = max(1, h*maxW/w)
+		w = maxW
+	}
+	if h > maxH {
+		w = max(1, w*maxH/h)
+		h = maxH
+	}
+	if w < 8 || h < 8 {
+		return image.Rectangle{}
+	}
+	if console.Empty() {
+		console = work
+	}
+	x := console.Min.X + console.Dx()/2 - w/2
+	y := console.Min.Y + console.Dy()/2 - h/2
+	x = min(x, work.Max.X-w)
+	y = min(y, work.Max.Y-h)
+	x = max(x, work.Min.X)
+	y = max(y, work.Min.Y)
+	return image.Rect(x, y, x+w, y+h)
+}
