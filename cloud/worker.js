@@ -96,8 +96,27 @@ const HEALTH_STATS_MEMO_MS = 30000;
 // where a poll repeats a read for five seconds instead of one.
 const REQ_STATS_MEMO_MS = 60000;
 const BUDGET_REQUESTS_PER_DAY = 100000;
-const BUDGET_BRAKE_AT = 80000;
-const BUDGET_BRAKE_MEMO_MS = 5000;
+// Owner order 2026-11-27 ("make sure I don't hit the limit of cloudflare
+// durable object today or any day from now on"): the brake is a ladder and
+// then a wall. The day is throttled at 60%, 75% and 85% of the cap by
+// lengthening the snapshot's memory, and at 90,000 requests the edge stops
+// calling the hub altogether, answering from the memory it already holds
+// until 00:00 UTC resets the count. Ten thousand requests of headroom stand
+// between the stop and the cap, which is more than an hour at any rate this
+// relay has ever measured (about 100 a minute at the busiest minute).
+// The count is written by the hub every sixty requests, so the stop is set
+// with room to spare for the up-to-59 unwritten ones.
+const BUDGET_SOFT_AT = 60000;
+const BUDGET_MID_AT = 75000;
+const BUDGET_HIGH_AT = 85000;
+const BUDGET_HARD_STOP_AT = 90000;
+const BUDGET_SOFT_MEMO_MS = 5000;
+const BUDGET_MID_MEMO_MS = 15000;
+const BUDGET_HIGH_MEMO_MS = 60000;
+// The day the edge last measured, and whether the wall is up. This memory is
+// per isolate and sticky for the UTC day: once the stop is known, no later
+// poll can talk itself back into a hub read.
+let budgetLock = { day: "", stopped: false, spent: 0 };
 const HISTORY_MEMO_MS = 5000;
 const HISTORY_MEMO_MAX = 32;
 let historyMemo = new Map();
@@ -133,6 +152,8 @@ function quoteHub(env) {
 async function quoteHubCall(env, path, init) {
   const hub = quoteHub(env);
   if (!hub) return null;
+  const budget = await budgetGuard(env);
+  if (budget.stopped) return null;
   const response = await hub.fetch("https://quote-hub" + path, init);
   if (!response.ok) throw new Error("quote hub answered " + response.status);
   return response.json();
@@ -159,6 +180,8 @@ function stateFallback(env) {
 async function stateCall(env, path, init) {
   const hub = stateHub(env);
   if (!hub) return null;
+  const budget = await budgetGuard(env);
+  if (budget.stopped) return null;
   const response = await hub.fetch("https://quote-hub" + path, init);
   if (!response.ok) throw new Error("state store answered " + response.status);
   return response.json();
@@ -2183,8 +2206,19 @@ async function budgetStats(env) {
   }
   let stats = null;
   try {
-    const raw = await quoteHubValue(env, "REQ:STATS");
-    if (raw) stats = JSON.parse(raw);
+    // The meter reads the hub DIRECTLY, never through quoteHubValue: that
+    // helper asks budgetGuard first, and the guard asks this function, so a
+    // guarded meter would call itself. One unguarded read a minute is the
+    // price of knowing the day's spend at all, and it is the only read this
+    // file makes without a gate.
+    const hub = quoteHub(env);
+    if (!hub) return null;
+    const response = await hub.fetch(
+      "https://quote-hub/state?key=" + encodeURIComponent("REQ:STATS"));
+    if (response.ok) {
+      const body = await response.json();
+      if (body && body.ok && body.value) stats = JSON.parse(body.value);
+    }
   } catch (_) {
     stats = null;
   }
@@ -2204,6 +2238,57 @@ function budgetSpent(stats) {
   return Math.max(0, Number(stats.requests_today) || 0);
 }
 
+// How long a snapshot read may be reused at the day's measured spend.
+function budgetMemoFor(spent) {
+  if (spent >= BUDGET_HIGH_AT) return BUDGET_HIGH_MEMO_MS;
+  if (spent >= BUDGET_MID_AT) return BUDGET_MID_MEMO_MS;
+  if (spent >= BUDGET_SOFT_AT) return BUDGET_SOFT_MEMO_MS;
+  return SNAPSHOT_MEMO_MS;
+}
+
+// The one question every route asks before it spends a hub request: how much
+// of the day is gone, and is the wall up? `stopped` means the edge must answer
+// from its own memory; the hub is never called again until the UTC day turns.
+async function budgetGuard(env) {
+  const day = new Date().toISOString().slice(0, 10);
+  if (budgetLock.day !== day) {
+    budgetLock = { day, stopped: false, spent: 0 };
+  }
+  if (budgetLock.stopped) {
+    return { day, spent: budgetLock.spent, stopped: true,
+      memoMs: BUDGET_HIGH_MEMO_MS };
+  }
+  const stats = await budgetStats(env);
+  const spent = budgetSpent(stats);
+  if (spent >= BUDGET_HARD_STOP_AT) {
+    budgetLock = { day, stopped: true, spent };
+    return { day, spent, stopped: true, memoMs: BUDGET_HIGH_MEMO_MS };
+  }
+  return { day, spent, stopped: false, memoMs: budgetMemoFor(spent) };
+}
+
+// What /health reports without spending a request of its own.
+function budgetBrakeState() {
+  const day = new Date().toISOString().slice(0, 10);
+  if (budgetLock.day === day && budgetLock.stopped) return "stopped";
+  const spent = budgetSpent(budgetStatsMemo.value);
+  if (spent >= BUDGET_HIGH_AT) return "emergency";
+  if (spent >= BUDGET_MID_AT) return "high";
+  if (spent >= BUDGET_SOFT_AT) return "throttled";
+  return "normal";
+}
+
+// The refusal a spending route answers once the wall is up. It names the
+// budget, never the feed, so a stale card cannot be mistaken for a dead one.
+function budgetStopAnswer(extra) {
+  return json({
+    ok: false,
+    error: "daily durable object budget spent; answering from memory until 00:00 UTC",
+    budget_stop: true,
+    ...(extra || {}),
+  }, 503, { "cache-control": "no-store" });
+}
+
 async function readQuoteSnapshot(env) {
   // One snapshot read a second serves every route on this isolate, so
   // /market, /prices, /stock and /flow can never each buy their own copy
@@ -2212,9 +2297,13 @@ async function readQuoteSnapshot(env) {
   // reused for five seconds, so a day that is running hot slows the card by
   // a few seconds instead of running the account into the cap.
   const stamp = Date.now();
-  const memoMs = budgetSpent(await budgetStats(env)) >= BUDGET_BRAKE_AT
-    ? BUDGET_BRAKE_MEMO_MS : SNAPSHOT_MEMO_MS;
-  if (snapshotMemo.value && stamp - snapshotMemo.at < memoMs) {
+  const budget = await budgetGuard(env);
+  if (budget.stopped) {
+    // The wall is up: the last frame this isolate holds keeps answering. No
+    // hub read is made, so the day cannot cross the cap on a poll.
+    return snapshotMemo.value;
+  }
+  if (snapshotMemo.value && stamp - snapshotMemo.at < budget.memoMs) {
     return snapshotMemo.value;
   }
   try {
@@ -2992,6 +3081,10 @@ async function healthPayload(env) {
     // on, counted by the hub that answers every quote read and every push.
     do_requests: diagnostics.doRequests,
     do_requests_limit: BUDGET_REQUESTS_PER_DAY,
+    // normal, throttled, high, emergency or stopped: what the ladder is doing
+    // to the reads right now, so the owner and the budget guard can see the
+    // relay saving itself instead of guessing from one number.
+    do_requests_brake: budgetBrakeState(),
     // The commit this script was built from. The deploy workflow sets it from
     // GITHUB_SHA and then asks /health for it, so a deploy that uploaded
     // nothing (or uploaded to another account) cannot pass as a success.
@@ -3073,6 +3166,7 @@ export default {
       }
       const hub = quoteHub(env);
       if (!hub) return json({ ok: false, error: "quote hub not configured" }, 503);
+      if ((await budgetGuard(env)).stopped) return budgetStopAnswer();
       const response = await hub.fetch(new Request("https://quote-hub/stream", request));
       if (response.status === 101) return response;
       return new Response(response.body, {
@@ -3154,6 +3248,7 @@ export default {
       const query = new URLSearchParams({ resolution, limit: String(limit) });
       if (symbol) query.set("symbol", symbol);
       if (day) query.set("day", day);
+      if ((await budgetGuard(env)).stopped) return budgetStopAnswer();
       const answer = await hub.fetch("https://quote-hub/history?" + query.toString());
       const body = await answer.json().catch(() => ({
         ok: false, error: "quote hub answered invalid JSON",
@@ -3202,6 +3297,7 @@ export default {
       }
       const hub = quoteHub(env);
       if (!hub) return json({ ok: false, error: "quote hub not configured" }, 503, headers);
+      if ((await budgetGuard(env)).stopped) return budgetStopAnswer();
       const answer = await hub.fetch("https://quote-hub/bars?" + new URLSearchParams({
         symbol, tf, days: String(days), limit: String(limit),
       }).toString());
@@ -3268,6 +3364,7 @@ export default {
       if (shapeError) return json({ ok: false, error: shapeError }, 400);
       const hub = quoteHub(env);
       if (!hub) return json({ ok: false, error: "quote hub not configured" }, 503);
+      if ((await budgetGuard(env)).stopped) return budgetStopAnswer();
       const response = await hub.fetch("https://quote-hub/update", {
         method: "POST",
         headers: { "content-type": "application/json" },

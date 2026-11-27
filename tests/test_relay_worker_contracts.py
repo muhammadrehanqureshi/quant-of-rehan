@@ -782,19 +782,50 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertNotIn("ackUpsert", prices)
         self.assertIn("ackRowsForDay(env, ackDay)", prices)
 
-    def test_the_days_durable_object_spend_is_measured_and_braked(self):
-        """Owner report 2026-11-27: the dashboard reached 90 percent of the
-        free plan's 100,000 Durable Object requests in one day and nothing in
-        the relay could say which read spent them. /health, polled by the
-        phone every five seconds, read three diagnostics with no memory of
-        their own. The hub now counts the requests it answers, /health carries
-        the measured number, and past the warning line a poll repeats a read
-        for five seconds instead of one.
+    def test_the_relay_stops_before_the_durable_object_cap(self):
+        """Owner order 2026-11-27: "make sure I don't hit the limit of
+        cloudflare durable object today or any day from now on".
+
+        A brake that only lengthened a memory would still spend until the cap
+        arrived, because the hub counts a request when it is entered. So the
+        day now has a ladder (60, 75 and 85 percent, each a longer snapshot
+        memory) and then a wall at 90,000 requests, where the edge stops
+        calling the hub at all and answers from the frame it already holds.
+        Ten thousand requests of headroom is more than an hour at the relay's
+        busiest measured minute, which covers the up-to-59 requests the hub has
+        not yet written to its counter.
         """
-        self.assertIn("const HEALTH_STATS_MEMO_MS = 30000;", self.source)
         self.assertIn("const BUDGET_REQUESTS_PER_DAY = 100000;", self.source)
-        self.assertIn("const BUDGET_BRAKE_AT = 80000;", self.source)
-        self.assertIn("const BUDGET_BRAKE_MEMO_MS = 5000;", self.source)
+        self.assertIn("const BUDGET_SOFT_AT = 60000;", self.source)
+        self.assertIn("const BUDGET_MID_AT = 75000;", self.source)
+        self.assertIn("const BUDGET_HIGH_AT = 85000;", self.source)
+        self.assertIn("const BUDGET_HARD_STOP_AT = 90000;", self.source)
+        self.assertIn("const BUDGET_SOFT_MEMO_MS = 5000;", self.source)
+        self.assertIn("const BUDGET_MID_MEMO_MS = 15000;", self.source)
+        self.assertIn("const BUDGET_HIGH_MEMO_MS = 60000;", self.source)
+        # The stop is a wall, not a hint: nothing that answers from a hub read
+        # may skip the gate, and the gate is sticky once the day is over its
+        # line, so a later poll cannot talk itself back into the hub.
+        self.assertIn("async function budgetGuard(env) {", self.source)
+        self.assertIn("if (budgetLock.stopped) {", self.source)
+        self.assertIn("budgetLock = { day, stopped: true, spent };",
+                      self.source)
+        self.assertIn("if ((await budgetGuard(env)).stopped) return "
+                      "budgetStopAnswer();", self.source)
+        self.assertIn("budget_stop: true,", self.source)
+        # Every funded read path asks the gate before it spends.
+        for path in ('"/quotes/stream"', '"/history"', '"/bars"',
+                     '"/update"'):
+            self.assertIn(path, self.source)
+        self.assertIn("if (budget.stopped) return null;", self.source)
+        self.assertIn("const budget = await budgetGuard(env);", self.source)
+        self.assertIn("return snapshotMemo.value;", self.source)
+        # The meter reads the hub directly, or it would call itself through
+        # the gate that asks it how much of the day is spent.
+        self.assertIn(
+            '"https://quote-hub/state?key=" + encodeURIComponent("REQ:STATS")',
+            self.source)
+        self.assertIn("do_requests_brake: budgetBrakeState(),", self.source)
         self.assertIn("async function healthDiagnostics(env) {", self.source)
         self.assertIn('this.statePut("REQ:STATS", JSON.stringify({',
                       self.source)
@@ -802,9 +833,6 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("do_requests: diagnostics.doRequests,", self.source)
         self.assertIn("do_requests_limit: BUDGET_REQUESTS_PER_DAY,",
                       self.source)
-        self.assertIn(
-            "budgetSpent(await budgetStats(env)) >= BUDGET_BRAKE_AT",
-            self.source)
         self.assertIn("await this.loadRequestStats();", self.source)
         self.assertIn("this.noteRequest();", self.source)
 
