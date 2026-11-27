@@ -272,7 +272,10 @@ func TestLatestSignalTileWords(t *testing.T) {
 }
 
 // Owner order 2026-11-07: the ORDER FLOW page carries its own search box.
-func TestOrderFlowSearchFiltersTheList(t *testing.T) {
+// Owner order 2026-11-27: the search reads exactly like the WATCH LIST's. Its
+// answers stand in a drop down, the table keeps every stock while he types, and
+// ENTER highlights the scrip he chose instead of emptying the page.
+func TestOrderFlowSearchKeepsEveryRowAndPicksOne(t *testing.T) {
 	a := orderFlowApp(t, 122, 30, sampleOrderFlow)
 	a.onKey(Key{Kind: KRune, R: '/'})
 	if !a.ofSearch {
@@ -284,16 +287,23 @@ func TestOrderFlowSearchFiltersTheList(t *testing.T) {
 	if a.ofQuery != "BBB" {
 		t.Fatalf("the search box holds %q", a.ofQuery)
 	}
-	rows := a.sortedFlow()
-	if len(rows) != 1 || rows[0].Symbol != "BBB" {
-		t.Fatalf("BBB must be the only row left: %+v", rows)
+	if rows := a.sortedFlow(); len(rows) != 4 {
+		t.Fatalf("the table must keep all four stocks while he types, it has %d", len(rows))
 	}
-	if s := plain(a); !strings.Contains(s, "BBB") || strings.Contains(s, "AAA") {
-		t.Errorf("the filtered screen still shows another stock:\n%s", s)
+	m := a.flowMatches(a.ofQuery)
+	if len(m) != 1 || m[0].Symbol != "BBB" {
+		t.Fatalf("the answers must be BBB alone: %+v", m)
+	}
+	if s := plain(a); !strings.Contains(s, "BBB") || !strings.Contains(s, "AAA") {
+		t.Errorf("the search hid a stock from the table:\n%s", s)
+	}
+	a.onKey(Key{Kind: KEnter})
+	if a.ofPick != "BBB" || a.ofSearch {
+		t.Fatalf("ENTER must highlight BBB: pick %q, typing %v", a.ofPick, a.ofSearch)
 	}
 	a.onKey(Key{Kind: KEsc})
-	if a.ofQuery != "" || a.ofSearch || len(a.sortedFlow()) != 4 {
-		t.Errorf("ESC must clear the search: %q %v %d", a.ofQuery, a.ofSearch, len(a.sortedFlow()))
+	if a.ofQuery != "" || a.ofSearch || a.ofPick != "" || len(a.sortedFlow()) != 4 {
+		t.Errorf("ESC must clear the search: %q %v %q %d", a.ofQuery, a.ofSearch, a.ofPick, len(a.sortedFlow()))
 	}
 }
 
