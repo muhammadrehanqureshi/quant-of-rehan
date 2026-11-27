@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 179
+# Quant of Rehan for Windows (console edition), build 180
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 180
+
+* **Build 180 (version 4.4.2).** SETTINGS is read in two inks: every label on the left hand side, the theme names included, wears the small print grey beside the switches, and every value on the right hand side is white, the BUILD VERSION & RELAY facts included. The theme that is ON stays the tile's one bold name. TELEMETRY's SYNCED is green and bold, its age running after it in the body ink. On KSE100 the money in front of BUYING NOW is as bold as the scrips beside it. The sign in banner is the phrase itself again, written once on one single line, so no dotted art and no second row of words stands on the gate. The executable's file version is `4.4.2.0`.
 
 ## What is new in build 179
 

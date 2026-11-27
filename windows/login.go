@@ -161,23 +161,16 @@ func (a *App) drawLogin(c *Canvas) {
 
 // drawSplash is what the gate becomes once the password is right. Owner order
 // 2026-11-26 (later): the banner carries the basmala and nothing else, and the
-// HUD takes the screen after it and after nothing else. The words are the
-// braille art of basmala.go: whole letters, joined, read right to left, with no
-// cell cutting a glyph and no text drawn beside them. Owner order 2026-11-26
-// (later still): the banner stands at half the width it took before, so the
-// words read as a mark in the middle of the gate rather than as a full width
-// band.
+// HUD takes the screen after it and after nothing else. The words come from
+// basmala.go as text, never as a picture: one line, the phrase exactly as he
+// typed it, read right to left by the terminal's own Arabic shaping.
+// Owner order 2026-11-27: the words are written, not pictured, and they stand
+// on ONE line: the phrase is centred on the gate's middle row exactly as he
+// typed it, with no art pass, no wrap and nothing after it.
 func (a *App) drawSplash(c *Canvas) {
 	th := a.th
-	if lines := basmalaArt(min((c.W-4)/2, 100), c.H-4); len(lines) > 0 {
-		top := max(0, (c.H-len(lines))/2)
-		for i, line := range lines {
-			c.Text(max(0, (c.W-runeLen(line))/2), top+i, c.W, line, th.Hot, true)
-		}
+	if c.W < runeLen(basmalaWords)+2 || c.H < 3 {
 		return
 	}
-	// A window too small to carry the art still says the words.
-	if c.W >= runeLen(basmalaWords)+2 && c.H >= 3 {
-		c.Text(max(0, (c.W-runeLen(basmalaWords))/2), c.H/2, c.W, basmalaWords, th.Hot, true)
-	}
+	c.Text(max(0, (c.W-runeLen(basmalaWords))/2), c.H/2, c.W, basmalaWords, th.Hot, true)
 }

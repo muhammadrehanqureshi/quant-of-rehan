@@ -129,41 +129,33 @@ func TestTheLinkLineClosesWithAFullStopAndOpensSyncedWithACapital(t *testing.T) 
 
 // Owner order 2026-11-26 (later): the right password shows the basmala and
 // nothing after it, and only then does the HUD take the screen.
-// hasBasmalaArt says whether the screen carries the dotted art of the words.
-func hasBasmalaArt(rows string) bool {
-	return strings.ContainsRune(rows, basmalaDot)
+// hasBasmala says whether the screen carries the phrase in its own words.
+func hasBasmala(rows string) bool {
+	return strings.Contains(rows, basmalaWords)
 }
 
-// The banner is a picture of the phrase, not text in cells. Owner order
-// 2026-11-27: it is made of one single dot and nothing else, so a cell is a dot
-// or a space, the dots stand continuous from cell to cell, every line is the
-// same width, and no block mark appears anywhere in it.
-func TestTheBannerIsThePhraseDrawnWhole(t *testing.T) {
-	for _, cols := range []int{60, 100, 160} {
-		lines := basmalaArt(cols, 40)
-		if len(lines) < 4 {
-			t.Fatalf("%d cells: the art is %d lines", cols, len(lines))
+// Owner order 2026-11-27: "write these words exactly in the one dotted line ...
+// make it written in only one single continuous line." The banner is the phrase
+// itself now: the words stand on ONE row, in their own letters, nothing is
+// sampled into dots, and no other row carries the phrase.
+func TestTheBannerIsTheWordsOnOneLine(t *testing.T) {
+	for _, sz := range [][2]int{{60, 20}, {100, 30}, {200, 40}} {
+		a := lockedApp(t, sz[0], sz[1])
+		typeRunes(a, wantUnlockPassword)
+		a.onKey(Key{Kind: KEnter})
+		rows := a.render().PlainRows()
+		found := 0
+		for _, row := range rows {
+			if strings.Contains(row, basmalaWords) {
+				found++
+			}
 		}
-		want := runeLen(lines[0])
-		for i, line := range lines {
-			if runeLen(line) != want {
-				t.Fatalf("%d cells: line %d is %d cells wide, want %d", cols, i, runeLen(line), want)
-			}
-			if want > cols {
-				t.Fatalf("%d cells: the art is %d cells wide", cols, want)
-			}
-			blank := true
-			for _, r := range line {
-				switch r {
-				case basmalaDot:
-					blank = false
-				case ' ':
-				default:
-					t.Fatalf("%d cells: line %d carries %U, not the one dot", cols, i, r)
-				}
-			}
-			if blank {
-				t.Fatalf("%d cells: line %d is empty", cols, i)
+		if found != 1 {
+			t.Fatalf("%dx%d: the phrase stands on %d rows, want exactly one", sz[0], sz[1], found)
+		}
+		for _, row := range rows {
+			if strings.ContainsRune(row, '●') {
+				t.Fatalf("%dx%d: the dotted art is back on the gate:\n%s", sz[0], sz[1], strings.Join(rows, "\n"))
 			}
 		}
 	}
@@ -177,7 +169,7 @@ func TestThePasswordShowsTheBasmalaAloneThenTheHud(t *testing.T) {
 		t.Fatalf("the gate after the right password: passOK=%v locked=%v", a.passOK, a.locked)
 	}
 	rows := screenOf(a)
-	if !hasBasmalaArt(rows) {
+	if !hasBasmala(rows) {
 		t.Fatalf("the basmala is not on the gate:\n%s", rows)
 	}
 	if strings.Contains(rows, "QUANT OF REHAN") {
@@ -189,30 +181,25 @@ func TestThePasswordShowsTheBasmalaAloneThenTheHud(t *testing.T) {
 	}
 }
 
-// Owner order 2026-11-26 (later still): the banner stands at half the width it
-// took before, so the words read as a mark in the middle of the gate.
-func TestTheBannerIsHalfTheWidthOfTheWindow(t *testing.T) {
+// Owner order 2026-11-27: the words are one centred line, so the air on the
+// left of the phrase is the air on its right, on the gate's middle row.
+func TestTheBannerIsCentredOnOneRow(t *testing.T) {
 	a := lockedApp(t, 200, 40)
 	typeRunes(a, wantUnlockPassword)
 	a.onKey(Key{Kind: KEnter})
-	widest := 0
-	for _, row := range a.render().PlainRows() {
-		n := 0
-		for _, r := range row {
-			if r == basmalaDot {
-				n++
-			}
+	rows := a.render().PlainRows()
+	for _, row := range rows {
+		at := strings.Index(row, basmalaWords)
+		if at < 0 {
+			continue
 		}
-		if n > widest {
-			widest = n
+		after := runeLen(row) - at - runeLen(basmalaWords)
+		if diff := at - after; diff > 1 || diff < -1 {
+			t.Fatalf("the phrase is not centred: %d cells before it, %d after", at, after)
 		}
+		return
 	}
-	if widest == 0 {
-		t.Fatal("the banner drew no art")
-	}
-	if widest > 100 {
-		t.Fatalf("the banner is %d cells wide, want at most 100 in a 200 cell window", widest)
-	}
+	t.Fatal("the gate drew no phrase")
 }
 
 // Owner order 2026-11-26 (later): one space stands between PKR and its price on
