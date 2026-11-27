@@ -292,11 +292,15 @@ const appVersion = "4.0.21"
 // shape, asked of Windows' text engine, as solid blocks across about 40% of the
 // gate's rows; if that shape cannot be drawn the ligature itself stands on the
 // middle row. Nothing else is drawn on the gate either way.
+// Build 183 is 4.4.5: the same order carried further, "can you display PNG/JPG/
+// JPEG pictures as the display banner if I give you?", with his own artwork in
+// windows/assets/banner taking the gate instead of any glyph rebuilt from a
+// font, and ONLINE, ON and the big order size green on SETTINGS.
 //
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.4.4"
+const hudBuild = "4.4.5"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

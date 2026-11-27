@@ -1,7 +1,11 @@
-# Quant of Rehan for Windows (console edition), build 182
+# Quant of Rehan for Windows (console edition), build 183
 
 A Windows 11 console version of the Quant of Rehan Android app, matching app **4.0.21**, in the look of the first build.
 One file of about 7 MB, no installer, no runtime, no dependencies. Around 2% of one CPU core and 13 MB of memory while it animates.
+
+## What is new in build 183
+
+* **Build 183 (version 4.4.5).** The sign in banner is a picture now, on his order: "can you display PNG/JPG/JPEG pictures as the display banner if I give you?" The artwork is `assets/banner/durood-ibrahimi-white.png`, embedded in the exe as a PNG, and the gate shows it at about 40% of its rows instead of rebuilding the mark from a font. Any `.png`, `.jpg` or `.jpeg` in `assets/banner` is embedded and read the same way, white on a clear field by its alpha and white on a dark one by its brightness, so a new picture needs only a rebuild; a file named `banner.png`, `banner.jpg` or `banner.jpeg` beside the exe is preferred over the embedded one, so a new picture needs no rebuild at all. A sheet that is lit edge to edge is refused, so a blank page can never become a solid block, and when no picture can be read the build falls back to the ligature's own shape and then to the character itself. On SETTINGS, ONLINE, ON and the big order size read green. The executable's file version is `4.4.5.0`.
 
 ## What is new in build 182
 

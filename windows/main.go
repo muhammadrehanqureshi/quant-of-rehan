@@ -35,10 +35,11 @@ func main() {
 		}
 	}()
 
-	// The gate's banner is the ligature's own shape, asked of Windows' text
-	// engine. Only a real run asks for it, so a failure here leaves the gate on
-	// the character itself and the tests on a fixed, drawable banner.
-	ligatureGlyph = platformLigatureGlyph
+	// The gate's banner is the picture he gave, and the ligature's own shape
+	// asked of Windows' text engine when no picture is there. Only a real run
+	// asks for either, so a failure here leaves the gate on the character itself
+	// and the tests on a fixed, drawable banner.
+	ligatureGlyph = bannerMark
 
 	var (
 		relayURL  = flag.String("relay", "", "relay address for this run only (the default is the relay built into the app)")

@@ -22,9 +22,11 @@ import (
 // basmalaShare is the share of the gate's rows the banner takes.
 const basmalaShare = 0.40
 
-// ligatureInkCut is the coverage a block needs before it is lit. It is under a
-// half so the hairline strokes of the calligraphy survive the sampling.
-const ligatureInkCut = 0.30
+// ligatureInkCut is the coverage a block needs before it is lit. It is well
+// under a half so the hairline strokes of the calligraphy survive the sampling:
+// the owner's picture is a wide sheet squeezed into a few dozen cells, and a
+// stroke thinner than its box would otherwise drop out of the mark.
+const ligatureInkCut = 0.22
 
 // ligatureMask is the ligature's ink as a grid of coverage, 0 to 255, already
 // cut to the ink's own edges so the banner fills the width it is given.

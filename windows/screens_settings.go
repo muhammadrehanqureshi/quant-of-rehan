@@ -24,10 +24,19 @@ func (a *App) relayStatus() (string, RGB) {
 // whiteInk returns the same spans in the page's white. Owner order 2026-11-27:
 // the right hand side of SETTINGS is white, so a state's own green or red is
 // replaced here rather than at each of the eight rows.
-func whiteInk(sp []Span) []Span {
+//
+// Owner order 2026-11-27 (build 183): ONLINE, ON and the big order size are
+// green, so a state that already wears the theme's good or bad ink keeps it and
+// only the rest of the right hand side is turned white. A switch that is ON
+// therefore reads green and one that is OFF still reads red beside it.
+func (a *App) whiteInk(sp []Span) []Span {
 	out := make([]Span, len(sp))
 	for i, s := range sp {
-		out[i] = Span{s.S, inkWhite, s.Bold}
+		ink := inkWhite
+		if s.FG == a.th.Good || s.FG == a.th.Bad {
+			ink = s.FG
+		}
+		out[i] = Span{s.S, ink, s.Bold}
 	}
 	return out
 }
@@ -75,7 +84,7 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 		// ink as the small print beside the switches (th.Soft), while every
 		// value on the right hand side is white, whatever state it reports.
 		c.Text(ix+3, row, 22, left, th.Soft, cur)
-		c.Spans(ix+26, row, rowW-26, whiteInk(right))
+		c.Spans(ix+26, row, rowW-26, a.whiteInk(right))
 		row++
 	}
 	onoff := func(b bool, extra string) []Span {
@@ -93,7 +102,8 @@ func (a *App) drawSettings(c *Canvas, x, y, w, h int) {
 	item(2, "BIG BUYING FLAG", onoff(a.cfg.BigBuy, "  Alerts you when buyers dominate."))
 	item(3, "BIG SELLING FLAG", onoff(a.cfg.BigSell, "  Alerts you when sellers dominate."))
 	item(4, "SOUND", onoff(a.cfg.Sound, "  A tone plays with alerts."))
-	item(5, "BIG ORDER SIZE", []Span{{compactNum(float64(a.cfg.BigOrderQty)) + " shares", th.Hot, true}})
+	// Owner order 2026-11-27 (build 183): the order size reads green too.
+	item(5, "BIG ORDER SIZE", []Span{{compactNum(float64(a.cfg.BigOrderQty)) + " shares", th.Good, true}})
 	item(6, "TEST BUYING ALERT", []Span{{"Plays the buying tone and a test pop-up.", th.Soft, false}})
 	item(7, "TEST SELLING ALERT", []Span{{"Plays the selling tone and a test pop-up.", th.Soft, false}})
 
