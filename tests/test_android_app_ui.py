@@ -846,10 +846,16 @@ class SettingsControlTest(unittest.TestCase):
         # Owner report 2026-11-06: one 1dp line between each pair of sector
         # rows, exactly the line every other dropdown draws.
         self.assertIn("sectorsMenu.addView(menuDivider());", self.main)
-        # Owner order 2026-11-13: the menu is a six-row window with the big
+        # Owner order 2026-11-13: the menu is a scrolling window with the big
         # prints board's diamond scroller, sorted by the sector's own
         # percentage, and every known percentage carries its arrow.
-        self.assertIn("private static final int SECTOR_ROWS = 6;", self.main)
+        # Owner order 2026-11-27 (third pass): "make the SECTORS tile display
+        # all 8 sectors name properly, right now the 8th one is getting cut
+        # off" - the window measures the broker's WHOLE list (eight is its
+        # floor for an empty answer), so no sector stands out of sight.
+        self.assertIn("private static final int SECTOR_ROWS = 8;", self.main)
+        self.assertIn("int rows = Math.max(SECTOR_ROWS, sectorRows.size());",
+                      self.main)
         self.assertIn("sectorsMenu.post(this::fitSectorWindow);", self.main)
         # Owner order 2026-11-16: the window includes the menu's own edge air,
         # so its first and last rows are never clipped.
@@ -2446,10 +2452,13 @@ class VersionTest(unittest.TestCase):
         # core replaces the photographed sun. Second pass that day: both
         # search boxes take their 43dp plate back, a match is a scrip that
         # STARTS with the typed letters, the frames and the scan line leave
-        # the orb, and the greeting wears the tagline's face.
-        # They ship as 4.5.2, versionCode 146.
-        self.assertIn('android:versionName="4.5.2"', manifest)
-        self.assertIn('android:versionCode="146"', manifest)
+        # the orb, and the greeting wears the tagline's face. Third pass that
+        # day: the greeting is 18.3sp, the compass circle takes the outside
+        # start of the ticks, the SECTORS tile lists all eight, and the two
+        # search boxes are the scrip row's 32dp.
+        # They ship as 4.5.3, versionCode 147.
+        self.assertIn('android:versionName="4.5.3"', manifest)
+        self.assertIn('android:versionCode="147"', manifest)
         # Owner order 2026-11-24: no part of either build's version reads above
         # ten, so 3.10.10 is followed by 4.0.0 and .11 never exists.
         shipped = manifest.split('android:versionName="', 1)[1].split('"', 1)[0]
@@ -2700,10 +2709,13 @@ class VersionTest(unittest.TestCase):
         # print on the tap, and the Jarvis core replaces the sun. Second pass
         # that day: the two boxes are 43dp, only a scrip STARTING with the
         # typed letters matches, the orb loses its frames and its scan line,
-        # and the greeting wears the PSX's KMIALL INDEX face. They ship as
-        # 4.5.2, versionCode 146.
-        self.assertIn('android:versionCode="146"', manifest)
-        self.assertIn('android:versionName="4.5.2"', manifest)
+        # and the greeting wears the PSX's KMIALL INDEX face. Third pass that
+        # day: the greeting is 18.3sp, the compass circle takes the outside
+        # start of the ticks, the SECTORS tile lists all eight, and the two
+        # search boxes are the scrip row's 32dp. They ship as 4.5.3,
+        # versionCode 147.
+        self.assertIn('android:versionCode="147"', manifest)
+        self.assertIn('android:versionName="4.5.3"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
@@ -3024,7 +3036,11 @@ class UniversalSizeTest(unittest.TestCase):
         # v2.2.1: the greeting grew +10% from ITS OWN current size,
         # 23.7 x 1.10 = 26.07 => 26.1sp, the fourth growth of this one
         # line; the body is still the one 13sp.
-        self.assertEqual(sizes, {"13sp", "26.1sp"})
+        # Owner order 2026-11-27 (third pass): "reduce the font size of the
+        # greeting by 30% from its current font size" - 26.1 x 0.70 = 18.27,
+        # rounded where every growth of this line rounded, to 18.3sp; the
+        # body is still the one 13sp.
+        self.assertEqual(sizes, {"13sp", "18.3sp"})
         label = self.styles[self.styles.index('name="QorLabel"'):]
         self.assertIn('android:textSize">15.944049sp',
                       label[:label.index("</style>")])
@@ -3190,6 +3206,9 @@ class SearchBoxGapTest(unittest.TestCase):
         # that morning read as a shortened box, so the 43dp field plate is
         # back on both searches, the height every other field carries, with
         # the same 3dp air above and below the line.
+        # Owner order 2026-11-27 (third pass): "make that space's height same
+        # as the height of the search results scrips" - the box is the 32dp
+        # every scrip row wears, the plate measure again, with the same air.
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingTop"), "3dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingBottom"), "3dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingLeft"), "10dp")
@@ -3202,9 +3221,9 @@ class SearchBoxGapTest(unittest.TestCase):
         # field box carries - and no floor is named again under the
         # height it retired.
         self.assertEqual(self.box.get(f"{ANDROID_NS}layout_height"),
-                         "43dp")
+                         "32dp")
         self.assertIsNone(self.box.get(f"{ANDROID_NS}minHeight"))
-        self.assertIn('android:layout_height="43dp"',
+        self.assertIn('android:layout_height="32dp"',
                       LAYOUT.read_text(encoding="utf-8"))
 
     def test_the_hidden_rows_start_hidden_in_the_layout(self):
@@ -3402,7 +3421,9 @@ class MenuOrdersTest(unittest.TestCase):
         # seam, same ink.
         self.assertIn('android:fontFamily="@font/lemonmilk_light"', greeting)
         self.assertNotIn('@font/bonskin', greeting)
-        self.assertIn('android:textSize="26.1sp"', greeting)
+        # Owner order 2026-11-27 (third pass): the same face, 30% smaller -
+        # 26.1 x 0.70 = 18.27, rounded to 18.3sp.
+        self.assertIn('android:textSize="18.3sp"', greeting)
         block = self.main[self.main.index("private void refreshGreeting()"):]
         block = block[:block.index("private void buildThemeMenu()")]
         for resource in ("greeting_morning", "greeting_afternoon"):
@@ -4323,16 +4344,22 @@ class ThinkingOrbPlanTest(unittest.TestCase):
     def test_the_compass_circle_rides_the_start_of_every_tick(self):
         # "the circle at the very outside of the ORB is not sitting exactly on
         # the small lines, make that outside circle sit on the exact starting
-        # of the little lines": one radius, tickInner, serves both the circle
+        # of the little lines": one radius, tickOuter, serves both the circle
         # and the first point of every tick.
+        # Owner order 2026-11-27 (third pass): "make the circle sit at the
+        # exact starting of those little lines ... on the other side of those
+        # little circular lines, on the exact starting point from outside" -
+        # the circle keeps its one radius but that radius is now the OUTSIDE
+        # end of the ticks, so every line runs inward from the ring.
         ring = self.orb[self.orb.index("private void drawRing("):]
         ring = ring[:ring.index("private void drawTicks(")]
-        self.assertIn("canvas.drawCircle(cx, cy, tickInner, ringPaint);", ring)
+        self.assertIn("canvas.drawCircle(cx, cy, tickOuter, ringPaint);", ring)
         self.assertNotIn("canvas.drawCircle(cx, cy, reach, ringPaint);", ring)
         ticks = self.orb[self.orb.index("private void drawTicks("):]
         ticks = ticks[:ticks.index("private void drawArcs(")]
-        self.assertIn("float from = tickInner;", ticks)
-        self.assertIn("float to = from + dp(major ? 11f : 6f);", ticks)
+        self.assertIn("float to = tickOuter;", ticks)
+        self.assertIn("float from = to - dp(major ? 11f : 6f);", ticks)
+        self.assertNotIn("tickInner", self.orb)
 
     def test_the_park_is_frozen_but_visible(self):
         # "it will stop moving, it should not disappear completely":
