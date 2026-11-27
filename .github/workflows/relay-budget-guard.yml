@@ -116,13 +116,15 @@ jobs:
           do_limit = health.get("do_requests_limit")
           if (isinstance(spent, (int, float))
                   and isinstance(do_limit, (int, float)) and do_limit > 0
-                  and spent >= do_limit * 0.7):
+                  and spent >= do_limit * 0.5):
               messages.append(
                   "Quant of Rehan relay Durable Objects budget is at "
                   f"{spent}/{do_limit} requests today "
-                  f"({spent / do_limit:.0%}) of the free plan's daily cap. "
-                  "The relay brakes its own reads at 80 percent; at the cap "
-                  "the feed stops until 00:00 UTC. Cloudflare day "
+                  f"({spent / do_limit:.0%}) of the free plan's daily cap, "
+                  f"brake {health.get('do_requests_brake') or 'unknown'}. "
+                  "The relay slows its reads at 60, 75 and 85 percent and "
+                  "stops calling the hub at 90,000, answering from memory "
+                  "until 00:00 UTC. Cloudflare day "
                   f"{do_requests.get('day')}. This alert repeats at most once "
                   "per day."
               )

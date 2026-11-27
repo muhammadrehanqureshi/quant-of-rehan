@@ -45,6 +45,26 @@ status surface, on the Cloudflare edge off your PC.
   2026-10-31 retires the market open/close/break emails entirely, and no
   cron sends a chat message.
 
+## The Durable Object day
+
+Workers Free allows 100,000 Durable Object requests per UTC day, and the
+relay now answers under that cap by construction, not by hope. The hub counts
+every request it serves and publishes the figure as `REQ:STATS`; `/health`
+carries it as `do_requests` with `do_requests_limit` and `do_requests_brake`.
+The brake is a ladder and then a wall:
+
+- 60,000 requests: a quote snapshot read is reused for 5 seconds
+- 75,000 requests: 15 seconds
+- 85,000 requests: 60 seconds
+- 90,000 requests: the edge stops calling the hub for the rest of the UTC
+  day. `/quotes` keeps answering from the last frame the isolate holds,
+  `/health` keeps answering from its memory, and routes that would need a
+  new hub read answer 503 with `budget_stop: true` until 00:00 UTC.
+
+The 10,000 requests between the wall and the cap cover the up-to-59 requests
+the hub has counted but not yet written to `REQ:STATS`. The relay budget
+guard emails the owner from 50 percent of the cap.
+
 ## The complete order flow (`GET /flow`)
 
 Owner order 2026-11-04: the owner's own Windows build reads the cloud, so
