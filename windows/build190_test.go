@@ -31,8 +31,13 @@ func TestBuild190OrderFlowFootDropsTheDotAndSaysAndAbove(t *testing.T) {
 	if len(rest) < 3 || rest[0] != ' ' || rest[1] == ' ' {
 		t.Fatalf("the foot holds %q after B or S., want one space before the count", string(rest))
 	}
-	if !strings.Contains(string(rest), " large prints of QTY 50k and above.") {
-		t.Fatalf("the foot does not close on large prints of QTY 50k and above: %q", string(rest))
+	// Owner order 2026-11-28 (build 191): the word "large" is withdrawn, so
+	// the foot names the board's prints and their quantity alone.
+	if !strings.Contains(string(rest), " prints of QTY 50k and above.") {
+		t.Fatalf("the foot does not close on prints of QTY 50k and above: %q", string(rest))
+	}
+	if strings.Contains(string(rest), "large") {
+		t.Fatalf("the foot still says large: %q", string(rest))
 	}
 	if strings.Contains(string(rest), "·") {
 		t.Fatalf("the foot still carries the centred dot: %q", string(rest))
@@ -77,8 +82,10 @@ func TestBuild190PhaseClosedIsRedAndOpenIsGreen(t *testing.T) {
 	check(true, "OPEN", a.th.Good)
 }
 
-// The opened SECTORS list keeps PKR and its figures one cell left of where
-// build 185 placed them, on every row of the tile.
+	// The opened SECTORS list keeps PKR and its figures left of where build 185
+// placed them, on every row of the tile. Owner order 2026-11-28 (build 191):
+// build 190's one cell read as unmoved on his screen, so the column takes one
+// more cell and stands two cells off the frame's right edge.
 func TestBuild190SectorPricesStepOneCellLeft(t *testing.T) {
 	a := demoApp(t, 158, 41)
 	a.demo = false
@@ -95,7 +102,7 @@ func TestBuild190SectorPricesStepOneCellLeft(t *testing.T) {
 	const w, h = 120, 12
 	scratch := NewCanvas(w, h, a.th.Panel)
 	ix, _, iw, _ := a.panel(scratch, 0, 0, w, h, "SECTORS", sectorMoveHint)
-	want := ix + iw - quoteWidth(8) - 1
+	want := ix + iw - quoteWidth(8) - 2
 	c := NewCanvas(w, h, a.th.Panel)
 	a.drawSectorOpen(c, 0, 0, w, h)
 	found := 0
@@ -109,10 +116,10 @@ func TestBuild190SectorPricesStepOneCellLeft(t *testing.T) {
 			t.Fatalf("PKR stands on cell %d, want %d: %q", i, want, row)
 		}
 		r := []rune(row)
-		if r[ix+iw-3] != '%' {
-			t.Fatalf("the percentage does not close two cells inside the frame: %q", row)
+		if r[ix+iw-4] != '%' {
+			t.Fatalf("the percentage does not close three cells inside the frame: %q", row)
 		}
-		if r[ix+iw-2] != ' ' || r[ix+iw-1] != ' ' {
+		if r[ix+iw-3] != ' ' || r[ix+iw-2] != ' ' {
 			t.Fatalf("the quote group does not leave the frame's edge clear: %q", row)
 		}
 	}

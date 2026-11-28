@@ -274,7 +274,9 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 	// separates it from T.
 	t2 = append(t2, Span{"  U=", th.Soft, false})
 	t2 = append(t2, volumeFieldSpans(tot.Unclassified, th.Warn, tot.Unclassified > 0)...)
-	t2 = append(t2, Span{"  &  T=", th.Soft, false}, Span{leaderVolumeField(tot.MeasuredTotal), totalBlue, false})
+	// Owner order 2026-11-28 (build 191): the T figure after MEASURED is bold
+	// like B's and S's, so the top line's total reads as strongly as they do.
+	t2 = append(t2, Span{"  &  T=", th.Soft, false}, Span{leaderVolumeField(tot.MeasuredTotal), totalBlue, true})
 	c.Spans(ix, row, iw, t2)
 	row++
 
@@ -573,8 +575,10 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		if of.LargeTotal > 0 {
 			// Owner order 2026-11-28 (build 190): the centred dot before the count
 			// is withdrawn and one space follows the full stop, so the foot reads
-			// "... either B or S. 12 large prints of QTY 50k and above."
-			more := fmt.Sprintf(" %d large prints of QTY %s and above.", of.LargeTotal, compactNum(float64(boardFloorShares)))
+			// "... either B or S. 12 prints of QTY 50k and above."
+			// Owner order 2026-11-28 (build 191): the word "large" is withdrawn
+			// from the foot, so it names the board's prints and their quantity.
+			more := fmt.Sprintf(" %d prints of QTY %s and above.", of.LargeTotal, compactNum(float64(boardFloorShares)))
 			if runeLen(line)+runeLen(more) <= iw {
 				line += more
 			}

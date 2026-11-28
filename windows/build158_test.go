@@ -56,20 +56,45 @@ func TestTheBuildOpensOnThePasswordBox(t *testing.T) {
 }
 
 // Owner order 2026-11-28 (build 189): "remove the welcome banner from the
-// build". The right password used to turn the gate into the banner first; now
-// nothing stands between the box and the HUD, and the frame between them is
-// empty for the one frame it lasts.
-func TestTheRightPasswordOpensTheHudAtOnce(t *testing.T) {
+// build". The banner that order removed was a splash of its own. Owner order
+// 2026-11-28 (build 191): "When I type in the password on the windows build, I
+// am supposed to get \"Welcome back! Mr. Rehan.\" ... restore this feature."
+// The gate answers the right password in green, holds that answer for
+// unlockWelcomeFor and then gives the screen to the HUD.
+func TestTheRightPasswordWelcomesHimThenOpensTheHud(t *testing.T) {
 	a := lockedApp(t, 100, 30)
 	typeRunes(a, wantUnlockPassword)
 	a.onKey(Key{Kind: KEnter})
 	if !a.passOK {
 		t.Fatal("the right password was not taken")
 	}
-	if !a.loginOpens(a.now) {
-		t.Fatal("the HUD does not open on the frame the password was given")
+	base := a.now
+	if a.loginOpens(base) {
+		t.Fatal("the HUD opened without letting the welcome be read")
 	}
-	a.onTick(a.now)
+	c := a.render()
+	y, x := findCells(c, unlockWelcome)
+	if y < 0 {
+		t.Fatalf("the gate does not say %q:\n%s", unlockWelcome, strings.Join(c.PlainRows(), "\n"))
+	}
+	if got := c.Cells[y*c.W+x].FG; got != a.th.Good {
+		t.Fatalf("the welcome stands in %v, want the gate's green %v", got, a.th.Good)
+	}
+	if a.passText != "" {
+		t.Fatalf("the gate kept the password in the box: %q", a.passText)
+	}
+	// The gate still stands alone: no tile of the HUD is drawn behind the
+	// welcome, and the box holds none of the password.
+	for _, tile := range []string{"ORDER FLOW", "CUSTOM SCRIPS", "ALERTS LOG"} {
+		if strings.Contains(strings.Join(c.PlainRows(), "\n"), tile) {
+			t.Fatalf("the gate drew the HUD's %s tile behind the welcome:\n%s", tile, strings.Join(c.PlainRows(), "\n"))
+		}
+	}
+	a.onTick(base.Add(unlockWelcomeFor - time.Millisecond))
+	if !a.locked {
+		t.Fatal("the gate opened before the welcome was read")
+	}
+	a.onTick(base.Add(unlockWelcomeFor))
 	if a.locked {
 		t.Fatal("the gate stayed shut after the right password")
 	}

@@ -29,6 +29,16 @@ const (
 	unlockMaxChars    = 16
 )
 
+// Owner order 2026-11-28 (build 191): "When I type in the password on the windows
+// build, I am supposed to get \"Welcome back! Mr. Rehan.\" and another message
+// when it was the wrong password, restore this feature." The right password
+// answers on the gate in green for a moment before the HUD takes the screen, and
+// a wrong one answers with the taunt in red.
+const (
+	unlockWelcome    = "Welcome back! Mr. Rehan."
+	unlockWelcomeFor = 1500 * time.Millisecond
+)
+
 // keyLogin owns every key while the gate is up, so nothing he types reaches a
 // tile behind it and no shortcut can open the HUD without the password.
 func (a *App) keyLogin(k Key) {
@@ -38,6 +48,11 @@ func (a *App) keyLogin(k Key) {
 	case KEnter:
 		a.submitPassword()
 	case KMouse:
+		// Owner order 2026-11-28 (build 191): once the right password has
+		// answered, a click does not wipe the welcome line off the gate.
+		if a.passOK {
+			return
+		}
 		if k.Btn == MouseLeft && a.passW > 0 &&
 			k.X >= a.passX && k.X < a.passX+a.passW &&
 			k.Y >= a.passY && k.Y < a.passY+a.passH {
@@ -68,21 +83,26 @@ func (a *App) keyLogin(k Key) {
 	}
 }
 
-// submitPassword judges the box. The right password opens the gate there and
-// then: the HUD takes the screen on the next frame, with no banner between the
-// box and the screens behind it.
+// submitPassword judges the box. The right password answers on the gate with the
+// owner's welcome line, and the HUD takes the screen a moment later. A wrong one
+// clears the box and answers with the taunt, and the gate stays shut.
 //
 // Owner order 2026-11-28 (build 189): "remove the welcome banner from the
-// build, because it looks nothing like how I want it." The splash this gate
-// used to become is withdrawn; the box, the decoy hint and the taunt stay.
+// build, because it looks nothing like how I want it." That banner was a splash
+// of its own; it stays withdrawn. Owner order 2026-11-28 (build 191) restores
+// the two answers on the gate itself, one green line for the right password and
+// the taunt for a wrong one.
 func (a *App) submitPassword() {
 	if a.passOK {
 		return
 	}
 	if a.passText == unlockPassword {
 		a.passOK = true
-		a.passMsg = ""
-		a.unlockAt = a.now
+		a.passMsg = unlockWelcome
+		// The box is emptied as the welcome takes its place, so the password
+		// is not left standing in it while the answer is read.
+		a.passText = ""
+		a.unlockAt = a.now.Add(unlockWelcomeFor)
 		return
 	}
 	a.passMsg = unlockTaunt
@@ -100,13 +120,10 @@ func (a *App) loginOpens(now time.Time) bool {
 // the end of the field while it has the keys. The field's cells are kept on the
 // app so a mouse click can take it.
 func (a *App) drawLogin(c *Canvas) {
-	// Owner order 2026-11-28 (build 189): the welcome banner is withdrawn from
-	// the build, so nothing stands between the right password and the HUD. The
-	// frame between the two is empty for the moment it lasts, and no tile of the
-	// HUD is drawn behind the gate.
-	if a.passOK {
-		return
-	}
+	// Owner order 2026-11-28 (build 191): the gate keeps its frame while the
+	// welcome line is read, so the right password draws "Welcome back! Mr.
+	// Rehan." in green under the box for unlockWelcomeFor, and the HUD takes the
+	// screen when that moment is over. No tile of the HUD is drawn behind it.
 	th := a.th
 	w, h := c.W, c.H
 	if w < 12 || h < 8 {

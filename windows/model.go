@@ -342,11 +342,17 @@ const appVersion = "4.0.21"
 // PHASE word wears the law of its side, OPEN green and CLOSED red; and both
 // lock sorts hold the exchange's own circuit instead of the app's capped move
 // mark, so a five percent scrip is no longer named as locked.
+// Build 191 is 4.5.3, the owner's order of 2026-11-28: TELEMETRY's FLOW row
+// carries B, S and U bold, the KSE100 leaders carry U bold, ORDER FLOW's top
+// line carries its T bold after MEASURED, the ORDER FLOW foot drops the word
+// "large", the opened SECTORS list takes the PKR column one cell further left,
+// the gate answers the right password with "Welcome back! Mr. Rehan." and a
+// wrong one with the taunt, and the console is centred by its text area.
 //
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.5.2"
+const hudBuild = "4.5.3"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
