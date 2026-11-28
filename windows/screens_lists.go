@@ -1068,7 +1068,12 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 		// Owner order 2026-11-28 (build 190): PKR and its figures step one cell
 		// left on every row of the opened sector, so the whole tile's price
 		// column stands one space nearer the frame's left.
-		priceX := ix + cw - quoteWidth(priceW) - 1
+		// Owner order 2026-11-28 (build 191): "I told you last time to move the
+		// alignment of PKR on SECTORS tile one space to the left, the PKR appears
+		// when I select on a sector, so make that change." Build 190's single cell
+		// read as unmoved on his screen, so the column takes one more cell: PKR
+		// and its figures stand two cells off the frame's right edge.
+		priceX := ix + cw - quoteWidth(priceW) - 2
 		nameW := max(1, priceX-(ix+2)-2)
 		c.Text(ix+2, ry, nameW, fit(fmt.Sprintf("%3d. %-9s", i+1, sym), nameW), th.Hot, true)
 		if q, ok := tbl[sym]; ok && q.Price > 0 {

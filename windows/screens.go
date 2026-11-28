@@ -680,10 +680,13 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 		// of their own, green for B, red for S and yellow for U. The letters, both
 		// equals signs, the ampersand and the commas wear FLOW's own soft ink, so
 		// the row reads as one label with three coloured figures in front of it.
+		// Owner order 2026-11-28 (build 191): "on the TELEMETRY tile, make the
+		// values of B, S and U bold that are in front of FLOW". The three figures
+		// are bold like the letters before them, and each keeps its own ink.
 		label(8, "FLOW", []Span{
-			{"B=", th.Soft, true}, {compactNum(float64(buy)), th.Good, false},
-			{",", th.Soft, true}, {"  S=", th.Soft, true}, {compactNum(float64(sell)), th.Bad, false},
-			{",", th.Soft, true}, {"  & U=", th.Soft, true}, {compactNum(float64(unclear)), th.Warn, false},
+			{"B=", th.Soft, true}, {compactNum(float64(buy)), th.Good, true},
+			{",", th.Soft, true}, {"  S=", th.Soft, true}, {compactNum(float64(sell)), th.Bad, true},
+			{",", th.Soft, true}, {"  & U=", th.Soft, true}, {compactNum(float64(unclear)), th.Warn, true},
 		})
 	} else {
 		label(8, "FLOW", []Span{{"OFF", th.Bad, true}})
@@ -1246,7 +1249,9 @@ func (a *App) putBSTPacked(c *Canvas, x, y int, buy, sell, total *int64, cols bs
 			}
 			totS := commaInt(*total)
 			put(x+cols.unc, "U=", th.Soft, false)
-			put(x+cols.unc+2, commaInt(un), th.Warn, un > 0)
+			// Owner order 2026-11-28 (build 191): U's figure on the KSE100 tile is
+			// bold whether or not it has a volume to show.
+			put(x+cols.unc+2, commaInt(un), th.Warn, true)
 			put(x+cols.tot, "&  T=", th.Soft, false)
 			// Owner order 2026-11-25: T's figure is bold like B's and S's.
 			put(x+cols.tot+5, totS, totalBlue, true)
@@ -1311,7 +1316,9 @@ func (a *App) putBSTBare(c *Canvas, x, y int, buy, sell, total *int64, keys ...s
 				un = 0
 			}
 			put(" U=", th.Soft, false)
-			put(strconv.FormatInt(un, 10), th.Warn, un > 0)
+			// Owner order 2026-11-28 (build 191): U's figure on the KSE100 tile is
+			// bold whether or not it has a volume to show.
+			put(strconv.FormatInt(un, 10), th.Warn, true)
 			put(" & T=", th.Soft, false)
 			// Owner order 2026-11-25: T's figure is bold like B's and S's.
 			put(strconv.FormatInt(*total, 10), totalBlue, true)
@@ -1517,7 +1524,9 @@ func (a *App) putBSTWide(c *Canvas, x, y int, buy, sell, total *int64, keys ...s
 				un = 0
 			}
 			put("  U=", th.Soft, false)
-			put(leaderVolumeField(un), th.Warn, un > 0)
+			// Owner order 2026-11-28 (build 191): U's figure on the KSE100 tile is
+			// bold whether or not it has a volume to show.
+			put(leaderVolumeField(un), th.Warn, true)
 			put("  &  T=", th.Soft, false)
 			// Owner order 2026-11-25: T's figure is bold like B's and S's.
 			put(leaderVolumeField(*total), totalBlue, true)

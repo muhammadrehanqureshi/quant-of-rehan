@@ -170,6 +170,11 @@ type consoleRect struct {
 	left, top, right, bottom int32
 }
 
+// consolePoint is POINT, in screen pixels.
+type consolePoint struct {
+	x, y int32
+}
+
 // consoleMonitorInfo is MONITORINFO.
 type consoleMonitorInfo struct {
 	cbSize    uint32
@@ -281,13 +286,33 @@ func centreConsoleWindow(hwnd uintptr) bool {
 	if w <= 0 || h <= 0 {
 		return false
 	}
-	x, y := consoleCentreTarget(mi.rcWork, w, h)
+	// Owner order 2026-11-28 (build 191): "the build's screen is not on the exact
+	// center on the console, make it on the absolute center." The title bar and
+	// the window's borders do not carry any of the build, so it is the text area
+	// that is put in the middle of the work area; the frame follows it by its own
+	// inset. A window that will not answer keeps the frame's own middle.
+	cr, clientOK := consoleClientRect(hwnd)
+	x, y := consoleClientCentre(mi.rcWork, wr, cr, clientOK)
 	if int(wr.left) == x && int(wr.top) == y {
 		return true
 	}
 	moved, _, _ := pSetWindowPos.Call(hwnd, 0, uintptr(x), uintptr(y), 0, 0,
 		uintptr(swpNoSize|swpNoZOrder|swpNoActivate))
 	return moved != 0
+}
+
+// consoleClientCentre is the frame's top left corner that puts the window's text
+// area, the part that carries the build, in the middle of work. The frame stands
+// around the text area by its own inset, so the corner moves back by that inset
+// after the text area's own middle is found. A window with no text area, or one
+// that would not answer, is centred by its frame instead.
+func consoleClientCentre(work, frame, client consoleRect, haveClient bool) (int, int) {
+	cw, ch := int(client.right-client.left), int(client.bottom-client.top)
+	if !haveClient || cw <= 0 || ch <= 0 {
+		return consoleCentreTarget(work, int(frame.right-frame.left), int(frame.bottom-frame.top))
+	}
+	cx, cy := consoleCentreTarget(work, cw, ch)
+	return cx - int(client.left-frame.left), cy - int(client.top-frame.top)
 }
 
 // consoleCentreTarget is the top left corner that puts a w by h window in the
@@ -298,6 +323,31 @@ func consoleCentreTarget(work consoleRect, w, h int) (int, int) {
 	x := int(work.left) + (int(work.right)-int(work.left)-w)/2
 	y := int(work.top) + (int(work.bottom)-int(work.top)-h)/2
 	return x, y
+}
+
+// consoleClientRect is a window's text area in screen pixels: its client
+// rectangle, whose own corner is asked for on the screen because GetClientRect
+// answers in the window's own coordinates. Owner order 2026-11-28 (build 191):
+// the client rectangle and its corner are measured here so the frame can be
+// centred by the text area; their two procedures are declared once, in
+// welcome_windows.go, and read from there.
+func consoleClientRect(hwnd uintptr) (consoleRect, bool) {
+	var cr consoleRect
+	if hwnd == 0 {
+		return cr, false
+	}
+	if ok, _, _ := pGetClientRect.Call(hwnd, uintptr(unsafe.Pointer(&cr))); ok == 0 {
+		return cr, false
+	}
+	if cr.right <= cr.left || cr.bottom <= cr.top {
+		return cr, false
+	}
+	pt := consolePoint{cr.left, cr.top}
+	if ok, _, _ := pClientToScreen.Call(hwnd, uintptr(unsafe.Pointer(&pt))); ok == 0 {
+		return cr, false
+	}
+	w, h := cr.right-cr.left, cr.bottom-cr.top
+	return consoleRect{left: pt.x, top: pt.y, right: pt.x + w, bottom: pt.y + h}, true
 }
 
 // consoleWindowRect is a window's rectangle in screen pixels.

@@ -44,9 +44,10 @@ func TestTheWindowLandsOnTheMiddleOfItsWorkArea(t *testing.T) {
 }
 
 // Owner order 2026-11-28 (build 189): "remove the welcome banner from the
-// build, because it looks nothing like how I want it." The frame between the
-// right password and the HUD carries no banner and no gate, and the HUD takes
-// the screen on the next frame.
+// build, because it looks nothing like how I want it." The picture and its
+// dots stay withdrawn. Owner order 2026-11-28 (build 191): the gate answers the
+// right password with "Welcome back! Mr. Rehan." and the HUD takes the screen
+// when that answer has been read, so this frame carries the gate and no banner.
 func TestTheFrameAfterThePasswordCarriesNoBanner(t *testing.T) {
 	a := lockedApp(t, 100, 30)
 	typeRunes(a, wantUnlockPassword)
@@ -61,10 +62,10 @@ func TestTheFrameAfterThePasswordCarriesNoBanner(t *testing.T) {
 	if strings.Contains(joined, strings.Repeat(string(bannerDot), 2)) {
 		t.Fatalf("the dotted banner is drawn after the password:\n%s", joined)
 	}
-	if strings.Contains(joined, wantUnlockHint) {
-		t.Fatalf("the gate is still drawn after the password:\n%s", joined)
+	if !strings.Contains(joined, unlockWelcome) {
+		t.Fatalf("the gate does not answer the password with the welcome:\n%s", joined)
 	}
-	a.onTick(a.now)
+	a.onTick(a.now.Add(unlockWelcomeFor))
 	if a.locked {
 		t.Fatal("the gate stayed shut instead of handing the screen to the HUD")
 	}
