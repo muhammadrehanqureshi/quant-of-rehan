@@ -176,7 +176,7 @@ func TestBuild188PkrStandsOneSpaceBeforeItsFigure(t *testing.T) {
 	seen := 0
 	for _, row := range rows {
 		at := col(row, "PKR ")
-		if at < 0 || !strings.ContainsAny(row, "▲▼") {
+		if at < 0 {
 			continue
 		}
 		r := []rune(row)
@@ -193,7 +193,7 @@ func TestBuild188PkrStandsOneSpaceBeforeItsFigure(t *testing.T) {
 		}
 		seen++
 	}
-	if seen < 4 {
+	if seen < 5 {
 		t.Fatalf("the page showed %d PKR figures, want the boards and the log:\n%s",
 			seen, strings.Join(rows, "\n"))
 	}
