@@ -34,8 +34,13 @@ const (
 // when it was the wrong password, restore this feature." The right password
 // answers on the gate in green for a moment before the HUD takes the screen, and
 // a wrong one answers with the taunt in red.
+// Owner order 2026-11-28 (build 192): "update the correct password
+// banner/greeting to \"Welcome back, Mr. Rehan!\"". The welcome wears the
+// greeting exactly as he writes it, the comma before his name and the mark at
+// the end, and the line is held on the gate for the same moment before the HUD
+// takes the screen.
 const (
-	unlockWelcome    = "Welcome back! Mr. Rehan."
+	unlockWelcome    = "Welcome back, Mr. Rehan!"
 	unlockWelcomeFor = 1500 * time.Millisecond
 )
 
@@ -121,8 +126,8 @@ func (a *App) loginOpens(now time.Time) bool {
 // app so a mouse click can take it.
 func (a *App) drawLogin(c *Canvas) {
 	// Owner order 2026-11-28 (build 191): the gate keeps its frame while the
-	// welcome line is read, so the right password draws "Welcome back! Mr.
-	// Rehan." in green under the box for unlockWelcomeFor, and the HUD takes the
+	// welcome line is read, so the right password draws "Welcome back, Mr.
+	// Rehan!" in green under the box for unlockWelcomeFor, and the HUD takes the
 	// screen when that moment is over. No tile of the HUD is drawn behind it.
 	th := a.th
 	w, h := c.W, c.H
