@@ -336,11 +336,17 @@ const appVersion = "4.0.21"
 // the build is seen in is watched for the first seconds and kept on the middle
 // of its monitor through the size Windows gives it late, and the welcome banner
 // is withdrawn from the build, so the right password opens the HUD at once.
+// Build 190 is 4.5.2, the owner's order of 2026-11-28: ORDER FLOW's foot drops
+// the centred dot and says "and above." one space after the full stop; the
+// opened SECTORS list carries PKR and its figures one cell further left; the
+// PHASE word wears the law of its side, OPEN green and CLOSED red; and both
+// lock sorts hold the exchange's own circuit instead of the app's capped move
+// mark, so a five percent scrip is no longer named as locked.
 //
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.5.1"
+const hudBuild = "4.5.2"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

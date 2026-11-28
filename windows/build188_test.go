@@ -6,14 +6,14 @@ import (
 	"time"
 )
 
-// Build 188 shipped as 4.5.0; build 189 is 4.5.1, the owner's order of
+// Build 188 shipped as 4.5.0; build 190 is 4.5.2, the owner's order of
 // 2026-11-28. The version law stays here so the number the HUD prints is the
 // number the build ships.
-const build189Version = "4.5.1"
+const build190Version = "4.5.2"
 
 func TestBuild188TheHudCarriesTheBuildVersion(t *testing.T) {
-	if hudBuild != build189Version {
-		t.Fatalf("hudBuild is %q, want %q", hudBuild, build189Version)
+	if hudBuild != build190Version {
+		t.Fatalf("hudBuild is %q, want %q", hudBuild, build190Version)
 	}
 }
 

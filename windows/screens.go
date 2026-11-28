@@ -603,6 +603,11 @@ func (a *App) drawLeft(c *Canvas, x, y, w, h int) {
 	switch ph {
 	case qsOpen:
 		pc = th.Good
+	case qsClosed:
+		// Owner order 2026-11-28 (build 190): the PHASE word carries the law of
+		// its side, OPEN green and CLOSED red, so a shut exchange never reads in
+		// the tile's plain ink.
+		pc = th.Bad
 	case qsPre, qsPost:
 		pc = th.Warn
 	}

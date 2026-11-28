@@ -571,7 +571,10 @@ func (a *App) drawOrderFlow(c *Canvas, x, y, w, h int) {
 		// foot says UNCLEAR too and names the feed and both totals in full.
 		line := "U = UNCLEAR: The volume that the feed could not capture, U is never added to either B or S."
 		if of.LargeTotal > 0 {
-			more := fmt.Sprintf("  ·  %d large prints of QTY %s and more.", of.LargeTotal, compactNum(float64(boardFloorShares)))
+			// Owner order 2026-11-28 (build 190): the centred dot before the count
+			// is withdrawn and one space follows the full stop, so the foot reads
+			// "... either B or S. 12 large prints of QTY 50k and above."
+			more := fmt.Sprintf(" %d large prints of QTY %s and above.", of.LargeTotal, compactNum(float64(boardFloorShares)))
 			if runeLen(line)+runeLen(more) <= iw {
 				line += more
 			}

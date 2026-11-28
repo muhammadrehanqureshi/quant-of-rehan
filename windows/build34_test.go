@@ -42,11 +42,12 @@ func TestOrderFlowUnclearOrderChip(t *testing.T) {
 }
 
 // Owner order 2026-11-17: the large-print footer names the 50k share quantity.
+// Owner order 2026-11-28 (build 190): it closes on "and above."
 func TestOrderFlowLargePrintFooterNamesQuantity(t *testing.T) {
 	a := orderFlowApp(t, 160, 45, sampleOrderFlow)
 	s := plain(a)
-	if !strings.Contains(s, "large prints of QTY 50k and more.") {
-		t.Fatalf("the footer does not name QTY 50k and more:\n%s", s)
+	if !strings.Contains(s, "large prints of QTY 50k and above.") {
+		t.Fatalf("the footer does not name QTY 50k and above:\n%s", s)
 	}
 	if strings.Contains(s, "PKR 1M or more today") {
 		t.Fatalf("the old PKR large-print footer is still present:\n%s", s)
