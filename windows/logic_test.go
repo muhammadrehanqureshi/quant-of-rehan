@@ -210,14 +210,15 @@ func TestRanking(t *testing.T) {
 
 	// Owner order 2026-11-12: the four volume sorts CUSTOM SCRIPS OF VOLUME
 	// adds. Each names three scrips, each is decided by volume, and a scrip is
-	// at its lock when its move reaches the app's capped move mark.
+	// at its lock when its move reaches the exchange's own circuit, about ten
+	// percent either way (owner order 2026-11-28, build 190).
 	v := map[string]Quote{
-		"AAA": {Price: 10, ChangePct: f64(-5.2), Buy: i64(100), Sell: i64(900)}, // lower lock, heaviest
-		"BBB": {Price: 10, ChangePct: f64(5.4), Buy: i64(800), Sell: i64(200)},  // upper lock, heaviest
-		"CCC": {Price: 10, ChangePct: f64(-4.9), Buy: i64(50), Sell: i64(50)},   // lower lock
-		"DDD": {Price: 10, ChangePct: f64(4.9), Buy: i64(10), Sell: i64(10)},    // upper lock
-		"EEE": {Price: 10, ChangePct: f64(1.0), Buy: i64(300), Sell: i64(700)},  // sellers ahead
-		"FFF": {Price: 10, ChangePct: f64(2.0), Buy: i64(5), Sell: i64(5)},      // quietest
+		"AAA": {Price: 10, ChangePct: f64(-10.4), Buy: i64(100), Sell: i64(900)}, // lower lock, heaviest
+		"BBB": {Price: 10, ChangePct: f64(20.1), Buy: i64(800), Sell: i64(200)},  // upper lock, widened band
+		"CCC": {Price: 10, ChangePct: f64(-9.9), Buy: i64(50), Sell: i64(50)},    // lower lock, on the mark
+		"DDD": {Price: 10, ChangePct: f64(9.9), Buy: i64(10), Sell: i64(10)},     // upper lock, on the mark
+		"EEE": {Price: 10, ChangePct: f64(1.0), Buy: i64(300), Sell: i64(700)},   // sellers ahead
+		"FFF": {Price: 10, ChangePct: f64(2.0), Buy: i64(5), Sell: i64(5)},       // quietest
 	}
 	for _, c := range []struct {
 		name string

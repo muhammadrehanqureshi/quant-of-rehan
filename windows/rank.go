@@ -6,6 +6,13 @@ import "sort"
 // treated as a circuit capped print and is not "rising fast".
 const cappedMoveMark = 4.9
 
+// lockMoveMark is where a scrip actually stands at its lock on PSX. Owner order
+// 2026-11-28 (build 190): the exchange's circuit is about ten percent either
+// way, with the widened twenty percent band on top of it, so a five percent
+// move is never a lock. The lock sorts use this mark, not the capped move mark
+// they shared with PRICES RISING FAST.
+const lockMoveMark = 9.9
+
 // volumeOf is the traded total a scrip is ranked by: the relay's own total when
 // it carries one, otherwise the measured buy and sell pair.
 func volumeOf(q Quote) (int64, bool) {
@@ -108,9 +115,10 @@ func rankedQuietSymbols(q map[string]Quote) []string {
 }
 
 // rankedLockSymbols ranks one side's locked prints. Owner order 2026-11-12: a
-// scrip is at its lock when its move is at or beyond the app's own capped move
-// mark in that direction, which is the same 4.9 percent the APK calls a circuit
-// capped print, and the three named are the heaviest by volume.
+// scrip is at its lock when its move is at or beyond the lock mark in that
+// direction, and the three named are the heaviest by volume. Owner order
+// 2026-11-28 (build 190): the mark is the exchange's own circuit, so a scrip
+// five percent off its close is no longer counted as locked.
 func rankedLockSymbols(q map[string]Quote, down bool) []string {
 	var out []string
 	for s, v := range q {
@@ -119,10 +127,10 @@ func rankedLockSymbols(q map[string]Quote, down bool) []string {
 		}
 		ch := *v.ChangePct
 		if down {
-			if ch > -cappedMoveMark {
+			if ch > -lockMoveMark {
 				continue
 			}
-		} else if ch < cappedMoveMark {
+		} else if ch < lockMoveMark {
 			continue
 		}
 		out = append(out, s)

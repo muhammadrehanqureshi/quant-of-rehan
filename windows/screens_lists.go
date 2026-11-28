@@ -1065,7 +1065,10 @@ func (a *App) drawSectorOpen(c *Canvas, x, y, w, h int) {
 		ry := iy + 3 + n
 		a.selectRow(c, ix, ry, cw, false, func() { a.openSymbol(sym) })
 		const priceW = 8
-		priceX := ix + cw - quoteWidth(priceW)
+		// Owner order 2026-11-28 (build 190): PKR and its figures step one cell
+		// left on every row of the opened sector, so the whole tile's price
+		// column stands one space nearer the frame's left.
+		priceX := ix + cw - quoteWidth(priceW) - 1
 		nameW := max(1, priceX-(ix+2)-2)
 		c.Text(ix+2, ry, nameW, fit(fmt.Sprintf("%3d. %-9s", i+1, sym), nameW), th.Hot, true)
 		if q, ok := tbl[sym]; ok && q.Price > 0 {
