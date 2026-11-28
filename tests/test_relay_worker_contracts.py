@@ -1188,6 +1188,64 @@ class RelayWorkerContractTest(unittest.TestCase):
         self.assertIn("if (!quoteIsFromToday(quote) && tradingToday) continue;",
                       prices)
 
+    def test_the_prefix_read_is_served_by_the_key_index(self):
+        """Owner report 2026-11-28: "Cloudflare's Durable Object reached 90% of
+        the daily limit yesterday ... this also has been happening for two
+        straight days."
+
+        The meter that ran out was rows_read, not requests, and the read that
+        grew was the ACK prefix list. substr(key, 1, n) = ? cannot use the key
+        index, so every prefix read scanned the WHOLE relay_state table, and
+        nothing ever deleted an expired key, so the table only grew: one row
+        when the store is new, thousands a fortnight later. The predicate is
+        now the key's own range, which the primary key serves, and a bounded
+        daily sweep deletes the expired keys the TTL only hid.
+        """
+        self.assertIn(
+            '"SELECT key, value FROM relay_state WHERE key >= ? AND key < ? "',
+            self.source)
+        self.assertNotIn("substr(key, 1, ?)", self.source)
+        self.assertIn("this.sweepExpiredState();", self.source)
+        self.assertIn("sweepExpiredState() {", self.source)
+        self.assertIn(
+            '"DELETE FROM relay_state WHERE key IN (SELECT key FROM relay_state "',
+            self.source)
+        # The sweep is bounded, because the free plan counts rows written.
+        self.assertIn("WHERE expires_at > 0 AND expires_at <= ? LIMIT 500)", self.source)
+
+    def test_the_bar_coverage_answer_is_remembered(self):
+        """The coverage answer is a GROUP BY over every stored minute bar, so a
+        single answer reads the whole table. A chart page that asks for
+        coverage as it redraws would spend the day's rows-read budget on one
+        question, so it is answered once and remembered for five minutes."""
+        self.assertIn("const COVERAGE_MEMO_MS = 300000;", self.source)
+        self.assertIn("this.coverageMemo = null;", self.source)
+        self.assertIn("stamp - this.coverageMemo.at < COVERAGE_MEMO_MS", self.source)
+        self.assertIn("this.coverageMemo = { at: stamp, days };", self.source)
+
+    def test_the_post_close_window_is_started_by_any_awake_poll(self):
+        """Owner report 2026-11-28: the post-market record stopped reaching the
+        Android and Windows builds, and the day's tape ended at the live close.
+
+        Measured on the live relay on 2026-11-27 (Friday): the dispatch log's
+        newest note was the 14:33 PKT window, started by a poll, and no wake of
+        any kind ever claimed the 16:32 window. The pillow gave up ten minutes
+        after a window opened, so an app polling at 16:42 did nothing while the
+        window stood open, and only the phone's /signals route was a pillow at
+        all. Every poll inside the window may start it now, and the desk's own
+        card and search polls are pillows beside the phone's signal poll.
+        """
+        self.assertIn("if (mins <= open || mins >= close - 1) {", self.source)
+        self.assertNotIn(
+            "if (mins <= open || mins - open > BAND_START_POLL_WINDOW_MINUTES) "
+            "{\n        continue;", self.source.replace("\r\n", "\n"))
+        self.assertTrue(
+            self.source.count("ctx.waitUntil(ensureBandStart(env, now)") >= 2,
+            "the card poll is not a pillow beside the signal poll")
+        self.assertIn(
+            "ctx.waitUntil(ensureBandStart(env, new Date()).catch(() => {}));",
+            self.source)
+
 
 if __name__ == "__main__":
     unittest.main()

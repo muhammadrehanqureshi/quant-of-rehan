@@ -65,6 +65,39 @@ The 10,000 requests between the wall and the cap cover the up-to-59 requests
 the hub has counted but not yet written to `REQ:STATS`. The relay budget
 guard emails the owner from 50 percent of the cap.
 
+## The rows-read day and the post-market window (2026-11-28)
+
+Owner report: "the post market results/data were not updated on either the
+android build or the windows build ... Friday post market is from 16:32-16:49.
+Yesterday also Cloudflare's Durable Object reached 90% of the daily limit.
+That never happens, find out why it happened and fix it."
+
+Two defects stood behind that report, and both are now laws here.
+
+**The read that grew.** Workers Free also meters 5,000,000 Durable Object
+`rows_read` a day, and that, not the request count the brake watches, is what
+ran out. The ACK prefix list matched its keys with `substr(key, 1, n) = ?`,
+which no index can serve, so every prefix read scanned the whole
+`relay_state` table, and an expired key was only hidden by its TTL, never
+deleted: the table grew by about a thousand keys a week and every read paid
+for all of them. The predicate is the key's own range now
+(`key >= ? AND key < ?`), which the primary key serves, and one bounded sweep
+a day deletes at most 500 expired keys. The bar-coverage answer, a `GROUP BY`
+over every stored minute bar, is remembered for five minutes instead of being
+rebuilt per redraw.
+
+**The window nobody started.** Measured on the live relay on 2026-11-27: the
+dispatch log's newest note was the 14:33 PKT window, started by a poll, and no
+wake of any kind ever claimed the 16:32 window. The day's tape ended at 16:28,
+the finalize had nothing to bank, and both apps kept showing the live close.
+The pillow that starts a missed window gave up ten minutes after it opened, so
+an app polling at 16:42 found the window open and did nothing; only the phone's
+`/signals` poll was a pillow at all. Now any poll inside the post-close window
+may start it (the loop's own length is measured to the window's close), and the
+desk's card (`/market`) and search (`/prices`) polls are pillows beside the
+phone's signal poll. A window is still claimed once, under the same key a cron
+writes, so no path can start it twice.
+
 ## The complete order flow (`GET /flow`)
 
 Owner order 2026-11-04: the owner's own Windows build reads the cloud, so

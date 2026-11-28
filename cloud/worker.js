@@ -118,6 +118,10 @@ const BUDGET_HIGH_MEMO_MS = 60000;
 // poll can talk itself back into a hub read.
 let budgetLock = { day: "", stopped: false, spent: 0 };
 const HISTORY_MEMO_MS = 5000;
+// Owner report 2026-11-28: the bar coverage list is the one read in this
+// object that must touch every stored minute bar, so it is remembered for
+// five minutes rather than answered per redraw.
+const COVERAGE_MEMO_MS = 300000;
 const HISTORY_MEMO_MAX = 32;
 let historyMemo = new Map();
 const BARS_MEMO_MS = 5000;
@@ -671,8 +675,17 @@ async function ensureBandStart(env, now) {
   if (lastBandClose !== null) {
     for (const window of dispatchWindowsFor(k)) {
       const open = window[0][0] * 60 + window[0][1];
+      const close = window[1][0] * 60 + window[1][1];
       if (open < lastBandClose) continue; // a band open edge: handled above
-      if (mins <= open || mins - open > BAND_START_POLL_WINDOW_MINUTES) {
+      // Owner report 2026-11-28: the post-close window is where the day's
+      // last prints are, and it was the one window no poll could start late.
+      // The pillow gave up ten minutes after the open, so a poll at 16:42
+      // found the window open and did nothing, the day's tape ended at the
+      // live close, and the finalize had nothing to bank. Any poll inside
+      // the window may start it now: the loop's length is measured to the
+      // window's own close, so a late start captures what is left and never
+      // runs past it.
+      if (mins <= open || mins >= close - 1) {
         continue;
       }
       const claimed = `SCAN:DISPATCH:${dayStamp(k)}:${hmText(window[0])}`;
@@ -3513,6 +3526,11 @@ export default {
       const snapshot = await readQuoteSnapshot(env);
       const kNow = karachiView(Date.now());
       const tradingToday = isTradingDay(kNow);
+      // Owner report 2026-11-28: the search poll is a pillow too, so a
+      // phone left on this screen can start the post-close window as well.
+      if (ctx && typeof ctx.waitUntil === "function") {
+        ctx.waitUntil(ensureBandStart(env, new Date()).catch(() => {}));
+      }
       const ackDay = tradingToday ? dayStamp(kNow) : null;
       // Owner order 2026-10-31: every row is the acknowledged frame the
       // card and /stock answer with, so the search's rows, the dropdown
@@ -3634,6 +3652,16 @@ export default {
       // snapshot remains cached, while the one-second broker snapshot is read
       // from the durable quote hub and freshness-checked at response time.
       const now = new Date();
+      // Owner report 2026-11-28: the post-market record stopped reaching
+      // both apps while the desk was watching this very card. Only the
+      // phone's /signals poll could start a scan window, and the measured
+      // 2026-11-27 dispatch log ends at 14:33 PKT: no wake of any kind
+      // started the 16:32 window, so the tape's last print was 16:28 and
+      // the finalize never ran. Whoever is awake starts the window now, so
+      // the card poll the desk makes every second is a last-resort starter.
+      if (ctx && typeof ctx.waitUntil === "function") {
+        ctx.waitUntil(ensureBandStart(env, now).catch(() => {}));
+      }
       let snapshot;
       try {
         snapshot = await marketResponseSnapshot(env, now, ctx);
@@ -4041,6 +4069,10 @@ export class QuoteHub {
     this.ackRowsDay = "";
     this.ackRowsBySymbol = null;
     this.ackRowsLoaded = false;
+    // Owner report 2026-11-28: the expired-key sweep and the bar coverage
+    // answer each keep one memory, so neither is repeated on every read.
+    this.sweptStateDay = "";
+    this.coverageMemo = null;
     this.flowRowsDay = "";
     this.flowRowsToday = 0;
     this.flowStatsLoaded = false;
@@ -4754,19 +4786,31 @@ export class QuoteHub {
       // a chart can say "nothing stored" with a reason instead of drawing an
       // empty frame that looks like a flat market (SO-3).
       let days = [];
-      this.ensureBarTable();
-      try {
-        days = this.ctx.storage.sql.exec(
-          "SELECT day, COUNT(*) AS minutes, MIN(minute) AS first_minute, " +
-          "MAX(minute) AS last_minute FROM quote_bars GROUP BY day " +
-          "ORDER BY day DESC",
-        ).toArray().map((row) => ({
-          day: String(row.day),
-          minutes: Math.max(0, Number(row.minutes) || 0),
-          first: this.barClock(Math.max(0, Number(row.first_minute) || 0)),
-          last: this.barClock(Math.max(0, Number(row.last_minute) || 0)),
-        }));
-      } catch (_) { days = []; }
+      // Owner report 2026-11-28: this is a GROUP BY over every stored
+      // minute bar, so one answer reads the whole table, and a chart page
+      // that asks for coverage as it redraws asks it over and over. Five
+      // minutes of memory turns that into two reads an hour; the answer
+      // cannot change faster than the session's own minutes arrive.
+      const stamp = Date.now();
+      if (this.coverageMemo &&
+          stamp - this.coverageMemo.at < COVERAGE_MEMO_MS) {
+        days = this.coverageMemo.days;
+      } else {
+        this.ensureBarTable();
+        try {
+          days = this.ctx.storage.sql.exec(
+            "SELECT day, COUNT(*) AS minutes, MIN(minute) AS first_minute, " +
+            "MAX(minute) AS last_minute FROM quote_bars GROUP BY day " +
+            "ORDER BY day DESC",
+          ).toArray().map((row) => ({
+            day: String(row.day),
+            minutes: Math.max(0, Number(row.minutes) || 0),
+            first: this.barClock(Math.max(0, Number(row.first_minute) || 0)),
+            last: this.barClock(Math.max(0, Number(row.last_minute) || 0)),
+          }));
+        } catch (_) { days = []; }
+        this.coverageMemo = { at: stamp, days };
+      }
       return {
         ok: true,
         resolution: "1m",
@@ -4912,12 +4956,44 @@ export class QuoteHub {
     this.ctx.storage.sql.exec("DELETE FROM relay_state WHERE key = ?", key);
   }
 
+  // Owner report 2026-11-28: the ACK keys carry a two day TTL, but a TTL
+  // only hides a row from its readers; the row stays in the table and every
+  // scan pays for it. One bounded sweep a day deletes at most 500 expired
+  // keys, so the free plan's rows-written ceiling is safe (a day of ACK
+  // keys is about 600) and the table cannot grow without bound again.
+  sweepExpiredState() {
+    const day = new Date().toISOString().slice(0, 10);
+    if (this.sweptStateDay === day) return;
+    this.sweptStateDay = day;
+    try {
+      this.ctx.storage.sql.exec(
+        "DELETE FROM relay_state WHERE key IN (SELECT key FROM relay_state "
+        + "WHERE expires_at > 0 AND expires_at <= ? LIMIT 500)",
+        Date.now(),
+      );
+    } catch (_) { /* a refused sweep is retried tomorrow */ }
+  }
+
+  // Owner report 2026-11-28 ("Cloudflare's Durable Object reached 90% of
+  // the daily limit yesterday ... this also has been happening for two
+  // straight days"): the meter that ran out was rows_read, not requests,
+  // and this is where it went. The prefix was matched with
+  // substr(key, 1, n) = ?, which no index can serve, so EVERY prefix read
+  // scanned the WHOLE relay_state table: the ACK keys of two days plus
+  // every key that had ever expired, because nothing ever deleted one. A
+  // read that costs one row when the table is new costs thousands a
+  // fortnight later, which is why the cap arrived late in a session and
+  // then every day. The predicate is the key's own range now, so the
+  // primary key serves it and only the matching rows are read, and the
+  // expired rows are swept once a day.
   async stateList(prefix, limit) {
     await this.ready;
+    this.sweepExpiredState();
+    const from = String(prefix);
     const rows = this.ctx.storage.sql.exec(
-      "SELECT key, value FROM relay_state WHERE substr(key, 1, ?) = ? "
+      "SELECT key, value FROM relay_state WHERE key >= ? AND key < ? "
       + "AND (expires_at = 0 OR expires_at > ?) ORDER BY key LIMIT ?",
-      prefix.length, prefix, Date.now(), limit,
+      from, from + "\uffff", Date.now(), limit,
     ).toArray();
     return { ok: true,
       keys: rows.map((row) => ({ name: row.key, value: row.value })),
