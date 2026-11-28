@@ -145,15 +145,24 @@ func main() {
 	// console it's running on whether on CMD or POWERSHELL". The console the
 	// system made for this exe is a window of its own, so it is placed on the
 	// middle of its monitor whatever shell started the build.
+	//
+	// Owner order 2026-11-28 (build 189): "the build's screen/interface is still
+	// not in the center of the console". One move was not enough, because the
+	// console takes its size a moment after it opens and Windows grows it from
+	// its own top left corner, so the window is also watched for the first
+	// seconds and put back in the middle whenever it changes under the build.
 	centerOwnConsole()
+	settleOwnConsole(consoleSettleFor)
 
 	// Owner order 2026-11-23: the window opens on the password box before the
 	// HUD. Snapshots, --selftest, --feedwatch and --version above never see it.
 	app.locked = true
-	// Owner order 2026-11-28 (build 188): "the welcome banner image hangs up
-	// the build", so the picture's own window is withdrawn. The welcome is the
-	// gate's cell banner again: that same picture's ink, sampled into one dot a
-	// cell, and no window over the gate.
+	// Owner order 2026-11-28 (build 189): "remove the welcome banner from the
+	// build, because it looks nothing like how I want it." The welcome is
+	// withdrawn from the build: the right password opens the HUD at once, and no
+	// picture window can be asked for. The banner's own code is kept compiled so
+	// the shape helpers and their checks stay honest, but nothing on the screen
+	// path reaches them.
 	welcomePictureAllowed = false
 
 	t := newTerm()

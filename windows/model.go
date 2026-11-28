@@ -331,11 +331,16 @@ const appVersion = "4.0.21"
 // decimals with no quotes two blank rows under its last scrip; the ALERTS
 // boards and log stand one space after PKR with every figure starting on the
 // one cell; and the build's console opens on the middle of its monitor.
+// Build 189 is 4.5.1, the owner's order of 2026-11-28: "the build's
+// screen/interface is still not in the center of the console", so the window
+// the build is seen in is watched for the first seconds and kept on the middle
+// of its monitor through the size Windows gives it late, and the welcome banner
+// is withdrawn from the build, so the right password opens the HUD at once.
 //
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.5.0"
+const hudBuild = "4.5.1"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

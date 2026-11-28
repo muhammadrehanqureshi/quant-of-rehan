@@ -127,80 +127,12 @@ func TestTheLinkLineClosesWithAFullStopAndOpensSyncedWithACapital(t *testing.T) 
 	}
 }
 
-// Owner order 2026-11-26 (later): the right password shows the basmala and
-// nothing after it, and only then does the HUD take the screen.
-// hasBasmala says whether the screen carries the banner: the mark drawn as the
-// ligature's own shape, or the ligature itself when no shape can be drawn.
+// Owner order 2026-11-28 (build 189): "remove the welcome banner from the
+// build". The banner the gate used to show after the right password is gone, so
+// hasBasmala now says whether it is back: the mark drawn as the ligature's own
+// shape, or the ligature itself when no shape can be drawn.
 func hasBasmala(rows string) bool {
 	return basmalaOn(rows)
-}
-
-// Owner order 2026-11-27, kept as the gate's own fallback: when the ligature's
-// shape cannot be drawn, the ligature itself stands on ONE row, in the terminal's
-// own Arabic face, and no other row carries it. Build 182 draws the mark large
-// when a shape is available; see build182_test.go.
-func TestTheBannerIsTheWordsOnOneLine(t *testing.T) {
-	for _, sz := range [][2]int{{60, 20}, {100, 30}, {200, 40}} {
-		a := lockedApp(t, sz[0], sz[1])
-		typeRunes(a, wantUnlockPassword)
-		a.onKey(Key{Kind: KEnter})
-		rows := a.render().PlainRows()
-		found := 0
-		for _, row := range rows {
-			if strings.Contains(row, basmalaBanner) {
-				found++
-			}
-		}
-		if found != 1 {
-			t.Fatalf("%dx%d: the phrase stands on %d rows, want exactly one", sz[0], sz[1], found)
-		}
-		for _, row := range rows {
-			if strings.ContainsRune(row, '●') {
-				t.Fatalf("%dx%d: the dotted art is back on the gate:\n%s", sz[0], sz[1], strings.Join(rows, "\n"))
-			}
-		}
-	}
-}
-
-func TestThePasswordShowsTheBasmalaAloneThenTheHud(t *testing.T) {
-	a := lockedApp(t, 100, 30)
-	typeRunes(a, wantUnlockPassword)
-	a.onKey(Key{Kind: KEnter})
-	if !a.passOK || !a.locked {
-		t.Fatalf("the gate after the right password: passOK=%v locked=%v", a.passOK, a.locked)
-	}
-	rows := screenOf(a)
-	if !hasBasmala(rows) {
-		t.Fatalf("the basmala is not on the gate:\n%s", rows)
-	}
-	if strings.Contains(rows, "QUANT OF REHAN") {
-		t.Fatalf("the banner carries a name after the basmala:\n%s", rows)
-	}
-	a.onTick(a.now.Add(unlockWelcomeFor))
-	if a.locked {
-		t.Fatal("the gate stayed shut after the banner")
-	}
-}
-
-// Owner order 2026-11-27, the same fallback: the ligature is one centred line,
-// so the air on its left is the air on its right, on the gate's middle row.
-func TestTheBannerIsCentredOnOneRow(t *testing.T) {
-	a := lockedApp(t, 200, 40)
-	typeRunes(a, wantUnlockPassword)
-	a.onKey(Key{Kind: KEnter})
-	rows := a.render().PlainRows()
-	for _, row := range rows {
-		at := strings.Index(row, basmalaBanner)
-		if at < 0 {
-			continue
-		}
-		after := runeLen(row) - at - runeLen(basmalaBanner)
-		if diff := at - after; diff > 1 || diff < -1 {
-			t.Fatalf("the phrase is not centred: %d cells before it, %d after", at, after)
-		}
-		return
-	}
-	t.Fatal("the gate drew no phrase")
 }
 
 // Owner order 2026-11-26 (later): one space stands between PKR and its price on
