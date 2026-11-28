@@ -267,10 +267,19 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
 
+                    <!-- Owner order 2026-11-28: "Make the search boxes of
+                         SEARCH and ORDER FLOW tiles bigger like before ...
+                         when I search ... the typed scrip is to the upper
+                         side of the box, make it on the center in Y-axis.
+                         And also move the X-axis position of the type
+                         scrip a little to the right." The 43dp field
+                         plate is back on both searches, the typed scrip
+                         stands on the box's own vertical centre, and its
+                         left edge sits 16dp in from the plate. -->
                     <EditText
                         android:id="@+id/search_input"
                         android:layout_width="match_parent"
-                        android:layout_height="32dp"
+                        android:layout_height="43dp"
                         android:background="@null"
                         android:gravity="center_vertical|start"
                         android:hint="@string/search_hint"
@@ -278,7 +287,7 @@
                         android:includeFontPadding="false"
                         android:inputType="textCapCharacters"
                         android:maxLines="1"
-                        android:paddingLeft="10dp"
+                        android:paddingLeft="16dp"
                         android:paddingRight="10dp"
                         android:paddingTop="3dp"
                         android:paddingBottom="3dp"
@@ -371,10 +380,15 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
 
+                    <!-- Owner order 2026-11-28: the ORDER FLOW box takes
+                         the SEARCH box's own 43dp plate back, and its
+                         typed scrip stands centred and 16dp in from
+                         the plate's left edge, exactly as that box
+                         does. -->
                     <EditText
                         android:id="@+id/order_flow_input"
                         android:layout_width="match_parent"
-                        android:layout_height="32dp"
+                        android:layout_height="43dp"
                         android:background="@null"
                         android:gravity="center_vertical|start"
                         android:hint="@string/order_flow_hint"
@@ -382,7 +396,7 @@
                         android:includeFontPadding="false"
                         android:inputType="textCapCharacters"
                         android:maxLines="1"
-                        android:paddingLeft="10dp"
+                        android:paddingLeft="16dp"
                         android:paddingRight="10dp"
                         android:paddingTop="3dp"
                         android:paddingBottom="3dp"
@@ -630,6 +644,11 @@
 
                         <!-- Owner order 2026-11-13: six sectors fit the open
                              box, and the diamond scroller reaches the rest.
+                             Owner order 2026-11-28: "in the tile only show
+                             8 sectors once and when i scroll then I will be
+                             able to see more sectors" - the window is
+                             EIGHT rows at once, and the diamond scrolls
+                             whatever the list holds beyond them.
                              Owner order 2026-11-27 (third pass): the window
                              is the broker's whole list now (eight is its
                              floor), because the eighth sector was cut off

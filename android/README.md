@@ -1641,6 +1641,24 @@ to sixty seconds. The status tile therefore also carries the app's own
      the orphan law stands so every dot still wears a filament.
   5. The version bump is versionCode 82 / versionName 2.3.15.
 
+**Version 4.5.4, versionCode 148.**
+
+Owner order 2026-11-28, the SECTORS window and the two searches:
+
+- The SECTORS tile is an eight-row window again. Build 147 measured the
+  whole list, which put every sector on the tile and left the diamond
+  with nothing to scroll; the window is eight rows now, so the tile keeps
+  one height and every sector below the eighth is a scroll away.
+- The SEARCH and ORDER FLOW boxes take their 43dp field plate back, the
+  typed scrip sits on the box's own vertical centre instead of riding
+  high, and its left edge stands 16dp in from the plate.
+- A SEARCH option prints its own quote again: the scrip with its typed
+  letters bold, the current price and the day's percentage at its right,
+  and the measured B, S and U under that price and percentage on the same
+  right edge. The day's range still prints on the tap, H green and L red.
+
+The version bump is versionCode 148 / versionName 4.5.4.
+
 **Version 4.5.3, versionCode 147.**
 
 Owner order 2026-11-27 (third pass), the greeting, the orb, the sectors and

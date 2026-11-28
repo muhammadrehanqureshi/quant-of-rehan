@@ -209,13 +209,16 @@ public class MainActivity extends Activity {
     private static final long BIG_PRINT_FLOOR_SHARES = 100_000L;
     /** The 3dp the board's text view puts between two prints. */
     private static final int BIG_PRINTS_ROW_AIR_DP = 3;
-    /** Owner order 2026-11-13: the SECTORS window shows six rows before it
-     *  scrolls, like the big prints board's own fixed window.
-     *  Owner order 2026-11-27 (third pass): the window is the list ITSELF,
-     *  never a fixed six - "make the SECTORS tile display all 8 sectors
-     *  name properly, right now the 8th one is getting cut off". Eight is
-     *  the floor the empty list falls back to; a longer list opens on all of
-     *  its rows and leaves the diamond with nothing to reach. */
+    /** Owner order 2026-11-13: the SECTORS window shows a fixed row count
+     *  before it scrolls, like the big prints board's own window.
+     *  Owner order 2026-11-27 (third pass): the window measured the whole
+     *  list, so the eighth sector was never cut off - but it also took the
+     *  scroll away, because a window as tall as its content has nothing to
+     *  scroll.
+     *  Owner order 2026-11-28: "in the tile only show 8 sectors once and
+     *  when i scroll then I will be able to see more sectors" - the window
+     *  is EIGHT rows again, and the diamond scrolls the rest of the list.
+     */
     private static final int SECTOR_ROWS = 8;
 
     /**
@@ -478,7 +481,7 @@ public class MainActivity extends Activity {
     /** The rows currently on screen, keyed by symbol, so the per-second
      *  refresh restyles them in place instead of rebuilding the list and
      *  making it visibly blink out on every tick. */
-    private final java.util.Map<String, TextView> searchRows =
+    private final java.util.Map<String, SearchOption> searchRows =
             new java.util.LinkedHashMap<>();
     /** The query the visible rows were built for, so a tick that changes no
      *  number does not change the rows. */
@@ -4327,11 +4330,11 @@ public class MainActivity extends Activity {
         if (sectorsScroll == null || sectorsMenu == null || !sectorMenuOpen) {
             return;
         }
-        // Owner order 2026-11-27 (third pass): every sector the list holds is
-        // in the window, so no sector can be cut off by a row count; the
-        // loop still stops at the last child, so the floor only stands in
-        // for a list that has not arrived yet.
-        int rows = Math.max(SECTOR_ROWS, sectorRows.size());
+        // Owner order 2026-11-28: eight sectors stand in the box at once and
+        // the diamond scrolls whatever the list holds beyond them, so the
+        // tile has one height at launch and every row below the eighth is a
+        // scroll away rather than a taller tile.
+        int rows = SECTOR_ROWS;
         int height = 0;
         int seen = 0;
         for (int i = 0; i < sectorsMenu.getChildCount() && seen < rows; i++) {
@@ -4681,15 +4684,14 @@ public class MainActivity extends Activity {
                 if (!searchRows.isEmpty()) {
                     searchResults.addView(menuDivider());
                 }
-                TextView row = menuRow("");
+                SearchOption row = searchOption();
                 styleSearchRow(row, symbol, q);
-                row.setOnClickListener(v -> selectSymbol(symbol));
-                searchResults.addView(row);
+                searchResults.addView(row.root);
                 searchRows.put(symbol, row);
             }
             renderedQuery = q;
         } else {
-            for (java.util.Map.Entry<String, TextView> entry : searchRows.entrySet()) {
+            for (java.util.Map.Entry<String, SearchOption> entry : searchRows.entrySet()) {
                 if (visible.contains(entry.getKey())) {
                     styleSearchRow(entry.getValue(), entry.getKey(), q);
                 }
@@ -4755,12 +4757,127 @@ public class MainActivity extends Activity {
         return sp;
     }
 
+    /**
+     * Owner order 2026-11-28: "Get the current price and current
+     * percentage on the SEARCH box tile right to the scrip. And move B, S U
+     * below current price and percentage."
+     *
+     * One option is two lines on the menu's own plate: the scrip with its
+     * typed letters bold, and the relay's current price and the day's move
+     * standing at its right edge; under that price and move, on the same
+     * right edge, the measured B, S and U. Nothing is invented for a scrip
+     * the relay has not quoted (SO-3): such a scrip prints bare.
+     */
+    private static final class SearchOption {
+        final LinearLayout root;
+        final TextView scrip;
+        final TextView quote;
+        final TextView flow;
+
+        SearchOption(LinearLayout root, TextView scrip, TextView quote,
+                     TextView flow) {
+            this.root = root;
+            this.scrip = scrip;
+            this.quote = quote;
+            this.flow = flow;
+        }
+    }
+
+    /** One empty search option: the scrip's line and the flow's line. */
+    private SearchOption searchOption() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setMinimumHeight(dp(32));
+        // The menu's own 14dp column, so the dividing lines above and
+        // below cut exactly the column the options print in.
+        // The box's own 16dp inset, so the scrip starts under the typed one.
+        root.setPadding(dp(16), dp(5), dp(14), dp(5));
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        TextView scrip = optionLine(Gravity.START | Gravity.CENTER_VERTICAL);
+        TextView quote = optionLine(Gravity.END | Gravity.CENTER_VERTICAL);
+        head.addView(scrip, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        head.addView(quote, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        TextView flow = optionLine(Gravity.END | Gravity.CENTER_VERTICAL);
+        root.addView(head, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        root.addView(flow, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        return new SearchOption(root, scrip, quote, flow);
+    }
+
+    /** One line of a search option: one 13sp body line, one ink. */
+    private TextView optionLine(int gravity) {
+        TextView line = new TextView(this);
+        line.setTextSize(13f);
+        line.setTextColor(themeBodyInk);
+        line.setIncludeFontPadding(false);
+        line.setSingleLine(true);
+        line.setGravity(gravity);
+        line.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        return line;
+    }
+
     /** Colour one search row from its own live quote and its typed match. */
-    private void styleSearchRow(TextView row, String symbol, String q) {
-        // Owner order 2026-11-27: the SEARCH tile IS the ORDER FLOW tile, so
-        // its option is the scrip alone, its typed letters bold. The price,
-        // the range and the split print only for the scrip he taps.
-        row.setText(scripMatchSpans(symbol, q));
+    private void styleSearchRow(SearchOption option, String symbol, String q) {
+        // Owner order 2026-11-28: the option carries the scrip with its
+        // typed letters bold, the relay's current price and the day's move
+        // at the right, and the measured B, S and U under that pair. The
+        // range still waits for a tap, where H and L print green and red.
+        option.scrip.setText(scripMatchSpans(symbol, q));
+        option.scrip.setTextColor(themeBodyInk);
+        Watcher.Quote quote = Watcher.quotes().get(symbol);
+        SpannableString quoteLine = new SpannableString("");
+        if (quote != null && quote.price > 0) {
+            quoteLine = new SpannableString(String.format(Locale.US,
+                    "%,.2f", quote.price));
+            quoteLine.setSpan(new ForegroundColorSpan(themeBodyInk), 0,
+                    quoteLine.length(), 0);
+        }
+        if (quote != null && quote.changePct != null) {
+            String price = quoteLine.toString();
+            String move = String.format(Locale.US, "%s %.2f%%",
+                    quote.changePct >= 0 ? "\u25B2" : "\u25BC",
+                    Math.abs(quote.changePct));
+            SpannableString both = new SpannableString(price.isEmpty()
+                    ? move : price + "  " + move);
+            if (!price.isEmpty()) {
+                both.setSpan(new ForegroundColorSpan(themeBodyInk), 0,
+                        price.length(), 0);
+            }
+            int from = both.length() - move.length();
+            both.setSpan(new ForegroundColorSpan(getColor(
+                            quote.changePct >= 0 ? R.color.green
+                                    : R.color.red)),
+                    from, both.length(), 0);
+            both.setSpan(new TypefaceSpan(ARROW_FACE), from, from + 1, 0);
+            quoteLine = both;
+        }
+        // The measured split, on the line under the price and the move and
+        // on their right edge. A frame with no measured pair prints U alone,
+        // never a guessed side (SO-3).
+        SpannableString flowLine = new SpannableString("");
+        if (quote != null && quote.buy != null && quote.sell != null) {
+            StringBuilder sb = new StringBuilder(String.format(Locale.US,
+                    "B=%,d  S=%,d", quote.buy, quote.sell));
+            if (quote.unclassified != null) {
+                sb.append(String.format(Locale.US, "  U=%,d",
+                        quote.unclassified));
+            }
+            flowLine = new SpannableString(sb.toString());
+        } else if (quote != null && quote.unclassified != null) {
+            flowLine = new SpannableString(String.format(Locale.US,
+                    "U=%,d", quote.unclassified));
+        }
+        option.quote.setText(quoteLine);
+        option.flow.setText(flowLine);
+        option.root.setOnClickListener(v -> selectSymbol(symbol));
         // Owner order 2026-10-21 (15:15): a result row is body text, so it
         // carries the same 13sp as every other non-heading line, the size the
         // signal tile's own sentence uses. Its tracking is its own, a list of
@@ -4769,14 +4886,14 @@ public class MainActivity extends Activity {
         // there are double spacing, so you remove that"): the 0.12 letter
         // spacing is gone - the row is one 13sp body line like every
         // other line on the console, its symbols read as the body reads.
-        row.setTextSize(13f);
-        row.setTextColor(themeBodyInk);
-        row.setGravity(Gravity.CENTER);
+        option.scrip.setTextSize(13f);
+        option.quote.setTextSize(13f);
+        option.flow.setTextSize(13f);
         // Owner order 2026-11-25 (latest): an option is ONE line, the scrip
         // alone, so it keeps the menu row's 14dp column and 5dp air and
         // carries no fixed floor of its own.
-        row.setLineSpacing(dp(3), 1f);
-        row.setMinHeight(0);
+        option.flow.setLineSpacing(dp(3), 1f);
+        option.root.setMinimumHeight(dp(32));
         // The row keeps menuRow's 14dp column, because the dividing lines
         // above and below it are cut to that same column.
         // Owner order 2026-10-22 (the search highlight): every row whose
@@ -4796,7 +4913,7 @@ public class MainActivity extends Activity {
         // Owner order 2026-11-25: the option is the CUSTOM SCRIPS OF VOL.
         // menu's own row, plain text in the plate. The lift, the hairline
         // and the grey pill around a matched ticker are all gone.
-        row.setBackground(null);
+        option.root.setBackground(null);
     }
 
     /** One highlight plate, v2.3.9 then v2.3.13: the row lights in a LIFT

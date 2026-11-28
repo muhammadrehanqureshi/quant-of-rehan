@@ -669,11 +669,19 @@
      of the little circular lines, the SECTORS tile opens on all eight
      sectors instead of cutting the eighth off, and the SEARCH and ORDER
      FLOW boxes take the 32dp height of the scrips they list.
-     Ships as 4.5.3, versionCode 147. -->
+     Ships as 4.5.3, versionCode 147.
+     Owner order 2026-11-28: the SECTORS tile is an eight-row window
+     again and the diamond scrolls the sectors beyond it, so the tile is
+     one height and no row is cut off; the SEARCH and ORDER FLOW boxes
+     take their 43dp plate back, the typed scrip stands on the box's
+     vertical centre and 16dp in from its left edge; and a SEARCH option
+     prints the scrip with the current price and the day's percentage at
+     its right and the measured B, S and U under them.
+     Ships as 4.5.4, versionCode 148. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pk.quantofrehan"
-    android:versionCode="147"
-    android:versionName="4.5.3">
+    android:versionCode="148"
+    android:versionName="4.5.4">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="30"/>
 
