@@ -348,11 +348,14 @@ const appVersion = "4.0.21"
 // "large", the opened SECTORS list takes the PKR column one cell further left,
 // the gate answers the right password with "Welcome back! Mr. Rehan." and a
 // wrong one with the taunt, and the console is centred by its text area.
+// Build 192 is 4.5.4, the owner's order of 2026-11-28: the gate greets the right
+// password with "Welcome back, Mr. Rehan!", the comma before his name and the
+// mark at the end as he writes it, and no other word of that line changes.
 //
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.5.3"
+const hudBuild = "4.5.4"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no
