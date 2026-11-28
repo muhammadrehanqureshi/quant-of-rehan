@@ -57,19 +57,23 @@ func TestBuild149BoardsHoldThePkrColumn(t *testing.T) {
 		if len(body) < 2 || body[len(body)-1] != ' ' {
 			t.Fatalf("the price leaves no gutter before its arrow: %q", row)
 		}
-		// The price is right aligned in its own field, so its digits end on the
-		// field's last cell; owner order 2026-11-24 (later) right aligns the
-		// move in its field too, so a short one starts a cell later and every
-		// percentage ends on the one cell.
-		end := arrowAtRow - 1
-		for end > 0 && body[end-1] == ' ' {
-			end--
+		// Owner order 2026-11-28 (build 188): the price starts on the one cell
+		// after PKR's single space, so a row's figure is held by where its first
+		// digit stands and never by where its last one ended. Owner order
+		// 2026-11-24 (later) still right aligns the move, so every percentage
+		// ends on the one cell.
+		start := at + 4
+		for start < len(body) && (body[start] < '0' || body[start] > '9') {
+			start++
+		}
+		if start >= len(body) {
+			t.Fatalf("the board row carries no price after PKR: %q", row)
 		}
 		if seen == 0 {
-			pkrAt, endAt, pctAt = at, end, pct
-		} else if at != pkrAt || end != endAt || pct != pctAt {
-			t.Errorf("a board row left the quote column: PKR %d of %d, price ends %d of %d, percent ends %d of %d: %q",
-				at, pkrAt, end, endAt, pct, pctAt, row)
+			pkrAt, endAt, pctAt = at, start, pct
+		} else if at != pkrAt || start != endAt || pct != pctAt {
+			t.Errorf("a board row left the quote column: PKR %d of %d, price starts %d of %d, percent ends %d of %d: %q",
+				at, pkrAt, start, endAt, pct, pctAt, row)
 		}
 		seen++
 	}

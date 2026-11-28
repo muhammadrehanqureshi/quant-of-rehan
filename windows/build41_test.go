@@ -140,15 +140,21 @@ func TestAlertLogPriceAndPercentageShareTheRightColumns(t *testing.T) {
 		if arrowAt < 0 {
 			continue
 		}
+		// Owner order 2026-11-28 (build 188): the price starts on the one cell
+		// after PKR's single space, so every row's figure is held by where it
+		// begins and a wider figure takes the room it needs.
 		runes := []rune(row)
-		end := arrowAt
-		for end > pkrAt && runes[end-1] == ' ' {
-			end--
+		start := pkrAt + 4
+		for start < arrowAt && (runes[start] < '0' || runes[start] > '9') {
+			start++
+		}
+		if start >= arrowAt {
+			t.Fatalf("the row carries no price after PKR: %q", row)
 		}
 		if priceEnd < 0 {
-			priceEnd = end
-		} else if end != priceEnd {
-			t.Errorf("a price ends on cell %d, want %d: %q", end, priceEnd, row)
+			priceEnd = start
+		} else if start != priceEnd {
+			t.Errorf("a price starts on cell %d, want %d: %q", start, priceEnd, row)
 		}
 		if pctEnd < 0 {
 			pctEnd = pctAt

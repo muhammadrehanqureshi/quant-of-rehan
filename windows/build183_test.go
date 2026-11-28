@@ -160,7 +160,7 @@ func TestHisPictureIsTheBannersArtwork(t *testing.T) {
 		if n := runeLen(rows[0]); n > w {
 			t.Fatalf("%dx%d: the picture's banner is %d cells wide, wider than the gate", w, h, n)
 		}
-		if !strings.ContainsAny(strings.Join(rows, ""), "▀▄█") {
+		if !strings.Contains(strings.Join(rows, ""), string(bannerDot)) {
 			t.Fatalf("%dx%d: the picture's banner is blank", w, h)
 		}
 	}

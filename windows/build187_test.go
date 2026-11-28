@@ -69,8 +69,9 @@ func TestBuild187TelemetryFlowColoursOnlyTheValues(t *testing.T) {
 }
 
 // Owner order 2026-11-27 (build 187): the WATCH LIST writes the average change
-// of its scrips four blank rows under the last of them, the arrow and the
-// quoted figure in the direction's own green or red and the sentence soft.
+// of its scrips under the last of them, the arrow and the figure in the
+// direction's own green or red and the sentence soft. Owner order 2026-11-28
+// (build 188) moved that line two rows up and took the quotes off the figure.
 func TestBuild187WatchAverageStandsUnderTheList(t *testing.T) {
 	a := demoApp(t, 210, 44)
 	a.cfg.Watch = []string{"AAA", "BBB", "CCC"}
@@ -98,17 +99,17 @@ func TestBuild187WatchAverageStandsUnderTheList(t *testing.T) {
 	if last < 0 || avg < 0 {
 		t.Fatalf("the page has no average under %s:\n%s", lastSym, strings.Join(rows, "\n"))
 	}
-	if avg != last+5 {
-		t.Fatalf("the average stands on row %d, %d rows under %s on row %d; want four blank rows between",
+	if avg != last+3 {
+		t.Fatalf("the average stands on row %d, %d rows under %s on row %d; want two blank rows between",
 			avg, avg-last, lastSym, last)
 	}
-	if want := `▲ "4%"`; !strings.Contains(rows[avg], want) {
+	if want := "▲ 4.00%"; !strings.Contains(rows[avg], want) {
 		t.Fatalf("the average does not read %q: %q", want, rows[avg])
 	}
 	if got := c.Cells[avg*c.W+runeAt(rows[avg], "The average")].FG; got != a.th.Soft {
 		t.Errorf("the sentence wears %v, want the page's soft ink %v", got, a.th.Soft)
 	}
-	for _, part := range []string{"▲", `"4%"`} {
+	for _, part := range []string{"▲", "4.00%"} {
 		if got := c.Cells[avg*c.W+runeAt(rows[avg], part)].FG; got != a.th.Good {
 			t.Errorf("%q wears %v, want the rise's green %v", part, got, a.th.Good)
 		}

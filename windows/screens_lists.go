@@ -1635,14 +1635,17 @@ func (a *App) drawBoardPanel(c *Canvas, x, y, w, h int, side int) {
 		c.Text(ix+4, ry, 2, "  ", th.Warn, false)
 		c.Text(ix+6, ry, 8, b.Symbol, th.Hot, true)
 		// Owner order 2026-11-16: both boards name the current price with PKR.
-		// Owner order 2026-11-20 (latest): PKR stands on one column and the price
-		// is right aligned in its own field, so the three rows read as one quote
-		// group and the label no longer floats with the number of digits.
+		// Owner order 2026-11-20 (latest): PKR stands on one column, so the rows
+		// read as one quote group and the label never floats with a row's digits.
 		// Owner order 2026-11-25: only the PKR label steps one cell left on both
-		// boards; its figure keeps the field it holds, so one blank cell opens
-		// between the label and the value and the value never moves.
+		// boards.
+		// Owner order 2026-11-28 (build 188): "only have one single space after
+		// PKR then start all the PKR values from that alignment", so the price
+		// stands on the one cell after the label's single space on every row, and
+		// a wider figure takes the room it needs instead of pushing its own first
+		// digit right.
 		c.Text(lay.priceX-1, ry, 3, "PKR", th.Soft, false)
-		a.flashText(c, lay.priceX+quoteLabelW, ry, padLeft(commaFloat(b.Price, 2), lay.pxW), th.Text, true, pxKey)
+		a.flashText(c, lay.priceX+3, ry, commaFloat(b.Price, 2), th.Text, true, pxKey)
 		// Owner order 2026-11-16: both boards carry the side's share quantity and
 		// its bar. The quantity is this side's own: bought shares on the buying
 		// board, sold shares on the selling board. Owner order 2026-11-23
@@ -1964,8 +1967,11 @@ func (a *App) drawAlertLog(c *Canvas, x, y, w, h int) {
 		if showGroup {
 			if f.Price > 0 {
 				// Owner order 2026-11-20: the log's figures are written once, so
-				// they carry no live flash key.
-				a.drawQuote(c, groupX, row, priceW, commaFloat(f.Price, 2), nil, "")
+				// they carry no live flash key. Owner order 2026-11-28 (build 188):
+				// the log reads PKR, one space, then the price, so every alert's
+				// figure starts on the one cell the boards' figures start on, and a
+				// wider price takes the room it needs.
+				a.drawQuoteLeft(c, groupX, row, priceW, commaFloat(f.Price, 2), nil, "")
 				if pct != nil {
 					// Owner order 2026-11-25 (build 173): the arrow stands on one
 					// cell and the figure starts on the cell after it, on every

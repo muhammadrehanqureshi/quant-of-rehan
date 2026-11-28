@@ -129,8 +129,9 @@ func main() {
 	}
 
 	// Owner order 2026-11-27 (build 185): the programme measures in screen
-	// pixels before it makes any window, so the welcome picture is drawn at the
-	// file's own width whatever the display's scaling is set to.
+	// pixels before it makes any window. Owner order 2026-11-28 (build 188):
+	// that same measure is what centres the build's console on its monitor,
+	// whatever the display's scaling is set to.
 	enableWelcomeDPI()
 
 	// Owner order 2026-11-21: a build started from a shell's console opens a
@@ -139,14 +140,21 @@ func main() {
 	if openOwnConsole() {
 		return
 	}
+	// Owner order 2026-11-28 (build 188): "the build screen little to the top
+	// and little to the left ... get my build screen on the exact center on the
+	// console it's running on whether on CMD or POWERSHELL". The console the
+	// system made for this exe is a window of its own, so it is placed on the
+	// middle of its monitor whatever shell started the build.
+	centerOwnConsole()
 
 	// Owner order 2026-11-23: the window opens on the password box before the
 	// HUD. Snapshots, --selftest, --feedwatch and --version above never see it.
 	app.locked = true
-	// Owner order 2026-11-27 (build 184): the welcome image is the picture
-	// itself, shown in its own window. A snapshot or a test draws the cell
-	// banner instead and never opens one.
-	welcomePictureAllowed = true
+	// Owner order 2026-11-28 (build 188): "the welcome banner image hangs up
+	// the build", so the picture's own window is withdrawn. The welcome is the
+	// gate's cell banner again: that same picture's ink, sampled into one dot a
+	// cell, and no window over the gate.
+	welcomePictureAllowed = false
 
 	t := newTerm()
 	if err := app.run(t); err != nil {

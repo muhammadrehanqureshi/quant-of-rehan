@@ -325,11 +325,17 @@ const appVersion = "4.0.21"
 // FLOW's own soft ink; the WATCH LIST writes the average change of its scrips
 // four blank rows under the last of them; and a row with no figure keeps one
 // dash in each of its NET DELTA columns instead of two in the second.
+// Build 188 is 4.5.0, the owner's order of 2026-11-28: the welcome is his
+// picture's own ink drawn in one dot a cell, the picture's window withdrawn
+// because it hung the build; the WATCH LIST's average change reads two
+// decimals with no quotes two blank rows under its last scrip; the ALERTS
+// boards and log stand one space after PKR with every figure starting on the
+// one cell; and the build's console opens on the middle of its monitor.
 //
 // Owner order 2026-11-24: the HUD ships as 4.2.5. The version never reads a
 // part above ten on either build: 3.10.10 is followed by 4.0.0, and .11 never
 // exists.
-const hudBuild = "4.4.9"
+const hudBuild = "4.5.0"
 
 // appVersionLabel is the version the SETTINGS page names. Owner order
 // 2026-11-09: the page shows 2.8 alone, with no Windows build number and no

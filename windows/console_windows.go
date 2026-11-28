@@ -114,3 +114,67 @@ func startInNewConsole(exe string, args []string) bool {
 	syscall.CloseHandle(pi.process)
 	return true
 }
+
+// The build's console window, placed on the middle of its monitor.
+//
+// Owner order 2026-11-28 (build 188): "right now the build screen little to the
+// top and little to the left, is there any way you can get my build screen on
+// the exact center on the console it's running on whether on CMD or
+// POWERSHELL". The console the system made for this exe is a window of its own,
+// so it is measured and moved as one: the middle of its monitor's work area,
+// its size and its place in the window order left alone. A console with no
+// window, a monitor that will not answer and a window that will not move all
+// leave the build where Windows put it.
+const swpNoZOrder = 0x0004
+
+const monitorDefaultToNearest = 2
+
+var (
+	pMonitorFromWindow = user32.NewProc("MonitorFromWindow")
+	pGetMonitorInfoW   = user32.NewProc("GetMonitorInfoW")
+	pGetWindowRect     = user32.NewProc("GetWindowRect")
+)
+
+// consoleRect is RECT.
+type consoleRect struct {
+	left, top, right, bottom int32
+}
+
+// consoleMonitorInfo is MONITORINFO.
+type consoleMonitorInfo struct {
+	cbSize    uint32
+	rcMonitor consoleRect
+	rcWork    consoleRect
+	dwFlags   uint32
+}
+
+// centerOwnConsole moves this build's console window to the middle of the
+// monitor it stands on, and says whether it did.
+func centerOwnConsole() bool {
+	hwnd, _, _ := pGetConsoleWindow.Call()
+	if hwnd == 0 {
+		return false
+	}
+	mon, _, _ := pMonitorFromWindow.Call(hwnd, monitorDefaultToNearest)
+	if mon == 0 {
+		return false
+	}
+	var mi consoleMonitorInfo
+	mi.cbSize = uint32(unsafe.Sizeof(mi))
+	if ok, _, _ := pGetMonitorInfoW.Call(mon, uintptr(unsafe.Pointer(&mi))); ok == 0 {
+		return false
+	}
+	var wr consoleRect
+	if ok, _, _ := pGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&wr))); ok == 0 {
+		return false
+	}
+	w, h := int(wr.right-wr.left), int(wr.bottom-wr.top)
+	if w <= 0 || h <= 0 {
+		return false
+	}
+	x := int(mi.rcWork.left) + (int(mi.rcWork.right)-int(mi.rcWork.left)-w)/2
+	y := int(mi.rcWork.top) + (int(mi.rcWork.bottom)-int(mi.rcWork.top)-h)/2
+	ok, _, _ := pSetWindowPos.Call(hwnd, 0, uintptr(x), uintptr(y), 0, 0,
+		uintptr(swpNoSize|swpNoZOrder|swpNoActivate))
+	return ok != 0
+}
