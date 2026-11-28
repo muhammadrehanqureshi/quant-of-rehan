@@ -55,28 +55,36 @@ func TestTheBuildOpensOnThePasswordBox(t *testing.T) {
 	}
 }
 
-func TestTheRightPasswordWelcomesHimThenOpensTheHud(t *testing.T) {
+// Owner order 2026-11-28 (build 189): "remove the welcome banner from the
+// build". The right password used to turn the gate into the banner first; now
+// nothing stands between the box and the HUD, and the frame between them is
+// empty for the one frame it lasts.
+func TestTheRightPasswordOpensTheHudAtOnce(t *testing.T) {
 	a := lockedApp(t, 100, 30)
 	typeRunes(a, wantUnlockPassword)
 	a.onKey(Key{Kind: KEnter})
-	if !a.locked {
-		t.Fatal("the HUD took the screen before the splash was read")
+	if !a.passOK {
+		t.Fatal("the right password was not taken")
 	}
-	if rows := screenOf(a); !hasBasmala(rows) {
-		t.Fatalf("the basmala is not on the gate:\n%s", rows)
+	if !a.loginOpens(a.now) {
+		t.Fatal("the HUD does not open on the frame the password was given")
 	}
-	if a.passText != wantUnlockPassword {
-		t.Fatalf("the box lost the password: %q", a.passText)
-	}
-	a.onTick(a.now.Add(unlockWelcomeFor))
+	a.onTick(a.now)
 	if a.locked {
 		t.Fatal("the gate stayed shut after the right password")
 	}
 	if a.passText != "" || a.passMsg != "" {
 		t.Fatalf("the gate kept its state after opening: %q %q", a.passText, a.passMsg)
 	}
-	if rows := screenOf(a); strings.Contains(rows, wantUnlockHint) {
+	rows := screenOf(a)
+	if strings.Contains(rows, wantUnlockHint) {
 		t.Fatalf("the gate is still drawn after opening:\n%s", rows)
+	}
+	if !strings.Contains(rows, headerTitle) {
+		t.Fatalf("the HUD did not take the screen after the password:\n%s", rows)
+	}
+	if hasBasmala(rows) {
+		t.Fatalf("the welcome banner is still in the build:\n%s", rows)
 	}
 }
 

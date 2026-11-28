@@ -27,10 +27,6 @@ const (
 	unlockHint        = "HINT: Password contains 13 characters."
 	unlockTaunt       = "Nice try, buddy. Get your punk ahh out of here. HAHAHA!"
 	unlockMaxChars    = 16
-	// Owner order 2026-11-26 (later): the right password shows the basmala and
-	// nothing after it, and then the HUD takes the screen. The ligature and the
-	// mark the gate draws for it live in basmala.go and ligature.go.
-	unlockWelcomeFor = 2500 * time.Millisecond
 )
 
 // keyLogin owns every key while the gate is up, so nothing he types reaches a
@@ -72,9 +68,13 @@ func (a *App) keyLogin(k Key) {
 	}
 }
 
-// submitPassword judges the box. The right password turns the gate into the
-// splash for a moment before the HUD takes the screen, so he reads the words he
-// asked for.
+// submitPassword judges the box. The right password opens the gate there and
+// then: the HUD takes the screen on the next frame, with no banner between the
+// box and the screens behind it.
+//
+// Owner order 2026-11-28 (build 189): "remove the welcome banner from the
+// build, because it looks nothing like how I want it." The splash this gate
+// used to become is withdrawn; the box, the decoy hint and the taunt stay.
 func (a *App) submitPassword() {
 	if a.passOK {
 		return
@@ -82,7 +82,7 @@ func (a *App) submitPassword() {
 	if a.passText == unlockPassword {
 		a.passOK = true
 		a.passMsg = ""
-		a.unlockAt = a.now.Add(unlockWelcomeFor)
+		a.unlockAt = a.now
 		return
 	}
 	a.passMsg = unlockTaunt
@@ -100,10 +100,11 @@ func (a *App) loginOpens(now time.Time) bool {
 // the end of the field while it has the keys. The field's cells are kept on the
 // app so a mouse click can take it.
 func (a *App) drawLogin(c *Canvas) {
-	// Owner order 2026-11-26: once the password is right the gate becomes the
-	// splash, so no tile shows behind it while he reads the words.
+	// Owner order 2026-11-28 (build 189): the welcome banner is withdrawn from
+	// the build, so nothing stands between the right password and the HUD. The
+	// frame between the two is empty for the moment it lasts, and no tile of the
+	// HUD is drawn behind the gate.
 	if a.passOK {
-		a.drawSplash(c)
 		return
 	}
 	th := a.th
@@ -157,38 +158,4 @@ func (a *App) drawLogin(c *Canvas) {
 	}
 
 	a.passX, a.passY, a.passW, a.passH = bx, iy+1, bw, 1
-}
-
-// drawSplash is what the gate becomes once the password is right. Owner order
-// 2026-11-26 (later): the banner carries the basmala and nothing else, and the
-// HUD takes the screen after it and after nothing else.
-//
-// Owner order 2026-11-27: the banner is the ligature U+FDFD and it "should take
-// about 40% of the screen". The ligature is drawn as its own shape, sampled
-// into cells, centred on the gate and sized to about 40% of the gate's rows.
-// When the shape cannot be drawn the character itself stands on the middle row,
-// so the mark is never missing; either way nothing is drawn after it.
-//
-// Owner order 2026-11-27 (build 184): the welcome image is the picture itself,
-// not a block version of it, so the picture's own window goes up over the gate
-// and the cells stay empty behind it. The block banner below is the fallback
-// for a platform with no such window, and for a run whose window cannot be
-// made, so the welcome always carries the mark.
-func (a *App) drawSplash(c *Canvas) {
-	th := a.th
-	if welcomePictureUp(th.BG) {
-		return
-	}
-	if rows := splashBanner(c.W, c.H); len(rows) > 0 {
-		x := max(0, (c.W-runeLen(rows[0]))/2)
-		y := max(0, (c.H-len(rows))/2)
-		for i, row := range rows {
-			c.Text(x, y+i, c.W, row, th.Hot, false)
-		}
-		return
-	}
-	if c.W < runeLen(basmalaBanner)+2 || c.H < 3 {
-		return
-	}
-	c.Text(max(0, (c.W-runeLen(basmalaBanner))/2), c.H/2, c.W, basmalaBanner, th.Hot, true)
 }
