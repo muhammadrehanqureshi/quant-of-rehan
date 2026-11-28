@@ -603,32 +603,50 @@ class SettingsControlTest(unittest.TestCase):
         self.assertIn("Double changePct;", watcher)
 
     def test_the_search_row_carries_the_scrip_and_its_quote(self):
-        """Owner order 2026-11-27: "Make the SEARCH tile also like the ORDER
-        FLOW tile. When I will tap on a scrip only then I will be able to see
-        the details of that scrip." The option is the scrip alone, so no
-        option prints a price, a range or a split while he types; the tapped
-        scrip's answer carries the day's range, H in the green of a high and L
-        in the red of a low."""
+        """Owner order 2026-11-28: "Get the current price and current
+        percentage on the SEARCH box tile right to the scrip. And move B, S
+        U below current price and percentage."
+
+        The option is two lines on the menu plate: the scrip with its typed
+        letters bold, the relay's current price and the day's percentage at
+        its right, and the measured B, S and U under that price and
+        percentage on the same right edge. The day's range still waits for
+        the tap, where H prints green and L red, and nothing is invented for
+        a scrip the relay has not quoted (SO-3).
+        """
         row = self.main[self.main.index("private void styleSearchRow("):]
         row = row[:row.index("private GradientDrawable highlightPlate")]
-        self.assertIn("row.setText(scripMatchSpans(symbol, q));", row)
-        self.assertNotIn("appendSearchQuote", row)
-        self.assertNotIn("Watcher.quotes()", row)
+        self.assertIn("option.scrip.setText(scripMatchSpans(symbol, q));", row)
+        self.assertIn("Watcher.quotes().get(symbol)", row)
+        self.assertIn("String.format(Locale.US,", row)
+        self.assertIn('"%,.2f", quote.price));', row)
+        self.assertIn('String.format(Locale.US, "%s %.2f%%"', row)
+        self.assertIn("quote.buy", row)
+        self.assertIn("quote.sell", row)
+        self.assertIn("quote.unclassified", row)
+        self.assertIn("option.quote.setText(quoteLine);", row)
+        self.assertIn("option.flow.setText(flowLine);", row)
+        # The two lines of the option: the scrip and the quote on the first,
+        # the flow under them on the right edge.
+        plate = self.main[self.main.index("private SearchOption searchOption()"):]
+        plate = plate[:plate.index("private TextView optionLine(")]
+        self.assertIn("root.setOrientation(LinearLayout.VERTICAL);", plate)
+        self.assertIn("TextView scrip = optionLine(Gravity.START"
+                      " | Gravity.CENTER_VERTICAL);", plate)
+        self.assertIn("TextView quote = optionLine(Gravity.END"
+                      " | Gravity.CENTER_VERTICAL);", plate)
+        self.assertIn("TextView flow = optionLine(Gravity.END"
+                      " | Gravity.CENTER_VERTICAL);", plate)
+        # The tapped answer keeps the day's range, H green and L red.
         answer = self.main[self.main.index("private CharSequence liveSelectedLine("):]
         answer = answer[:answer.index("private CharSequence signalInk")]
         self.assertIn('"\\nH="', answer)
         self.assertIn('" & L="', answer)
-        self.assertIn("highFrom, highTo, 0", answer)
-        self.assertIn("lowFrom, lowTo, 0", answer)
-        self.assertLess(answer.index("highFrom, highTo, 0"),
-                        answer.index("lowFrom, lowTo, 0"))
         watcher = (ROOT / "android" / "app" / "src" / "main" / "java"
                    / "pk" / "quantofrehan" / "Watcher.java").read_text(
             encoding="utf-8")
         self.assertIn("Double high;", watcher)
         self.assertIn("Double low;", watcher)
-        self.assertIn('row.optDouble(7, Double.NaN)', watcher)
-        self.assertIn('row.optDouble(8, Double.NaN)', watcher)
 
     def test_a_row_without_a_measured_pair_prints_its_unclear_total(self):
         """B/S null must not hide U: the known total is printed as U."""
@@ -851,11 +869,15 @@ class SettingsControlTest(unittest.TestCase):
         # percentage, and every known percentage carries its arrow.
         # Owner order 2026-11-27 (third pass): "make the SECTORS tile display
         # all 8 sectors name properly, right now the 8th one is getting cut
-        # off" - the window measures the broker's WHOLE list (eight is its
-        # floor for an empty answer), so no sector stands out of sight.
+        # off" - the eighth sector may never be cut off by the window.
+        # Owner order 2026-11-28: "in the tile only show 8 sectors once and
+        # when i scroll then I will be able to see more sectors" - the
+        # window measures EIGHT rows again and the diamond scrolls the rest,
+        # so the tile keeps one height and no sector is out of reach.
         self.assertIn("private static final int SECTOR_ROWS = 8;", self.main)
-        self.assertIn("int rows = Math.max(SECTOR_ROWS, sectorRows.size());",
-                      self.main)
+        self.assertIn("int rows = SECTOR_ROWS;", self.main)
+        self.assertNotIn("Math.max(SECTOR_ROWS, sectorRows.size())",
+                         self.main)
         self.assertIn("sectorsMenu.post(this::fitSectorWindow);", self.main)
         # Owner order 2026-11-16: the window includes the menu's own edge air,
         # so its first and last rows are never clipped.
@@ -2455,10 +2477,14 @@ class VersionTest(unittest.TestCase):
         # the orb, and the greeting wears the tagline's face. Third pass that
         # day: the greeting is 18.3sp, the compass circle takes the outside
         # start of the ticks, the SECTORS tile lists all eight, and the two
-        # search boxes are the scrip row's 32dp.
-        # They ship as 4.5.3, versionCode 147.
-        self.assertIn('android:versionName="4.5.3"', manifest)
-        self.assertIn('android:versionCode="147"', manifest)
+        # search boxes are the scrip row's 32dp. Owner order 2026-11-28:
+        # the SECTORS tile is an eight-row window with its diamond scroll
+        # back, the two search boxes take their 43dp plate and the typed
+        # scrip's 16dp inset, and a SEARCH option prints its price and
+        # percentage with B, S and U under them.
+        # They ship as 4.5.4, versionCode 148.
+        self.assertIn('android:versionName="4.5.4"', manifest)
+        self.assertIn('android:versionCode="148"', manifest)
         # Owner order 2026-11-24: no part of either build's version reads above
         # ten, so 3.10.10 is followed by 4.0.0 and .11 never exists.
         shipped = manifest.split('android:versionName="', 1)[1].split('"', 1)[0]
@@ -2712,10 +2738,13 @@ class VersionTest(unittest.TestCase):
         # and the greeting wears the PSX's KMIALL INDEX face. Third pass that
         # day: the greeting is 18.3sp, the compass circle takes the outside
         # start of the ticks, the SECTORS tile lists all eight, and the two
-        # search boxes are the scrip row's 32dp. They ship as 4.5.3,
-        # versionCode 147.
-        self.assertIn('android:versionCode="147"', manifest)
-        self.assertIn('android:versionName="4.5.3"', manifest)
+        # search boxes are the scrip row's 32dp. Owner order 2026-11-28:
+        # eight sectors in the SECTORS window with its diamond scroll back,
+        # 43dp search boxes with a 16dp inset, and a SEARCH option carrying
+        # its price, its percentage and B, S and U beneath them. They ship
+        # as 4.5.4, versionCode 148.
+        self.assertIn('android:versionCode="148"', manifest)
+        self.assertIn('android:versionName="4.5.4"', manifest)
         self.assertNotIn('android:versionName="4.0.15"', manifest)
         self.assertNotIn('android:versionName="3.7.5"', manifest)
         self.assertNotIn('android:versionName="3.7.4"', manifest)
@@ -2858,29 +2887,29 @@ class SearchPanelStabilityTest(unittest.TestCase):
         self.assertNotIn("@+id/order_flow_scroll", layout)
         self.assertNotIn("@+id/order_flow_scroller", layout)
 
-    def test_a_search_option_is_the_scrip_alone(self):
+    def test_a_search_option_prints_its_scrip_and_quote(self):
         """Owner order 2026-11-25 (latest): "I don't want to see the details
-        while I'm still searching and haven't selected any scrip." The SEARCH
-        option is the scrip alone. CUSTOM SCRIPS OF VOLUME keeps its own
-        builder and its own order: the scrip, its current price, its
-        percentage, then the quantities."""
+        while I'm still searching and haven't selected any scrip." That order
+        is superseded for the SEARCH tile by 2026-11-28: the option again
+        prints the scrip, its current price and its percentage, and the
+        measured B, S and U under them. CUSTOM SCRIPS OF VOLUME keeps its own
+        builder and its own order."""
         main = MAIN.read_text(encoding="utf-8")
         self.assertIn("private void appendScripQuote(SpannableStringBuilder sb,",
                       main)
-        self.assertIn("appendScripQuote(sb, quote);", main)
         reveal = main[main.index("private SpannableStringBuilder volumeRevealText("):
                       main.index("private void appendScripQuote(")]
         self.assertIn("appendScripQuote(sb, quote);", reveal)
         row = main[main.index("private void styleSearchRow("):
                    main.index("private GradientDrawable highlightPlate(")]
-        # Owner order 2026-11-27: the tile is the ORDER FLOW tile, so the
-        # option is the scrip alone and its details wait for the tap.
-        self.assertIn("row.setText(scripMatchSpans(symbol, q));", row)
-        self.assertNotIn("appendSearchQuote", row)
-        self.assertNotIn("appendScripQuote", row)
-        self.assertNotIn("PKR %,.2f", row)
-        # The volume tile's own order (owner order 2026-11-25): the price and
-        # the percentage stand on the scrip's line, ahead of the B line.
+        # The option carries the scrip and its own live quote again.
+        self.assertIn("option.scrip.setText(scripMatchSpans(symbol, q));", row)
+        self.assertIn("quote.price", row)
+        self.assertIn("quote.changePct", row)
+        self.assertIn("quote.buy", row)
+        self.assertIn("quote.sell", row)
+        # The volume tile's own order stays: the price and the percentage
+        # stand on the scrip's line, ahead of the B line.
         scrip = main[main.index("private void appendScripQuote("):
                      main.index("private void colorQuantity")]
         self.assertLess(scrip.index('"PKR %,.2f"'), scrip.index('"(B="'))
@@ -2904,7 +2933,8 @@ class SearchPanelStabilityTest(unittest.TestCase):
         flow_box = element(layout, 'android:id="@+id/order_flow_input"')
         self.assertIn('android:gravity="center_vertical|start"', flow_box)
         main = MAIN.read_text(encoding="utf-8")
-        self.assertIn('TextView row = menuRow("");', main)
+        self.assertIn("SearchOption row = searchOption();", main)
+        self.assertIn("searchResults.addView(row.root);", main)
         # Owner order 2026-11-24: the search options are the volume menu's
         # own rows and its own divider now, not the tighter list line.
         self.assertIn("searchResults.addView(menuDivider());", main)
@@ -3207,11 +3237,14 @@ class SearchBoxGapTest(unittest.TestCase):
         # back on both searches, the height every other field carries, with
         # the same 3dp air above and below the line.
         # Owner order 2026-11-27 (third pass): "make that space's height same
-        # as the height of the search results scrips" - the box is the 32dp
-        # every scrip row wears, the plate measure again, with the same air.
+        # as the height of the search results scrips" - the box was the 32dp
+        # every scrip row wears, with the same air.
+        # Owner order 2026-11-28: "Make the search boxes of SEARCH and ORDER
+        # FLOW tiles bigger like before" - the 43dp field plate is back, and
+        # the typed scrip stands 16dp in from it, centred on its height.
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingTop"), "3dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingBottom"), "3dp")
-        self.assertEqual(self.box.get(f"{ANDROID_NS}paddingLeft"), "10dp")
+        self.assertEqual(self.box.get(f"{ANDROID_NS}paddingLeft"), "16dp")
         self.assertEqual(self.box.get(f"{ANDROID_NS}paddingRight"), "10dp")
         # v2.3.18 (owner order 2026-10-27, twenty-second pass: "increase
         # all the dropdown/search boxes heigh by another 50% from their
@@ -3221,9 +3254,9 @@ class SearchBoxGapTest(unittest.TestCase):
         # field box carries - and no floor is named again under the
         # height it retired.
         self.assertEqual(self.box.get(f"{ANDROID_NS}layout_height"),
-                         "32dp")
+                         "43dp")
         self.assertIsNone(self.box.get(f"{ANDROID_NS}minHeight"))
-        self.assertIn('android:layout_height="32dp"',
+        self.assertIn('android:layout_height="43dp"',
                       LAYOUT.read_text(encoding="utf-8"))
 
     def test_the_hidden_rows_start_hidden_in_the_layout(self):
@@ -4181,7 +4214,7 @@ class SearchHighlightTest(unittest.TestCase):
     def test_every_row_is_styled_against_the_live_query(self):
         main = MAIN.read_text(encoding="utf-8")
         self.assertIn(
-            "private void styleSearchRow(TextView row, String symbol, String q) {",
+            "private void styleSearchRow(SearchOption option, String symbol, String q) {",
             main)
         # Both draw paths restyle against the SAME live query, so a
         # keystroke and a price tick light the same rows.
@@ -4197,7 +4230,7 @@ class SearchHighlightTest(unittest.TestCase):
         main = MAIN.read_text(encoding="utf-8")
         block = main[main.index("private void styleSearchRow") :]
         block = block[:block.index("/** One highlight plate")]
-        self.assertIn("row.setBackground(null);", block)
+        self.assertIn("option.root.setBackground(null);", block)
         self.assertNotIn("highlightPlate(", block)
         flow = main[main.index("private View flowTableRow("):
                     main.index("private void pickFlow(")]
@@ -4610,17 +4643,19 @@ class Build174Test(unittest.TestCase):
         self.assertLess(search.index("padMenu(searchResults);"),
                         search.index("searchResults.addView(menuDivider());"))
         self.assertLess(search.index("searchResults.addView(menuDivider());"),
-                        search.index("searchResults.addView(row);"))
+                        search.index("searchResults.addView(row.root);"))
         flow = main[main.index("private void renderFlowResults("):]
         flow = flow[:flow.index("private View flowTableRow(")]
         self.assertIn("orderFlowResults.addView(menuDivider());", flow)
 
-    def test_a_search_option_is_the_scrip_alone_and_its_letters_bold(self):
+    def test_a_search_option_bolds_its_typed_letters_and_prints_its_quote(self):
         """Owner order 2026-11-27: "as I keep typing for example I type E then
         every scrip containing E letter would be bold, and as I keep typing all
         the letters then each letter in the search results will get bold." The
-        matching run inside the symbol is the bold one, the rest of the scrip
-        keeps the body's weight, and no option prints a quote."""
+        matching run inside the symbol is the bold one and the rest of the
+        scrip keeps the body's weight. Owner order 2026-11-28: the option
+        prints the current price and the day's percentage to the right of the
+        scrip and B, S and U beneath them, so its own quote is read here."""
         main = MAIN.read_text(encoding="utf-8")
         span = main[main.index("private CharSequence scripMatchSpans("):]
         span = span[:span.index("private void styleSearchRow(")]
@@ -4630,9 +4665,9 @@ class Build174Test(unittest.TestCase):
         self.assertIn("themeAccentInk", span)
         row = main[main.index("private void styleSearchRow("):]
         row = row[:row.index("private GradientDrawable highlightPlate")]
-        self.assertIn("row.setText(scripMatchSpans(symbol, q));", row)
-        self.assertNotIn("Watcher.Quote quote = Watcher.quotes().get(symbol);",
-                         row)
+        self.assertIn("option.scrip.setText(scripMatchSpans(symbol, q));", row)
+        self.assertIn("Watcher.Quote quote = Watcher.quotes().get(symbol);",
+                      row)
 
 
 if __name__ == "__main__":
