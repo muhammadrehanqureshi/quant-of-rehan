@@ -422,10 +422,12 @@ func (a *App) drawWatch(c *Canvas, x, y, w, h int) {
 		row += per
 	}
 	// Owner order 2026-11-27 (build 187): the average change of the list stands
-	// four blank rows under its last scrip, while it still fits above the page's
-	// own footer.
+	// under its last scrip, while it still fits above the page's own footer.
+	// Owner order 2026-11-28 (build 188): "move the line for the average change
+	// on WATCH LIST page 2 lines space above", so two blank rows stand under
+	// the last scrip instead of four.
 	if len(rows) > 1 {
-		if avgRow := row + 4; avgRow <= iy+ih-2 {
+		if avgRow := row + 2; avgRow <= iy+ih-2 {
 			a.drawWatchAverage(c, ix, avgRow, iw, rows)
 		}
 	}
@@ -450,15 +452,21 @@ func watchAverage(rows []FlowRow) (float64, bool) {
 
 // drawWatchAverage writes the average change of the list under its rows. Owner
 // order 2026-11-27 (build 187): "The average change of the above scrips is
-// ▲ "5%"" four spaces below the last scrip, the sentence in the page's soft ink
-// and only the arrow and the quoted figure in the direction's green or red.
+// ▲ 5%" under the last scrip, the sentence in the page's soft ink and only
+// the arrow and the figure in the direction's green or red.
+//
+// Owner order 2026-11-28 (build 188): "remove the commas around the result of
+// the mean average and have only one single spacing after drop down/up icon"
+// and the mean itself read 0 when his scrips averaged 0.27, because the figure
+// was cut to whole percent. The average now reads two decimals, as every
+// scrip's own change does, and no quotes stand around it.
 func (a *App) drawWatchAverage(c *Canvas, x, y, w int, rows []FlowRow) {
 	avg, ok := watchAverage(rows)
 	if !ok || w < 1 {
 		return
 	}
 	ink := a.dirColor(avg)
-	pct := fmt.Sprintf("%q", fmt.Sprintf("%.0f%%", math.Abs(avg)))
+	pct := fmt.Sprintf("%.2f%%", math.Abs(avg))
 	c.Spans(x, y, w, []Span{
 		{"The average change of the above scrips is ", a.th.Soft, false},
 		{arrow(avg) + " ", ink, true},

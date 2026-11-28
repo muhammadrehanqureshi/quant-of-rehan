@@ -83,13 +83,13 @@ func TestTheMarkIsTheShapeNotTheWords(t *testing.T) {
 	for _, row := range rows {
 		for _, r := range row {
 			switch r {
-			case ' ', '▀', '▄', '█':
+			case ' ', bannerDot:
 			default:
-				t.Fatalf("the mark carries %q, which is not a half block:\n%s", r, joined)
+				t.Fatalf("the mark carries %q, which is not a dot:\n%s", r, joined)
 			}
 		}
 	}
-	if !strings.ContainsAny(joined, "▀▄█") {
+	if !strings.Contains(joined, string(bannerDot)) {
 		t.Fatalf("the mark is blank:\n%s", joined)
 	}
 }
@@ -105,7 +105,7 @@ func TestTheGateShowsTheMarkAlone(t *testing.T) {
 
 	first, last := -1, -1
 	for i, row := range rows {
-		if strings.ContainsAny(row, "▀▄█") {
+		if strings.Contains(row, strings.Repeat(string(bannerDot), 2)) {
 			if first < 0 {
 				first = i
 			}

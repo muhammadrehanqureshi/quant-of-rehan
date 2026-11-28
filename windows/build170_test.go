@@ -32,10 +32,15 @@ func TestBuild170TheBoardsStepThePercentageAndThePkrLabelLeft(t *testing.T) {
 			if pkr < 0 || pkr+4 >= len(r) {
 				t.Fatalf("side %d: the row ends before its price: %q", side, row)
 			}
-			// The label ends on pkr+2; the two cells after it are the blanks
-			// the shift opened before the value's own field.
-			if r[pkr+3] != ' ' || r[pkr+4] != ' ' {
-				t.Fatalf("side %d: the label and its value are not one blank apart: %q", side, row)
+			// The label ends on pkr+2. Owner order 2026-11-28 (build 188):
+			// "only have one single space after PKR then start all the PKR
+			// values from that alignment", so one blank stands after the
+			// label and the figure's first digit stands on the cell after it.
+			if r[pkr+3] != ' ' {
+				t.Fatalf("side %d: the label touches its value: %q", side, row)
+			}
+			if r[pkr+4] < '0' || r[pkr+4] > '9' {
+				t.Fatalf("side %d: PKR is not followed by one space and a figure: %q", side, row)
 			}
 			pct := runeAt(row, "%")
 			if pct < 0 || pct+1 >= len(r) {

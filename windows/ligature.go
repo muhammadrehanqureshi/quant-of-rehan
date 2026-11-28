@@ -11,7 +11,7 @@ import (
 // U+FDFD, and it "should take about 40% of the screen". A console cell holds
 // one glyph at one fixed size, so a single character can never fill a corner of
 // the gate: the mark is therefore drawn as the glyph's own ink, sampled into
-// the solid blocks a cell carries (a cell's top half, its bottom half, or both).
+// the dots a cell carries, one dot in one cell, so a stroke is one line.
 // Nothing is retyped and no letter is approximated: the shape below is the
 // character he named, rendered by Windows' own text engine at ligature size and
 // then cut into cells, which is the only way a console can show it large.
@@ -113,10 +113,20 @@ func ligatureDots(m ligatureMask, dw, dh int) [][]bool {
 	return dots
 }
 
-// ligatureRows turns the dot grid into cells: a lit top dot is the upper half
-// block, a lit bottom dot the lower half, both the full block. Two dot rows
-// become one cell row, and the rows keep the grid's own width so the banner is
-// centred by its cells and not by its ink.
+// bannerDot is the one character the banner's ink is drawn in.
+//
+// Owner order 2026-11-28 (build 188): "make a dotted line render from that
+// picture, don't double dot it, only keep one single dotted line for the
+// render". A cell used to carry two dot rows, an upper and a lower half
+// block, so a stroke of the ink came out as a doubled line. The banner now
+// lights one dot in one cell, so every stroke is a single line of dots.
+const bannerDot = '·'
+
+// ligatureRows turns the dot grid into cells: one dot per cell. Two dot rows
+// become one cell row, the cell lit when either of them carries ink, so a
+// stroke stays whole while no cell is ever given a second dot. The rows keep
+// the grid's own width, so the banner is centred by its cells and not by its
+// ink.
 func ligatureRows(dots [][]bool) []string {
 	if len(dots) == 0 || len(dots[0]) == 0 {
 		return nil
@@ -125,17 +135,11 @@ func ligatureRows(dots [][]bool) []string {
 	rows := make([]string, 0, (len(dots)+1)/2)
 	for y := 0; y < len(dots); y += 2 {
 		var b strings.Builder
+		b.Grow(w)
 		for x := 0; x < w; x++ {
-			top := dots[y][x]
-			bot := y+1 < len(dots) && dots[y+1][x]
-			switch {
-			case top && bot:
-				b.WriteRune('█')
-			case top:
-				b.WriteRune('▀')
-			case bot:
-				b.WriteRune('▄')
-			default:
+			if dots[y][x] || (y+1 < len(dots) && dots[y+1][x]) {
+				b.WriteRune(bannerDot)
+			} else {
 				b.WriteByte(' ')
 			}
 		}
@@ -172,5 +176,11 @@ func basmalaOn(rows string) bool {
 	if strings.Contains(rows, basmalaBanner) {
 		return true
 	}
-	return strings.ContainsAny(rows, "▀▄█")
+	if strings.ContainsAny(rows, "▀▄█") {
+		return true
+	}
+	// Owner order 2026-11-28 (build 188): the mark is dots now. Two dots side
+	// by side are a stroke of it, while the HUD's own one dot never makes a
+	// pair, so a screen is still told apart by its banner alone.
+	return strings.Contains(rows, strings.Repeat(string(bannerDot), 2))
 }
